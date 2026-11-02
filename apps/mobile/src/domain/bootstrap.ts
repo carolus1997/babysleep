@@ -81,6 +81,7 @@ export async function ensureBootstrap(db: BabySleepDb, now: () => number = Date.
       await db.meta.put({ key: 'bootstrap', value: { at, contract_version: CONTRACT_VERSION } });
     });
   }
+  db.syncEnabled = (await db.meta.get('sync_enabled'))?.value === true;
   const ctx = await loadCtx(db, now);
   await ensureSystemSeeds(ctx);
   await repairDuplicateSeeds(ctx);
@@ -95,7 +96,7 @@ export async function ensureBootstrap(db: BabySleepDb, now: () => number = Date.
 export async function ensureSystemSeeds(ctx: Ctx): Promise<number> {
   const { db } = ctx;
   let added = 0;
-  await db.transaction('rw', db.tag, db.event_category, async () => {
+  await db.transaction('rw', db.tables, async () => {
     const tags = await db.tag.toArray();
     for (const t of SEED_TAGS) {
       if (tags.some((x) => x.kind === 'system' && x.tag_slug === t.slug && x.deleted_at === null)) continue;

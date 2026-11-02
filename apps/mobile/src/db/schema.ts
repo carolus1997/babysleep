@@ -15,6 +15,8 @@ import type {
   WakeEpisodeT,
 } from '@babysleep/contract';
 
+import type { SyncTable } from '../sync/tables';
+
 export interface MetaRow {
   key: string;
   value: unknown;
@@ -33,8 +35,39 @@ export interface BabyPhotoRow {
   updated_at: string;
 }
 
+/** Operación local pendiente de enviar (ver `sync/outbox.ts`). */
+export interface OutboxRow {
+  seq?: number;
+  table: SyncTable;
+  row_id: string;
+  op_id: string;
+  /** Segundo id estable, para el borrado que acompaña a un alta enviada en el mismo lote. */
+  op_id_delete: string;
+  is_insert: boolean;
+  fields: Record<string, unknown>;
+  delete: boolean;
+  restore: boolean;
+  /** Veces que se ha intentado enviar; con > 0 el contenido queda congelado. */
+  attempts: number;
+  /** Motivo de rechazo del servidor; el registro se conserva hasta resolverlo. */
+  error: string | null;
+}
+
+/** Última versión del servidor conocida para una fila (`table:id`): es el `base_rev` de la siguiente edición. */
+export interface SyncRowRow {
+  key: string;
+  server_rev: number;
+}
+
 export class BabySleepDb extends Dexie {
   baby_photo!: Table<BabyPhotoRow, string>;
+  outbox!: Table<OutboxRow, number>;
+  sync_row!: Table<SyncRowRow, string>;
+  /**
+   * Sincronización activada. Se mantiene en memoria para que la ruta de escritura normal no haga
+   * ninguna lectura extra: con `false` la app escribe exactamente igual que antes de la Fase 2.
+   */
+  syncEnabled = false;
   family!: Table<FamilyT, string>;
   caregiver!: Table<CaregiverT, string>;
   baby!: Table<BabyT, string>;
@@ -70,6 +103,8 @@ export class BabySleepDb extends Dexie {
     });
     // v2: foto local del bebé. Solo añade una tabla; no migra ni toca datos existentes.
     this.version(2).stores({ baby_photo: 'baby_id' });
+    // v3: cola de sincronización y última versión conocida del servidor. Solo añade tablas.
+    this.version(3).stores({ outbox: '++seq, [table+row_id]', sync_row: 'key' });
   }
 }
 

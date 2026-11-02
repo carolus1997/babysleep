@@ -12,6 +12,7 @@ import {
   WakeEpisode,
 } from '@babysleep/contract';
 import { toIso } from '@babysleep/core';
+import { recordLocalWrite } from '../sync/outbox';
 import type { Ctx } from './context';
 import { EXPORT_FORMAT, EXPORT_VERSION } from './export';
 
@@ -262,12 +263,15 @@ export async function applyImport(ctx: Ctx, plan: ImportPlan, opts: { overwriteN
       const rows = plan.toAdd[name] ?? [];
       if (rows.length > 0) {
         await ctx.db.table(name).bulkAdd(rows);
+        for (const r of rows) await recordLocalWrite(ctx.db.table(name), r, null);
         added += rows.length;
       }
     }
     if (opts.overwriteNewer === true) {
       for (const c of plan.newerInBackup) {
         await ctx.db.table(c.table).put(c.row);
+        // Para la cola: la fila entera como edición (con su estado de papelera)
+        await recordLocalWrite(ctx.db.table(c.table), c.row, { ...c.row });
         overwritten++;
       }
     }

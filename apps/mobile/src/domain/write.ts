@@ -1,5 +1,7 @@
 import { toIso, uuidv7 } from '@babysleep/core';
-import type { Table } from 'dexie';
+import Dexie, { type Table } from 'dexie';
+import type { BabySleepDb } from '../db/schema';
+import { recordLocalWrite, type AnyTable } from '../sync/outbox';
 import type { Ctx } from './context';
 import { DomainError } from './context';
 
@@ -30,8 +32,22 @@ type Validator<T> = { parse(input: unknown): T };
  */
 export async function insertRow<T extends Row>(table: Table<T, string>, schema: Validator<T>, row: unknown): Promise<T> {
   const valid = schema.parse(row);
-  await table.add(valid);
+  await withOutbox(table, async () => {
+    await table.add(valid);
+    await recordLocalWrite(table, valid, null);
+  });
   return valid;
+}
+
+/**
+ * Con la sincronización activada, la fila y su operación pendiente se guardan en UNA transacción (si la app
+ * se cierra a mitad, no queda una sin la otra). Con ella apagada, o ya dentro de otra transacción, no hace nada
+ * especial: la escritura es la de siempre.
+ */
+async function withOutbox<T>(table: AnyTable, fn: () => Promise<T>): Promise<T> {
+  const db = table.db as BabySleepDb;
+  if (!db.syncEnabled || Boolean(Dexie.currentTransaction)) return fn();
+  return db.transaction('rw', [table, db.outbox, db.sync_row], fn);
 }
 
 export async function updateRow<T extends Row>(
@@ -51,7 +67,10 @@ export async function updateRow<T extends Row>(
     updated_by: ctx.caregiverId,
     origin_device_id: ctx.deviceId,
   });
-  await table.put(next);
+  await withOutbox(table, async () => {
+    await table.put(next);
+    await recordLocalWrite(table, next, patch as Record<string, unknown>);
+  });
   return next;
 }
 

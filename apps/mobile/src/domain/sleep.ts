@@ -149,7 +149,7 @@ export async function cancelSleep(ctx: Ctx, sessionId: string): Promise<SleepSes
   if (s === undefined) throw new DomainError('not_found', 'Sesión inexistente');
   if (s.sleep_end_utc !== null) throw new DomainError('invalid', 'Solo se cancela un sueño en curso');
   if (s.deleted_at !== null) return s;
-  return ctx.db.transaction('rw', ctx.db.sleep_session, ctx.db.settling_attempt, async () => {
+  return ctx.db.transaction('rw', ctx.db.tables, async () => {
     const deleted = await softDelete(ctx, ctx.db.sleep_session, SleepSession, sessionId);
     if (s.settling_attempt_id !== null) {
       await updateRow(ctx, ctx.db.settling_attempt, SettlingAttempt, s.settling_attempt_id, { status: 'abandoned' });
@@ -166,7 +166,7 @@ export async function undoCancelSleep(ctx: Ctx, sessionId: string): Promise<Slee
   if (s.sleep_end_utc === null && (await getOpenSession(ctx, s.baby_id)) !== undefined) {
     throw new DomainError('invalid', 'Ya hay otro sueño en curso');
   }
-  return ctx.db.transaction('rw', ctx.db.sleep_session, ctx.db.settling_attempt, async () => {
+  return ctx.db.transaction('rw', ctx.db.tables, async () => {
     const restored = await restoreRow(ctx, ctx.db.sleep_session, SleepSession, sessionId);
     if (s.settling_attempt_id !== null) {
       await updateRow(ctx, ctx.db.settling_attempt, SettlingAttempt, s.settling_attempt_id, { status: 'linked' });

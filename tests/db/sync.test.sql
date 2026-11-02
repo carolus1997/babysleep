@@ -390,4 +390,64 @@ begin
   perform tests.assert(n = 0, 'S15g la foto no existe en el servidor');
 end $$;
 
+-- S16 · restaurar (0005): vuelve de la papelera sin conflicto; borrar y restaurar a la vez se rechaza
+do $$
+declare r jsonb; v_rev int; v_del timestamptz; n int;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('sleep_session', 30, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'sleep_start_utc', '2027-01-14T20:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'sleep_type', 'night', 'type_source', 'manual', 'source', 'manual')));
+  r := tests.go(tests.op('sleep_session', 30, 1, null, true));                      -- borrar (rev 2)
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 2, 'S16a borrado aplicado');
+
+  r := tests.go(jsonb_build_object('op_id', gen_random_uuid(), 'table', 'sleep_session', 'row_id', tests.u(30),
+                                   'base_rev', 2, 'fields', '{}'::jsonb, 'restore', true));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 3, 'S16b restaurar aplicado');
+  perform tests.as_superuser();
+  select deleted_at into v_del from app.sleep_session where id = tests.u(30);
+  select count(*) into n from app.sync_conflict where row_id = tests.u(30);
+  perform tests.assert(v_del is null and n = 0, 'S16c la fila vuelve y no hay conflicto');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(jsonb_build_object('op_id', gen_random_uuid(), 'table', 'sleep_session', 'row_id', tests.u(30),
+                                   'base_rev', 3, 'fields', '{}'::jsonb, 'restore', true));
+  perform tests.assert(r ->> 'status' = 'noop', 'S16d restaurar una fila viva es un no-op');
+  r := tests.go(jsonb_build_object('op_id', gen_random_uuid(), 'table', 'sleep_session', 'row_id', tests.u(30),
+                                   'base_rev', 3, 'fields', '{}'::jsonb, 'restore', true, 'delete', true));
+  perform tests.assert(r ->> 'status' = 'rejected' and r ->> 'reason' = 'delete_and_restore', 'S16e delete y restore a la vez se rechazan');
+  perform tests.as_superuser();
+end $$;
+
+-- S17 · edición y borrado en la misma op: se fusionan los campos y después se borra
+do $$
+declare r jsonb; v_type text; v_del timestamptz; v_rev int;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('sleep_session', 31, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'sleep_start_utc', '2027-01-14T20:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'sleep_type', 'night', 'type_source', 'manual', 'source', 'manual')));
+  r := tests.go(tests.op('sleep_session', 31, 1, '{"sleep_type":"nap"}', true));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 2, 'S17a edición + borrado en una sola escritura');
+  perform tests.as_superuser();
+  select sleep_type, deleted_at into v_type, v_del from app.sleep_session where id = tests.u(31);
+  perform tests.assert(v_type = 'nap' and v_del is not null, 'S17b el campo se aplicó y la fila está borrada');
+
+  -- con ediciones ajenas posteriores a base_rev: los campos se aplican pero la fila NO se borra
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('sleep_session', 32, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'sleep_start_utc', '2027-01-14T20:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'sleep_type', 'night', 'type_source', 'manual', 'source', 'manual')));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  perform tests.go(tests.op('sleep_session', 32, 1, '{"awakenings_completeness":"partial"}'));    -- rev 2
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('sleep_session', 32, 1, '{"sleep_type":"nap"}', true));                  -- base obsoleta
+  perform tests.assert(r ->> 'status' = 'merged', 'S17c con ediciones ajenas: se fusiona y se avisa del conflicto');
+  perform tests.as_superuser();
+  select sleep_type, deleted_at into v_type, v_del from app.sleep_session where id = tests.u(32);
+  perform tests.assert(v_type = 'nap' and v_del is null
+    and exists (select 1 from app.sync_conflict where row_id = tests.u(32) and kind = 'delete_vs_edit' and status = 'open'),
+    'S17d no se borra y queda el conflicto');
+end $$;
+
 rollback;
