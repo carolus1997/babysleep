@@ -276,7 +276,7 @@ begin
   v_code := current_setting('t.code_a');
   select count(*) into n from app.membership_claim m where m::text like '%' || v_code || '%';
   perform tests.assert(n = 0, 'T14a el código en claro no aparece en membership_claim');
-  select count(*) into n from app.audit_log a where a::text like '%' || v_code || '%';
+  select count(*) into n from app.audit_log al where al::text like '%' || v_code || '%';
   perform tests.assert(n = 0, 'T14b el código en claro no aparece en audit_log');
   select count(*) into n from app.audit_log where event = 'claim_ok';
   perform tests.assert(n >= 3, 'T14c la auditoría registra los canjes correctos');
