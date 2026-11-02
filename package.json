@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:private-data": "node tools/check-no-private-data.mjs",
-    "check": "npm run check:private-data && npm run typecheck && npm run test"
+    "check": "npm run check:private-data && node tools/build-supabase-setup.mjs --check && npm run typecheck && npm run test",
+    "build:supabase-sql": "node tools/build-supabase-setup.mjs"
   },
   "devDependencies": {
     "@types/luxon": "^3.4.2",

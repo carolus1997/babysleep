@@ -20,6 +20,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check:private-data
+      - name: El SQL único de Supabase está al día con las migraciones
+        run: node tools/build-supabase-setup.mjs --check
       - run: npm run typecheck
       - run: npm test
       - name: La PWA compila
