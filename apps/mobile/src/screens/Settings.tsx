@@ -5,32 +5,151 @@ import { createBaby, renameBaby } from '../domain/bootstrap';
 import { buildBackupJson, buildSessionsCsv } from '../domain/export';
 import { applyImport, planImport, type ImportPlan } from '../domain/import';
 import { addLifeEvent, deleteLifeEvent, listLifeEvents } from '../domain/notes';
+import { removeBabyPhoto, setBabyPhoto } from '../domain/photo';
 import { t } from '../i18n/es';
 import { download, fmtAge } from '../ui/format';
 import { getThemePref, setThemePref, useLive, type ThemePref } from '../ui/hooks';
+import { resizeImage } from '../ui/image';
+import { Avatar, useBabyPhotoUrl, useBlobUrl } from '../ui/photo';
 import { Btn, Card, Chip, Field, inputCls, Sheet } from '../ui/primitives';
 
 const THEMES: ThemePref[] = ['auto', 'light', 'dark', 'night'];
 
+/** Texto de un campo numérico → número, `null` si está vacío, NaN si no se entiende (lo rechaza el dominio). */
+const toNum = (s: string): number | null => (s.trim() === '' ? null : Number(s.trim().replace(',', '.')));
+
 function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void }) {
-  const { ctx, run } = useApp();
+  const { ctx, run, toast } = useApp();
   const [alias, setAlias] = useState(baby?.alias ?? '');
   const [birth, setBirth] = useState(baby?.birth_date ?? '');
+  const [sex, setSex] = useState<'female' | 'male' | null>(baby?.sex ?? null);
+  const [gest, setGest] = useState(baby?.gestational_weeks?.toString() ?? '');
+  const [weight, setWeight] = useState(baby?.birth_weight_g?.toString() ?? '');
+  const [length, setLength] = useState(baby?.birth_length_cm?.toString() ?? '');
+  const [notes, setNotes] = useState(baby?.notes ?? '');
+  // undefined = sin cambios · Blob = foto nueva (aún sin guardar) · null = quitar la foto
+  const [photo, setPhoto] = useState<Blob | null | undefined>(undefined);
+  const saved = useBabyPhotoUrl(baby?.id ?? '');
+  const pending = useBlobUrl(photo instanceof Blob ? photo : null);
+  const shown = photo === undefined ? saved : pending;
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      setPhoto(await resizeImage(file));
+    } catch {
+      toast(t('baby.photo.error'));
+    }
+  };
+
   return (
     <Sheet title={baby ? t('common.edit') : t('settings.addBaby')} onClose={onClose}>
+      <div className="mb-4 flex items-center gap-4">
+        {shown ? (
+          <img src={shown} alt="" className="size-24 shrink-0 rounded-full object-cover" />
+        ) : (
+          <span aria-hidden className="inline-flex size-24 shrink-0 items-center justify-center rounded-full bg-surface2 text-3xl text-muted">
+            {alias.trim().slice(0, 1).toUpperCase() || '☺'}
+          </span>
+        )}
+        <div className="flex flex-col gap-2">
+          <Btn onClick={() => galleryRef.current?.click()}>{t('baby.photo.gallery')}</Btn>
+          <Btn onClick={() => cameraRef.current?.click()}>{t('baby.photo.camera')}</Btn>
+          {shown && (
+            <Btn variant="ghost" onClick={() => setPhoto(null)}>
+              {t('baby.photo.remove')}
+            </Btn>
+          )}
+        </div>
+        <input
+          ref={galleryRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          aria-label={t('baby.photo.gallery')}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            void pick(f);
+          }}
+        />
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          aria-label={t('baby.photo.camera')}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            void pick(f);
+          }}
+        />
+      </div>
+      <p className="mb-4 text-xs text-muted">{t('baby.photo.hint')}</p>
+
       <Field label={t('baby.alias')}>
         <input className={inputCls} value={alias} onChange={(e) => setAlias(e.target.value)} />
       </Field>
       <Field label={t('baby.birth')}>
         <input className={inputCls} type="date" value={birth} onChange={(e) => setBirth(e.target.value)} />
       </Field>
+
+      <p className="mb-2 mt-1 text-sm font-semibold uppercase tracking-wide text-muted">{t('baby.more')}</p>
+      <div className="mb-3" role="group" aria-label={t('baby.sex')}>
+        <span className="mb-1 block text-sm font-medium text-muted">{t('baby.sex')}</span>
+        <div className="flex flex-wrap gap-2">
+          <Chip active={sex === 'female'} onClick={() => setSex('female')}>
+            {t('baby.sex.female')}
+          </Chip>
+          <Chip active={sex === 'male'} onClick={() => setSex('male')}>
+            {t('baby.sex.male')}
+          </Chip>
+          <Chip active={sex === null} onClick={() => setSex(null)}>
+            {t('baby.sex.none')}
+          </Chip>
+        </div>
+      </div>
+      <Field label={t('baby.gestation')}>
+        <input className={inputCls} inputMode="numeric" value={gest} onChange={(e) => setGest(e.target.value)} placeholder="40" />
+        <span className="mt-1 block text-xs text-muted">{t('baby.gestationHint')}</span>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={t('baby.weight')}>
+          <input className={inputCls} inputMode="numeric" value={weight} onChange={(e) => setWeight(e.target.value)} />
+        </Field>
+        <Field label={t('baby.length')}>
+          <input className={inputCls} inputMode="decimal" value={length} onChange={(e) => setLength(e.target.value)} />
+        </Field>
+      </div>
+      <Field label={t('baby.notes')}>
+        <textarea className={`${inputCls} py-2`} rows={3} maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </Field>
+
       <Btn
         variant="primary"
         className="w-full"
         disabled={alias.trim() === '' || birth === ''}
         onClick={async () => {
-          const ok = await run(() => (baby ? renameBaby(ctx, baby.id, { alias: alias.trim(), birth_date: birth }) : createBaby(ctx, { alias, birthDate: birth })));
-          if (ok) onClose();
+          const profile = {
+            sex,
+            gestational_weeks: toNum(gest),
+            birth_weight_g: toNum(weight),
+            birth_length_cm: toNum(length),
+            notes,
+          };
+          const result = await run(async () => {
+            const b = baby
+              ? await renameBaby(ctx, baby.id, { alias, birth_date: birth, ...profile })
+              : await createBaby(ctx, { alias, birthDate: birth, ...profile });
+            if (photo instanceof Blob) await setBabyPhoto(ctx, b.id, photo);
+            else if (photo === null) await removeBabyPhoto(ctx, b.id);
+            return b;
+          });
+          if (result) onClose();
         }}
       >
         {t('common.save')}
@@ -177,10 +296,12 @@ export function Settings() {
         <ul className="divide-y divide-line">
           {babies.map((b) => (
             <li key={b.id} className="flex min-h-14 items-center justify-between">
-              <span>
-                <span className="mr-2 inline-block size-3 rounded-full" style={{ background: b.color ?? 'var(--accent)' }} />
-                <span className="font-medium">{b.alias}</span>
-                <span className="ml-2 text-sm text-muted">{fmtAge(b.birth_date, Date.now())}</span>
+              <span className="flex items-center gap-3">
+                <Avatar baby={b} size={36} />
+                <span>
+                  <span className="font-medium">{b.alias}</span>
+                  <span className="ml-2 text-sm text-muted">{fmtAge(b.birth_date, Date.now())}</span>
+                </span>
               </span>
               <Btn variant="ghost" onClick={() => setBabySheet(b)}>
                 {t('common.edit')}

@@ -219,9 +219,51 @@ export async function listBabies(ctx: Ctx) {
   return all.filter((b) => b.deleted_at === null).sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 
-export async function createBaby(ctx: Ctx, input: { alias: string; birthDate: string; color?: string }) {
+/** Datos opcionales del perfil; `null` = desconocido (nunca 0). */
+export interface BabyProfileFields {
+  sex?: 'female' | 'male' | null;
+  gestational_weeks?: number | null;
+  birth_weight_g?: number | null;
+  birth_length_cm?: number | null;
+  notes?: string | null;
+}
+
+const RANGES = {
+  gestational_weeks: { min: 22, max: 44, int: true, label: 'Las semanas de gestación' },
+  birth_weight_g: { min: 300, max: 7000, int: true, label: 'El peso al nacer (g)' },
+  birth_length_cm: { min: 20, max: 70, int: false, label: 'La talla al nacer (cm)' },
+} as const;
+
+/** Valida y normaliza el perfil con mensajes en español (el contrato también valida, pero con errores técnicos). */
+function cleanProfile(p: BabyProfileFields): BabyProfileFields {
+  const out: BabyProfileFields = {};
+  if (p.sex !== undefined) out.sex = p.sex;
+  for (const key of ['gestational_weeks', 'birth_weight_g', 'birth_length_cm'] as const) {
+    const v = p[key];
+    if (v === undefined) continue;
+    if (v !== null) {
+      const r = RANGES[key];
+      if (!Number.isFinite(v) || v < r.min || v > r.max || (r.int && !Number.isInteger(v))) {
+        throw new DomainError('invalid', `${r.label} debe estar entre ${r.min} y ${r.max}${r.int ? ' (número entero)' : ''}`);
+      }
+    }
+    out[key] = v;
+  }
+  if (p.notes !== undefined) {
+    const n = p.notes === null ? '' : p.notes.trim();
+    if (n.length > 1000) throw new DomainError('invalid', 'Las notas admiten 1000 caracteres como máximo');
+    out.notes = n === '' ? null : n;
+  }
+  return out;
+}
+
+export async function createBaby(
+  ctx: Ctx,
+  input: { alias: string; birthDate: string; color?: string } & BabyProfileFields,
+) {
   const alias = input.alias.trim();
   if (alias.length === 0) throw new DomainError('invalid', 'El alias es obligatorio');
+  const { alias: _a, birthDate, color, ...profile } = input;
   const count = (await listBabies(ctx)).length;
   const baby = await insertRow(
     ctx.db.baby,
@@ -229,16 +271,29 @@ export async function createBaby(ctx: Ctx, input: { alias: string; birthDate: st
     Baby.parse({
       ...newRow(ctx),
       alias,
-      birth_date: input.birthDate,
-      color: input.color ?? PALETTE[count % PALETTE.length] ?? null,
+      birth_date: birthDate,
+      color: color ?? PALETTE[count % PALETTE.length] ?? null,
+      ...cleanProfile(profile),
     }),
   );
   await setActiveBabyId(ctx, baby.id);
   return baby;
 }
 
-export async function renameBaby(ctx: Ctx, id: string, patch: { alias?: string; birth_date?: string; color?: string | null }) {
-  return updateRow(ctx, ctx.db.baby, Baby, id, patch);
+export async function renameBaby(
+  ctx: Ctx,
+  id: string,
+  patch: { alias?: string; birth_date?: string; color?: string | null } & BabyProfileFields,
+) {
+  const { alias, birth_date, color, ...profile } = patch;
+  const changes: Record<string, unknown> = { ...cleanProfile(profile) };
+  if (alias !== undefined) {
+    if (alias.trim() === '') throw new DomainError('invalid', 'El alias es obligatorio');
+    changes['alias'] = alias.trim();
+  }
+  if (birth_date !== undefined) changes['birth_date'] = birth_date;
+  if (color !== undefined) changes['color'] = color;
+  return updateRow(ctx, ctx.db.baby, Baby, id, changes);
 }
 
 export async function getActiveBabyId(ctx: Ctx): Promise<string | null> {

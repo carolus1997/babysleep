@@ -26,7 +26,15 @@ export interface MetaRow {
  * estado de sincronización; toda escritura pasa ya por `domain/write.ts` para que
  * ese cambio sea local a una sola capa.
  */
+/** Foto del bebé: local, fuera del contrato y de las copias (ver `domain/photo.ts`). */
+export interface BabyPhotoRow {
+  baby_id: string;
+  blob: Blob;
+  updated_at: string;
+}
+
 export class BabySleepDb extends Dexie {
+  baby_photo!: Table<BabyPhotoRow, string>;
   family!: Table<FamilyT, string>;
   caregiver!: Table<CaregiverT, string>;
   baby!: Table<BabyT, string>;
@@ -60,6 +68,8 @@ export class BabySleepDb extends Dexie {
       aggregate_item: 'id, period_id',
       meta: 'key',
     });
+    // v2: foto local del bebé. Solo añade una tabla; no migra ni toca datos existentes.
+    this.version(2).stores({ baby_photo: 'baby_id' });
   }
 }
 

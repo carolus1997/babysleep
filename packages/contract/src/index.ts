@@ -7,7 +7,7 @@ import { z } from 'zod';
  * de PostgreSQL (database/migrations). Los instantes son siempre UTC ISO-8601
  * con sufijo `Z`; la zona IANA y el offset viajan aparte en cada evento.
  */
-export const CONTRACT_VERSION = '0.1.0';
+export const CONTRACT_VERSION = '0.2.0';
 
 // ---------------------------------------------------------------- primitivos
 
@@ -75,10 +75,22 @@ export const Caregiver = SyncedRow.extend({
   status: z.enum(['invited', 'active', 'disabled']),
 });
 
+export const BabySex = z.enum(['female', 'male']);
+
+/**
+ * Perfil del bebé. Todos los datos opcionales son `null` si no se conocen (nunca 0).
+ * La foto NO forma parte del contrato: vive solo en el dispositivo y no se sincroniza.
+ */
 export const Baby = SyncedRow.extend({
   alias: z.string().min(1),
   birth_date: LocalDate,
   color: z.string().nullable(),
+  sex: BabySex.nullable().default(null),
+  /** Semanas completas de gestación al nacer; relevante para la edad corregida. */
+  gestational_weeks: z.number().int().min(22).max(44).nullable().default(null),
+  birth_weight_g: z.number().int().min(300).max(7000).nullable().default(null),
+  birth_length_cm: z.number().min(20).max(70).nullable().default(null),
+  notes: z.string().max(1000).nullable().default(null),
 });
 
 export const SleepSession = SyncedRow.extend({

@@ -66,6 +66,27 @@
   color-scheme: dark;
 }
 
+/*
+ * Foto del bebé como fondo: solo en el tema claro y muy tenue. En oscuro y noche no se
+ * muestra (no debe deslumbrar). Con foto, las tarjetas se vuelven ligeramente translúcidas.
+ */
+.photo-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+}
+[data-theme='light'] .photo-bg {
+  opacity: 0.16;
+}
+[data-theme='light'][data-photo] {
+  --surface: rgb(255 255 255 / 0.82);
+  --surface2: rgb(236 238 248 / 0.82);
+}
+
 html,
 body,
 #root {

@@ -152,6 +152,22 @@ export const es = {
   'common.loading': 'Cargando…',
   'baby.alias': 'Nombre o alias',
   'baby.birth': 'Nacimiento',
+  'baby.sex': 'Sexo',
+  'baby.sex.female': 'Niña',
+  'baby.sex.male': 'Niño',
+  'baby.sex.none': 'Sin indicar',
+  'baby.gestation': 'Semanas de gestación al nacer',
+  'baby.gestationHint': 'Opcional. Importante si nació antes de la semana 37.',
+  'baby.weight': 'Peso al nacer (g)',
+  'baby.length': 'Talla al nacer (cm)',
+  'baby.notes': 'Notas del perfil',
+  'baby.more': 'Más datos (opcionales)',
+  'baby.photo': 'Foto',
+  'baby.photo.gallery': 'Elegir foto',
+  'baby.photo.camera': 'Hacer foto',
+  'baby.photo.remove': 'Quitar foto',
+  'baby.photo.hint': 'Se guarda solo en este teléfono: no se sincroniza ni entra en las copias. En el tema claro se usa como fondo muy tenue.',
+  'baby.photo.error': 'No se pudo leer la imagen',
 } as const;
 
 export type I18nKey = keyof typeof es;

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { mustResolveLocal, parseInstant, recordedDurationMs, settlingLatency } from '@babysleep/core';
-import { createBaby, ensureBootstrap, getActiveBabyId, listBabies } from '../src/domain/bootstrap';
+import { createBaby, ensureBootstrap, getActiveBabyId, listBabies, renameBaby } from '../src/domain/bootstrap';
 import { DomainError } from '../src/domain/context';
+import { buildBackupJson } from '../src/domain/export';
+import { getBabyPhoto, removeBabyPhoto, setBabyPhoto } from '../src/domain/photo';
 import { SEED_EVENT_CATEGORIES, SEED_TAGS } from '../src/domain/seed';
 import {
   addManualSession,
@@ -162,6 +164,85 @@ describe('conciliación opcional', () => {
     await cancelSettling(h.ctx, a.id);
     expect(await getOpenAttempt(h.ctx, baby)).toBeUndefined();
     expect(await h.ctx.db.settling_attempt.count()).toBe(1); // conservado
+  });
+});
+
+describe('perfil ampliado del bebé', () => {
+  it('guarda los datos opcionales; lo que no se indica queda en null, nunca en 0', async () => {
+    const h = await makeHarness();
+    const bare = await createBaby(h.ctx, { alias: 'Sin datos', birthDate: '2026-07-01' });
+    expect([bare.sex, bare.gestational_weeks, bare.birth_weight_g, bare.birth_length_cm, bare.notes]).toEqual([null, null, null, null, null]);
+
+    h.advance(1);
+    const full = await createBaby(h.ctx, {
+      alias: 'Completo', birthDate: '2026-07-01', sex: 'female', gestational_weeks: 36,
+      birth_weight_g: 2850, birth_length_cm: 48.5, notes: '  nació de madrugada  ',
+    });
+    expect(full).toMatchObject({ sex: 'female', gestational_weeks: 36, birth_weight_g: 2850, birth_length_cm: 48.5, notes: 'nació de madrugada' });
+  });
+
+  it('se edita y se pueden borrar los datos opcionales volviendo a null', async () => {
+    const h = await makeHarness();
+    const b = await createBaby(h.ctx, { alias: 'Ana', birthDate: '2026-07-01', birth_weight_g: 3000 });
+    const edited = await renameBaby(h.ctx, b.id, { sex: 'male', birth_weight_g: null, notes: '   ' });
+    expect(edited).toMatchObject({ sex: 'male', birth_weight_g: null, notes: null, alias: 'Ana', rev: 2 });
+  });
+
+  it('valida rangos con mensajes claros y no guarda nada si falla', async () => {
+    const h = await makeHarness();
+    expect(await code(createBaby(h.ctx, { alias: 'X', birthDate: '2026-07-01', gestational_weeks: 10 }))).toBe('invalid');
+    expect(await code(createBaby(h.ctx, { alias: 'X', birthDate: '2026-07-01', birth_weight_g: Number.NaN }))).toBe('invalid');
+    expect(await code(createBaby(h.ctx, { alias: 'X', birthDate: '2026-07-01', birth_weight_g: 3000.5 }))).toBe('invalid');
+    expect(await code(createBaby(h.ctx, { alias: 'X', birthDate: '2026-07-01', birth_length_cm: 5 }))).toBe('invalid');
+    expect(await h.ctx.db.baby.count()).toBe(0);
+    const b = await createBaby(h.ctx, { alias: 'Ok', birthDate: '2026-07-01' });
+    expect(await code(renameBaby(h.ctx, b.id, { alias: '  ' }))).toBe('invalid');
+    expect((await h.ctx.db.baby.get(b.id))?.alias).toBe('Ok');
+  });
+
+  it('un perfil guardado antes de existir estos campos se sigue pudiendo editar', async () => {
+    const h = await makeHarness();
+    const b = await createBaby(h.ctx, { alias: 'Antiguo', birthDate: '2026-07-01' });
+    const legacy: Record<string, unknown> = { ...b };
+    for (const k of ['sex', 'gestational_weeks', 'birth_weight_g', 'birth_length_cm', 'notes']) delete legacy[k];
+    await h.ctx.db.baby.put(legacy as unknown as typeof b);
+    const edited = await renameBaby(h.ctx, b.id, { birth_weight_g: 3100 });
+    expect(edited).toMatchObject({ birth_weight_g: 3100, sex: null, notes: null });
+  });
+});
+
+describe('foto del bebé: solo local', () => {
+  const jpeg = () => new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], { type: 'image/jpeg' });
+
+  it('se guarda, se recupera, se reemplaza y se quita', async () => {
+    const h = await makeHarness();
+    const baby = await babyOf(h);
+    expect(await getBabyPhoto(h.ctx, baby)).toBeUndefined();
+    await setBabyPhoto(h.ctx, baby, jpeg());
+    expect((await getBabyPhoto(h.ctx, baby))?.type).toBe('image/jpeg');
+    await setBabyPhoto(h.ctx, baby, new Blob([new Uint8Array([1])], { type: 'image/png' }));
+    expect(await h.ctx.db.baby_photo.count()).toBe(1);
+    expect((await getBabyPhoto(h.ctx, baby))?.type).toBe('image/png');
+    await removeBabyPhoto(h.ctx, baby);
+    expect(await getBabyPhoto(h.ctx, baby)).toBeUndefined();
+  });
+
+  it('rechaza lo que no es imagen o un bebé inexistente', async () => {
+    const h = await makeHarness();
+    const baby = await babyOf(h);
+    expect(await code(setBabyPhoto(h.ctx, baby, new Blob(['hola'], { type: 'text/plain' })))).toBe('invalid');
+    expect(await code(setBabyPhoto(h.ctx, '00000000-0000-4000-8000-000000000000', jpeg()))).toBe('not_found');
+    expect(await h.ctx.db.baby_photo.count()).toBe(0);
+  });
+
+  it('la foto no entra en las copias ni en el CSV (privacidad y tamaño)', async () => {
+    const h = await makeHarness();
+    const baby = await babyOf(h);
+    await setBabyPhoto(h.ctx, baby, jpeg());
+    const json = (await buildBackupJson(h.ctx)).content;
+    expect(json).not.toContain('baby_photo');
+    expect(json).not.toContain('image/jpeg');
+    expect(Object.keys(JSON.parse(json).tables)).not.toContain('baby_photo');
   });
 });
 

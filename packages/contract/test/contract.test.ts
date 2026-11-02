@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AggregateItem,
+  Baby,
   Family,
   Observation,
   SettlingAttempt,
@@ -96,6 +97,20 @@ describe('contrato Observation', () => {
     expect(Observation.safeParse(obs({ session_id: null, settling_attempt_id: U(3), moment: 'settling' })).success).toBe(true);
     expect(Observation.safeParse(obs({ settling_attempt_id: U(3) })).success).toBe(false);
     expect(Observation.safeParse(obs({ session_id: null })).success).toBe(false);
+  });
+});
+
+describe('contrato Baby', () => {
+  const baby = (over: Record<string, unknown> = {}) => ({ ...row(9), alias: 'Lía', birth_date: '2026-07-01', color: null, ...over });
+  it('los datos opcionales son null por defecto (una fila antigua sigue siendo válida)', () => {
+    const b = Baby.parse(baby());
+    expect([b.sex, b.gestational_weeks, b.birth_weight_g, b.birth_length_cm, b.notes]).toEqual([null, null, null, null, null]);
+  });
+  it('acepta valores plausibles y rechaza los imposibles', () => {
+    expect(Baby.safeParse(baby({ sex: 'female', gestational_weeks: 40, birth_weight_g: 3300, birth_length_cm: 50.5 })).success).toBe(true);
+    for (const bad of [{ sex: 'x' }, { gestational_weeks: 21 }, { gestational_weeks: 38.5 }, { birth_weight_g: 0 }, { birth_length_cm: 100 }]) {
+      expect(Baby.safeParse(baby(bad)).success, JSON.stringify(bad)).toBe(false);
+    }
   });
 });
 

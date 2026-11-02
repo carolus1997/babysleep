@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from './app/AppContext';
 import { t, type I18nKey } from './i18n/es';
 import { History } from './screens/History';
@@ -7,6 +7,7 @@ import { Onboarding } from './screens/Onboarding';
 import { Settings } from './screens/Settings';
 import { Stats } from './screens/Stats';
 import { fmtAge } from './ui/format';
+import { Avatar, useBabyPhotoUrl } from './ui/photo';
 import { Sheet } from './ui/primitives';
 
 type Tab = 'home' | 'history' | 'stats' | 'settings';
@@ -21,11 +22,19 @@ export function App() {
   const { baby, babies, selectBaby } = useApp();
   const [tab, setTab] = useState<Tab>('home');
   const [switching, setSwitching] = useState(false);
+  const photo = useBabyPhotoUrl(baby?.id ?? '');
+
+  // La hoja de estilos sabe si hay foto para volver translúcidas las tarjetas (solo tema claro).
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-photo', photo !== null);
+    return () => document.documentElement.removeAttribute('data-photo');
+  }, [photo]);
 
   if (babies.length === 0 || baby === null) return <Onboarding />;
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col">
+    <div className="relative mx-auto flex min-h-dvh max-w-md flex-col">
+      {photo && <div aria-hidden className="photo-bg" style={{ backgroundImage: `url(${photo})` }} />}
       <header
         className="sticky top-0 z-30 border-b-4 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]"
         style={{ borderBottomColor: baby.color ?? 'var(--accent)' }}
@@ -36,7 +45,7 @@ export function App() {
           aria-label={`${baby.alias}. Cambiar de bebé`}
         >
           <span className="flex items-center gap-2">
-            <span className="inline-block size-4 rounded-full" style={{ background: baby.color ?? 'var(--accent)' }} />
+            <Avatar baby={baby} size={32} />
             <span className="text-xl font-bold">{baby.alias}</span>
             <span className="text-sm text-muted">{fmtAge(baby.birth_date, Date.now())}</span>
           </span>
@@ -44,7 +53,7 @@ export function App() {
         </button>
       </header>
 
-      <main className="flex-1 px-4 pb-28 pt-4">
+      <main className="relative z-10 flex-1 px-4 pb-28 pt-4">
         {tab === 'home' && <Home goSettings={() => setTab('settings')} />}
         {tab === 'history' && <History />}
         {tab === 'stats' && <Stats />}
@@ -53,7 +62,7 @@ export function App() {
 
       <nav
         aria-label="Principal"
-        className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-md grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
+        className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-md grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
       >
         {TABS.map((x) => (
           <button
@@ -86,7 +95,7 @@ export function App() {
                     setSwitching(false);
                   }}
                 >
-                  <span className="inline-block size-4 rounded-full" style={{ background: b.color ?? 'var(--accent)' }} />
+                  <Avatar baby={b} size={32} />
                   <span className="font-semibold">{b.alias}</span>
                   <span className="text-sm text-muted">{fmtAge(b.birth_date, Date.now())}</span>
                 </button>

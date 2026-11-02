@@ -27,6 +27,8 @@ Toda la estadística y el tiempo salen de `@babysleep/core`; la app no recalcula
 ## Qué hace
 
 - **Perfiles** de varios bebés con cambio rápido (color en la cabecera para no registrar en el perfil equivocado).
+- **Perfil ampliado**, todo opcional (`null` = desconocido, nunca 0): sexo, semanas de gestación, peso y talla al nacer y notas. Se validan en la app, en el contrato y en la base de datos del servidor (migración 0004).
+- **Foto del bebé** desde la galería o la cámara. Se reduce a 1024 px y se recomprime en JPEG en el propio teléfono, lo que elimina los metadatos (incluida la ubicación GPS). Se guarda **solo en este dispositivo**, en una tabla aparte (`baby_photo`): no se sincroniza, no entra en las copias JSON/CSV y no existe en el servidor. Sirve de avatar y, **solo en el tema claro**, de fondo muy tenue (en oscuro y noche no se muestra).
 - **Iniciar sueño** = «hemos comprobado que está dormido», igual para siesta y noche. Se guardan instantes, no un contador: el cronómetro sobrevive a cerrar la app.
 - **Conciliación opcional**: «Empezar a dormirlo» y «Colocado en la cuna». Se enlaza sola al iniciar sueño. Sin ella, la latencia queda *desconocida* (nunca 0).
 - **«No quiere dormir»**: con un intento abierto, cancela el intento (queda guardado como abandonado). Con el sueño ya iniciado, **«No llegó a dormirse»** lo manda a la papelera, no cuenta en ninguna estadística y deja el intento como fallido. Ambos se pueden deshacer desde el aviso.
@@ -54,7 +56,8 @@ Toda la estadística y el tiempo salen de `@babysleep/core`; la app no recalcula
 ## Limitaciones conocidas
 
 - Sin sincronización ni cuentas (Fase 2). Un solo dispositivo por perfil.
-- La descarga de archivos y la selección del archivo de copia desde una PWA en iOS no se han probado en un iPhone real.
+- La descarga de archivos y la selección del archivo de copia desde una PWA en iOS no se han probado en un iPhone real. Tampoco la cámara y la galería para la foto del bebé.
+- La foto no viaja en las copias: al restaurar en otro dispositivo hay que volver a ponerla.
 - Al restaurar en otro dispositivo, la autoría de los registros pasa a ser la del cuidador local (no hay cuentas hasta la Fase 2).
 - El «almacenamiento protegido» depende del navegador; se solicita, pero no está garantizado.
 - Aún no hay ventanas de vigilia, hora habitual ni predicción (Fases 3–4).

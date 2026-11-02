@@ -355,4 +355,39 @@ begin
   perform tests.assert(k = 0, 'S14c el historial de A es invisible para B');
 end $$;
 
+-- S15 · perfil ampliado del bebé (migración 0004): se sincroniza, se valida y se fusiona por campo
+do $$
+declare r jsonb; v_rev int; v_w int; v_s text; v_len numeric; v_notes text; n int;
+begin
+  perform tests.as_superuser();
+  select rev into v_rev from app.baby where id = tests.u(1);
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('baby', 1, v_rev, '{"sex":"female","gestational_weeks":36,"birth_weight_g":2850,"birth_length_cm":48.5}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S15a el perfil ampliado se aplica');
+
+  -- papá edita OTRO campo con base obsoleta: se fusiona
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  r := tests.go(tests.op('baby', 1, v_rev, '{"notes":"nació de madrugada"}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S15b otro campo con base obsoleta se fusiona');
+
+  perform tests.as_superuser();
+  select sex, birth_weight_g, birth_length_cm, notes into v_s, v_w, v_len, v_notes from app.baby where id = tests.u(1);
+  perform tests.assert(v_s = 'female' and v_w = 2850 and v_len = 48.5 and v_notes = 'nació de madrugada', 'S15c ambos cambios conviven');
+
+  -- valores imposibles: los rechaza la base de datos, no solo la app
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  select rev into v_rev from app.baby where id = tests.u(1);
+  r := tests.go(tests.op('baby', 1, v_rev, '{"birth_weight_g":5}'));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S15d un peso imposible se rechaza');
+  r := tests.go(tests.op('baby', 1, v_rev, '{"sex":"x"}'));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S15e un sexo no válido se rechaza');
+  perform tests.as_superuser();
+  select birth_weight_g into v_w from app.baby where id = tests.u(1);
+  perform tests.assert(v_w = 2850, 'S15f lo rechazado no altera el perfil');
+  -- no existe columna de foto en el servidor
+  select count(*) into n from information_schema.columns where table_schema = 'app' and table_name = 'baby' and column_name ilike '%photo%';
+  perform tests.assert(n = 0, 'S15g la foto no existe en el servidor');
+end $$;
+
 rollback;
