@@ -29,8 +29,9 @@ Toda la estadística y el tiempo salen de `@babysleep/core`; la app no recalcula
 - **Perfiles** de varios bebés con cambio rápido (color en la cabecera para no registrar en el perfil equivocado).
 - **Iniciar sueño** = «hemos comprobado que está dormido», igual para siesta y noche. Se guardan instantes, no un contador: el cronómetro sobrevive a cerrar la app.
 - **Conciliación opcional**: «Empezar a dormirlo» y «Colocado en la cuna». Se enlaza sola al iniciar sueño. Sin ella, la latencia queda *desconocida* (nunca 0).
+- **«No quiere dormir»**: con un intento abierto, cancela el intento (queda guardado como abandonado). Con el sueño ya iniciado, **«No llegó a dormirse»** lo manda a la papelera, no cuenta en ninguna estadística y deja el intento como fallido. Ambos se pueden deshacer desde el aviso.
 - **Registro manual** con horas locales en `Europe/Madrid`; las horas ambiguas o inexistentes por el cambio de horario se piden o se rechazan, no se corrigen en silencio.
-- **Notas y etiquetas** al dormirse, durante, al despertar y en la conciliación. Opcionales y editables después.
+- **Notas y etiquetas** al dormirse (incluye «En porteo»), durante, al despertar y en la conciliación. Opcionales y editables después. Las etiquetas de sistema nuevas se añaden solas al abrir una versión más reciente de la app (por `slug`, sin tocar las existentes).
 - **Historial** por día, con papelera (borrado lógico) y aviso de solapes pendientes de revisión.
 - **Estadísticas** de 7/14/28 días con calidad del dato visible; los promedios usan solo días con datos.
 - **Diario de acontecimientos** básico (visible en el historial).

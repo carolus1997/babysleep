@@ -6,6 +6,7 @@ import { SEED_EVENT_CATEGORIES, SEED_TAGS } from '../src/domain/seed';
 import {
   addManualSession,
   cancelSettling,
+  cancelSleep,
   deleteSession,
   editSession,
   finishSleep,
@@ -14,9 +15,11 @@ import {
   listSessions,
   markPutDown,
   nudgeTime,
+  reopenSettling,
   restoreSession,
   startSettling,
   startSleep,
+  undoCancelSleep,
 } from '../src/domain/sleep';
 import { addLifeEvent, listLifeEvents, listTags, saveObservation, tagIdsOf } from '../src/domain/notes';
 import { HOUR, MADRID, makeHarness, MIN } from './harness';
@@ -159,6 +162,82 @@ describe('conciliación opcional', () => {
     await cancelSettling(h.ctx, a.id);
     expect(await getOpenAttempt(h.ctx, baby)).toBeUndefined();
     expect(await h.ctx.db.settling_attempt.count()).toBe(1); // conservado
+  });
+});
+
+describe('«no quiere dormir»: cancelar sin perder el rastro', () => {
+  it('cancelar un sueño en curso lo manda a la papelera, deja el intento como abandonado y se puede deshacer', async () => {
+    const h = await makeHarness('2027-01-15T14:00');
+    const baby = await babyOf(h);
+    const attempt = await startSettling(h.ctx, baby);
+    h.advance(20 * MIN);
+    const s = await startSleep(h.ctx, baby);
+    expect((await h.ctx.db.settling_attempt.get(attempt.id))?.status).toBe('linked');
+    h.advance(2 * MIN);
+
+    await cancelSleep(h.ctx, s.id);
+    expect(await getOpenSession(h.ctx, baby)).toBeUndefined();
+    expect(await listSessions(h.ctx, baby)).toHaveLength(0);
+    expect(await listSessions(h.ctx, baby, { includeDeleted: true })).toHaveLength(1); // conservada
+    expect((await h.ctx.db.settling_attempt.get(attempt.id))?.status).toBe('abandoned');
+    expect(await getOpenAttempt(h.ctx, baby)).toBeUndefined();
+
+    await undoCancelSleep(h.ctx, s.id);
+    expect((await getOpenSession(h.ctx, baby))?.id).toBe(s.id);
+    expect((await h.ctx.db.settling_attempt.get(attempt.id))?.status).toBe('linked');
+  });
+
+  it('solo se cancela un sueño en curso, y no se deshace si ya hay otro abierto', async () => {
+    const h = await makeHarness('2027-01-15T14:00');
+    const baby = await babyOf(h);
+    const done = await startSleep(h.ctx, baby);
+    h.advance(30 * MIN);
+    await finishSleep(h.ctx, done.id);
+    expect(await code(cancelSleep(h.ctx, done.id))).toBe('invalid');
+
+    h.advance(HOUR);
+    const s = await startSleep(h.ctx, baby);
+    await cancelSleep(h.ctx, s.id);
+    h.advance(MIN);
+    await startSleep(h.ctx, baby); // se inicia otro sueño
+    expect(await code(undoCancelSleep(h.ctx, s.id))).toBe('invalid');
+  });
+
+  it('cancelar un intento se puede deshacer, salvo que ya haya otro abierto', async () => {
+    const h = await makeHarness('2027-01-15T14:00');
+    const baby = await babyOf(h);
+    const a = await startSettling(h.ctx, baby);
+    await cancelSettling(h.ctx, a.id);
+    await reopenSettling(h.ctx, a.id);
+    expect((await getOpenAttempt(h.ctx, baby))?.id).toBe(a.id);
+
+    await cancelSettling(h.ctx, a.id);
+    const b = await startSettling(h.ctx, baby);
+    expect(b.id).not.toBe(a.id);
+    expect(await code(reopenSettling(h.ctx, a.id))).toBe('invalid');
+  });
+});
+
+describe('etiquetas de sistema nuevas en instalaciones existentes', () => {
+  it('«En porteo» existe en la categoría «al dormirse»', async () => {
+    const h = await makeHarness();
+    const tag = (await listTags(h.ctx)).find((t) => t.tag_slug === 'onset.babywearing');
+    expect(tag?.category).toBe('onset');
+    expect(tag?.label_i18n['es']).toBe('En porteo');
+  });
+
+  it('se añaden al arrancar si faltan, sin duplicar ni tocar las existentes', async () => {
+    const h = await makeHarness();
+    const old = (await h.ctx.db.tag.toArray()).find((t) => t.tag_slug === 'onset.babywearing')!;
+    await h.ctx.db.tag.delete(old.id); // instalación anterior a la etiqueta
+    const before = (await h.ctx.db.tag.toArray()).find((t) => t.tag_slug === 'onset.in_arms')!;
+
+    await ensureBootstrap(h.ctx.db, () => h.nowMs());
+    await ensureBootstrap(h.ctx.db, () => h.nowMs());
+    const tags = await h.ctx.db.tag.toArray();
+    expect(tags.filter((t) => t.tag_slug === 'onset.babywearing' && t.deleted_at === null)).toHaveLength(1);
+    expect(tags).toHaveLength(SEED_TAGS.length);
+    expect(tags.find((t) => t.id === before.id)?.rev).toBe(before.rev); // no se reescribe lo existente
   });
 });
 

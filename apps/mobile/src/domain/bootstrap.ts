@@ -82,8 +82,49 @@ export async function ensureBootstrap(db: BabySleepDb, now: () => number = Date.
     });
   }
   const ctx = await loadCtx(db, now);
+  await ensureSystemSeeds(ctx);
   await repairDuplicateSeeds(ctx);
   return ctx;
+}
+
+/**
+ * Añade las etiquetas y categorías de sistema que falten (por `slug`). Las versiones nuevas de
+ * la app pueden traer etiquetas nuevas, y la siembra del primer arranque no las crea en
+ * instalaciones existentes. Es idempotente y no toca lo que ya existe.
+ */
+export async function ensureSystemSeeds(ctx: Ctx): Promise<number> {
+  const { db } = ctx;
+  let added = 0;
+  await db.transaction('rw', db.tag, db.event_category, async () => {
+    const tags = await db.tag.toArray();
+    for (const t of SEED_TAGS) {
+      if (tags.some((x) => x.kind === 'system' && x.tag_slug === t.slug && x.deleted_at === null)) continue;
+      await insertRow(
+        db.tag,
+        Tag,
+        Tag.parse({
+          ...newRow(ctx),
+          tag_slug: t.slug,
+          category: t.category,
+          kind: 'system',
+          label_i18n: { es: t.es },
+          archived: false,
+        }),
+      );
+      added++;
+    }
+    const cats = await db.event_category.toArray();
+    for (const c of SEED_EVENT_CATEGORIES) {
+      if (cats.some((x) => x.kind === 'system' && x.slug === c.slug && x.deleted_at === null)) continue;
+      await insertRow(
+        db.event_category,
+        EventCategory,
+        EventCategory.parse({ ...newRow(ctx), slug: c.slug, kind: 'system', label_i18n: { es: c.es } }),
+      );
+      added++;
+    }
+  });
+  return added;
 }
 
 /**

@@ -6,6 +6,7 @@ import { backupReminderDue } from '../domain/export';
 import type { ObservationTarget } from '../domain/notes';
 import {
   cancelSettling,
+  cancelSleep,
   editSession,
   finishSleep,
   getOpenAttempt,
@@ -13,8 +14,10 @@ import {
   listSessions,
   markPutDown,
   nudgeTime,
+  reopenSettling,
   startSettling,
   startSleep,
+  undoCancelSleep,
 } from '../domain/sleep';
 import { t } from '../i18n/es';
 import { fmtClock, fmtDur, fmtElapsed } from '../ui/format';
@@ -49,6 +52,22 @@ export function Home({ goSettings }: { goSettings: () => void }) {
         label: t('home.undo'),
         run: () => void run(() => editSession(ctx, done.id, { endMs: null })),
       });
+    }
+  };
+
+  const cancelOpenSleep = async () => {
+    if (!open) return;
+    const id = open.id;
+    if (await run(() => cancelSleep(ctx, id))) {
+      toast(t('home.cancelSleepDone'), { label: t('home.undo'), run: () => void run(() => undoCancelSleep(ctx, id)) });
+    }
+  };
+
+  const cancelOpenAttempt = async () => {
+    if (!attempt) return;
+    const id = attempt.id;
+    if (await run(() => cancelSettling(ctx, id))) {
+      toast(t('home.cancelSettleDone'), { label: t('home.undo'), run: () => void run(() => reopenSettling(ctx, id)) });
     }
   };
 
@@ -87,6 +106,9 @@ export function Home({ goSettings }: { goSettings: () => void }) {
           <Btn className="mt-3 w-full" onClick={() => setNotes({ sessionId: open.id })}>
             {t('home.notes')}
           </Btn>
+          <Btn variant="ghost" className="mt-1 w-full text-muted" onClick={cancelOpenSleep}>
+            {t('home.cancelSleep')}
+          </Btn>
         </Card>
       ) : (
         <Card className="text-center">
@@ -104,7 +126,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
                   <Chip onClick={() => run(() => markPutDown(ctx, attempt.id))}>{t('home.putDown')}</Chip>
                 )}
                 <Chip onClick={() => setNotes({ attemptId: attempt.id })}>{t('home.settleNotes')}</Chip>
-                <Chip onClick={() => run(() => cancelSettling(ctx, attempt.id))}>{t('home.cancelSettle')}</Chip>
+                <Chip onClick={cancelOpenAttempt}>{t('home.cancelSettle')}</Chip>
               </div>
             </div>
           )}

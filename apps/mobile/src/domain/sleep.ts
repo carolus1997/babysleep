@@ -66,6 +66,15 @@ export function cancelSettling(ctx: Ctx, attemptId: string) {
   return updateRow(ctx, ctx.db.settling_attempt, SettlingAttempt, attemptId, { status: 'abandoned' });
 }
 
+/** Deshace «No quiere dormir» sobre un intento, salvo que ya haya otro abierto. */
+export async function reopenSettling(ctx: Ctx, attemptId: string) {
+  const attempt = await ctx.db.settling_attempt.get(attemptId);
+  if (attempt === undefined) throw new DomainError('not_found', 'Intento inexistente');
+  const open = await getOpenAttempt(ctx, attempt.baby_id);
+  if (open !== undefined && open.id !== attemptId) throw new DomainError('invalid', 'Ya hay otro intento abierto');
+  return updateRow(ctx, ctx.db.settling_attempt, SettlingAttempt, attemptId, { status: 'open' });
+}
+
 /** Añade o corrige a posteriori la hora de inicio del intento (aproximada). */
 export function setAttemptStart(ctx: Ctx, attemptId: string, startedMs: number | null) {
   return updateRow(ctx, ctx.db.settling_attempt, SettlingAttempt, attemptId, {
@@ -127,6 +136,42 @@ export async function finishSleep(ctx: Ctx, sessionId: string): Promise<SleepSes
     sleep_end_utc: toIso(endMs),
     end_tz: ctx.zone,
     end_quality: 'exact',
+  });
+}
+
+/**
+ * «No llegó a dormirse»: se inició el sueño pero el bebé se despertó y no durmió. La sesión
+ * pasa a la papelera (reversible) y no cuenta en ninguna estadística; el intento enlazado
+ * vuelve a `abandoned`, de modo que el intento fallido se conserva como tal.
+ */
+export async function cancelSleep(ctx: Ctx, sessionId: string): Promise<SleepSessionT> {
+  const s = await ctx.db.sleep_session.get(sessionId);
+  if (s === undefined) throw new DomainError('not_found', 'Sesión inexistente');
+  if (s.sleep_end_utc !== null) throw new DomainError('invalid', 'Solo se cancela un sueño en curso');
+  if (s.deleted_at !== null) return s;
+  return ctx.db.transaction('rw', ctx.db.sleep_session, ctx.db.settling_attempt, async () => {
+    const deleted = await softDelete(ctx, ctx.db.sleep_session, SleepSession, sessionId);
+    if (s.settling_attempt_id !== null) {
+      await updateRow(ctx, ctx.db.settling_attempt, SettlingAttempt, s.settling_attempt_id, { status: 'abandoned' });
+    }
+    return deleted;
+  });
+}
+
+/** Deshace `cancelSleep`: devuelve la sesión y vuelve a enlazar su intento. */
+export async function undoCancelSleep(ctx: Ctx, sessionId: string): Promise<SleepSessionT> {
+  const s = await ctx.db.sleep_session.get(sessionId);
+  if (s === undefined) throw new DomainError('not_found', 'Sesión inexistente');
+  if (s.deleted_at === null) return s;
+  if (s.sleep_end_utc === null && (await getOpenSession(ctx, s.baby_id)) !== undefined) {
+    throw new DomainError('invalid', 'Ya hay otro sueño en curso');
+  }
+  return ctx.db.transaction('rw', ctx.db.sleep_session, ctx.db.settling_attempt, async () => {
+    const restored = await restoreRow(ctx, ctx.db.sleep_session, SleepSession, sessionId);
+    if (s.settling_attempt_id !== null) {
+      await updateRow(ctx, ctx.db.settling_attempt, SettlingAttempt, s.settling_attempt_id, { status: 'linked' });
+    }
+    return restored;
   });
 }
 

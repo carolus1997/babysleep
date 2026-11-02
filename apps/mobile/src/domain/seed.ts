@@ -23,6 +23,7 @@ export const SEED_TAGS: readonly SeedTag[] = [
   { slug: 'onset.hard_to_fall_asleep', category: 'onset', es: 'Le costó dormirse' },
   { slug: 'onset.in_arms', category: 'onset', es: 'En brazos' },
   { slug: 'onset.in_crib', category: 'onset', es: 'En la cuna' },
+  { slug: 'onset.babywearing', category: 'onset', es: 'En porteo' },
   { slug: 'onset.during_walk', category: 'onset', es: 'Durante un paseo' },
   { slug: 'onset.in_car', category: 'onset', es: 'En el coche' },
   { slug: 'onset.after_feeding', category: 'onset', es: 'Tras comer' },
