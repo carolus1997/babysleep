@@ -1,0 +1,26 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+
+# Datos reales del bebé: NUNCA en el repositorio público
+tests/fixtures/private/*
+!tests/fixtures/private/README.md
+
+# Copias de seguridad y claves
+*.age
+*.dump
+*.sql.gz
+age-identity*.txt
+*.key
+
+# Python (oráculo)
+tools/oracle-py/.venv/
+__pycache__/
+
+.DS_Store
+
+# Herramientas locales
+.claude/

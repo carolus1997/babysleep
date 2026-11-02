@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck y pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:private-data
+      - run: npm run typecheck
+      - run: npm test
+      - name: La PWA compila
+        run: npm run build:mobile
+
+  oracle:
+    name: Fixtures dorados al día (numpy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r tools/oracle-py/requirements.txt
+      - run: python tools/oracle-py/make_golden.py
+      - name: Los fixtures versionados coinciden con lo que genera el oráculo
+        run: git diff --exit-code -- tests/fixtures/golden
+
+  database:
+    name: Migraciones sobre PostgreSQL real
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Aplicar migraciones en orden
+        run: |
+          for f in database/migrations/*.sql; do
+            echo "== $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Toda tabla del esquema app tiene RLS activada
+        run: |
+          n=$(psql -tA -c "select count(*) from pg_tables where schemaname='app' and not rowsecurity")
+          echo "tablas sin RLS: $n"
+          test "$n" = "0"

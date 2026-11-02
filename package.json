@@ -1,0 +1,28 @@
+{
+  "name": "babysleep-analytics",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p apps/mobile/tsconfig.json",
+    "build:mobile": "npm run build -w @babysleep/mobile",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:private-data": "node tools/check-no-private-data.mjs",
+    "check": "npm run check:private-data && npm run typecheck && npm run test"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.0.0",
+    "fast-check": "^3.23.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

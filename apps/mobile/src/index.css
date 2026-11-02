@@ -1,0 +1,103 @@
+@import 'tailwindcss';
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-line: var(--line);
+  --color-danger: var(--danger);
+  --color-ok: var(--ok);
+  --color-night: var(--seg-night);
+  --color-nap: var(--seg-nap);
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+:root,
+[data-theme='light'] {
+  --bg: #f4f5fb;
+  --surface: #ffffff;
+  --surface2: #eceef8;
+  --fg: #161a2e;
+  --muted: #565c78;
+  --accent: #4f46e5;
+  --accent-fg: #ffffff;
+  --line: #d9dcec;
+  --danger: #b3261e;
+  --ok: #17724a;
+  --seg-night: #4f46e5;
+  --seg-nap: #f2a93b;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: #0e1020;
+  --surface: #171a30;
+  --surface2: #20243f;
+  --fg: #eceefb;
+  --muted: #a2a8c6;
+  --accent: #8b87ff;
+  --accent-fg: #0e1020;
+  --line: #2b3050;
+  --danger: #ff8a80;
+  --ok: #5fd39a;
+  --seg-night: #8b87ff;
+  --seg-nap: #f2b85b;
+  color-scheme: dark;
+}
+
+/* Modo noche: negro puro, contraste suave y tonos cálidos para no deslumbrar. */
+[data-theme='night'] {
+  --bg: #000000;
+  --surface: #0b0907;
+  --surface2: #16120d;
+  --fg: #d9b98c;
+  --muted: #a08760;
+  --accent: #c98a45;
+  --accent-fg: #120c05;
+  --line: #2a2118;
+  --danger: #e0856b;
+  --ok: #8fbf8a;
+  --seg-night: #c98a45;
+  --seg-nap: #9c7a4a;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+/* 16 px mínimo en campos: evita el zoom automático de iOS al enfocar. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

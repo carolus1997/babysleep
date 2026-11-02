@@ -1,0 +1,59 @@
+# App móvil (Fase 1)
+
+PWA local-first en `apps/mobile`: React 19, TypeScript, Vite, Tailwind 4, Dexie (IndexedDB) y `vite-plugin-pwa`. Los datos viven **solo en el dispositivo**; no hay sincronización hasta la Fase 2.
+
+## Ejecutar
+
+```bash
+npm install
+npm run dev -w @babysleep/mobile     # http://localhost:5173
+npm run build:mobile                 # genera apps/mobile/dist
+```
+
+Para volver a generar los iconos: `node tools/make-icons.mjs`.
+
+## Estructura
+
+| Ruta | Contenido |
+|---|---|
+| `src/db/schema.ts` | Base Dexie con las mismas tablas que el contrato y el SQL |
+| `src/domain/*` | Lógica sin React: arranque, sueño, conciliación, notas, diario, resumen, exportación |
+| `src/domain/write.ts` | **Único punto de escritura**: valida contra `@babysleep/contract` y sube `rev`. En la Fase 2 aquí se añade la cola de sincronización |
+| `src/screens/*`, `src/app/*`, `src/ui/*` | Interfaz |
+| `src/i18n/es.ts` | Textos (español) con claves tipadas, listos para otros idiomas |
+
+Toda la estadística y el tiempo salen de `@babysleep/core`; la app no recalcula nada por su cuenta.
+
+## Qué hace
+
+- **Perfiles** de varios bebés con cambio rápido (color en la cabecera para no registrar en el perfil equivocado).
+- **Iniciar sueño** = «hemos comprobado que está dormido», igual para siesta y noche. Se guardan instantes, no un contador: el cronómetro sobrevive a cerrar la app.
+- **Conciliación opcional**: «Empezar a dormirlo» y «Colocado en la cuna». Se enlaza sola al iniciar sueño. Sin ella, la latencia queda *desconocida* (nunca 0).
+- **Registro manual** con horas locales en `Europe/Madrid`; las horas ambiguas o inexistentes por el cambio de horario se piden o se rechazan, no se corrigen en silencio.
+- **Notas y etiquetas** al dormirse, durante, al despertar y en la conciliación. Opcionales y editables después.
+- **Historial** por día, con papelera (borrado lógico) y aviso de solapes pendientes de revisión.
+- **Estadísticas** de 7/14/28 días con calidad del dato visible; los promedios usan solo días con datos.
+- **Diario de acontecimientos** básico (visible en el historial).
+- **Exportación** JSON (copia completa con la papelera) y CSV (sesiones). Recordatorio de copia: a los 3 días del primer registro y luego cada 7.
+- **Restauración de copias** (Ajustes → Datos → Restaurar copia): valida el archivo y cada fila contra el contrato, enseña una vista previa y **solo añade lo que falta**. Las etiquetas y categorías de sistema se enlazan por `slug` (no se duplican). Lo que tenga una versión más reciente en la copia solo se reemplaza si se marca expresamente. Un archivo con cualquier error no escribe nada. Detalle en `src/domain/import.ts`.
+- Temas claro, oscuro y **noche** (negro con tonos cálidos).
+
+## Despliegue en GitHub Pages
+
+1. En el repositorio: Settings → Pages → Source: **GitHub Actions**.
+2. El workflow `deploy-pages.yml` compila con `BASE_PATH=/<repositorio>/` y publica `apps/mobile/dist`.
+3. La app queda en `https://<usuario>.github.io/<repositorio>/`. El sitio solo contiene código: **nunca datos**.
+
+## Uso en iPhone
+
+1. Abre la URL en Safari → Compartir → **Añadir a pantalla de inicio**.
+2. Abre la app desde el icono. **Instálala antes de registrar**: el almacenamiento de la app instalada es distinto del de Safari y no comparten datos.
+3. Haz una copia (Ajustes → Datos) con regularidad: sin sincronización, la copia manual es la única protección frente a un borrado del almacenamiento.
+
+## Limitaciones conocidas
+
+- Sin sincronización ni cuentas (Fase 2). Un solo dispositivo por perfil.
+- La descarga de archivos y la selección del archivo de copia desde una PWA en iOS no se han probado en un iPhone real.
+- Al restaurar en otro dispositivo, la autoría de los registros pasa a ser la del cuidador local (no hay cuentas hasta la Fase 2).
+- El «almacenamiento protegido» depende del navegador; se solicita, pero no está garantizado.
+- Aún no hay ventanas de vigilia, hora habitual ni predicción (Fases 3–4).

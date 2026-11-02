@@ -1,0 +1,47 @@
+{
+  "_comment": "Agregados SINTÉTICOS con la misma estructura que los históricos reales. Resultados esperados calculados a mano.",
+  "synthetic": true,
+  "periods": [
+    {
+      "label": "Sintético 1",
+      "items": [
+        { "kind": "night", "duration_s": 36000 },
+        { "kind": "nap", "duration_s": 1800 },
+        { "kind": "nap", "duration_s": 3600 },
+        { "kind": "nap", "duration_s": 2700 }
+      ]
+    },
+    {
+      "label": "Sintético 2",
+      "items": [
+        { "kind": "night", "duration_s": 41400 },
+        { "kind": "nap", "duration_s": 3600 },
+        { "kind": "nap", "duration_s": 1200 },
+        { "kind": "nap", "duration_s": 2400 },
+        { "kind": "nap", "duration_s": 1500 }
+      ]
+    },
+    {
+      "label": "Sintético 3",
+      "items": [
+        { "kind": "night", "duration_s": 43200 },
+        { "kind": "nap", "duration_s": 3000 },
+        { "kind": "nap", "duration_s": 5400 }
+      ]
+    }
+  ],
+  "expected": {
+    "periods": 3,
+    "nightTotalS": 120600,
+    "napTotalS": 25200,
+    "nightMeanS": 40200,
+    "napMeanS": 8400,
+    "totalMeanS": 48600,
+    "napCountTotal": 9,
+    "napCountMean": 3,
+    "nightMedianS": 41400,
+    "napDailyMedianS": 8400,
+    "nightQ1S": 38700,
+    "nightQ3S": 42300
+  }
+}
