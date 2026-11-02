@@ -59,6 +59,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Simular lo mínimo de Supabase (roles y auth.uid)
+        run: psql -v ON_ERROR_STOP=1 -f tests/db/00_supabase_shim.sql
       - name: Aplicar migraciones en orden
         run: |
           for f in database/migrations/*.sql; do
@@ -70,3 +72,5 @@ jobs:
           n=$(psql -tA -c "select count(*) from pg_tables where schemaname='app' and not rowsecurity")
           echo "tablas sin RLS: $n"
           test "$n" = "0"
+      - name: Pruebas de seguridad (RLS, privilegios, alta de cuidadores)
+        run: psql -v ON_ERROR_STOP=1 -f tests/db/security.test.sql
