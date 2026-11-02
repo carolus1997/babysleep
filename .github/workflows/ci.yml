@@ -74,3 +74,5 @@ jobs:
           test "$n" = "0"
       - name: Pruebas de seguridad (RLS, privilegios, alta de cuidadores)
         run: psql -v ON_ERROR_STOP=1 -f tests/db/security.test.sql
+      - name: Pruebas de sincronización (apply_changes, conflictos, historial)
+        run: psql -v ON_ERROR_STOP=1 -f tests/db/sync.test.sql
