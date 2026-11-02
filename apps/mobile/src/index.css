@@ -112,6 +112,14 @@ select,
 textarea {
   font-size: 16px;
 }
+/* Safari de iOS da a los campos de fecha un ancho mínimo propio que ignora `width: 100%`. */
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+}
 :focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;

@@ -53,7 +53,9 @@ export function App() {
         </button>
       </header>
 
-      <main className="relative z-10 flex-1 px-4 pb-28 pt-4">
+      {/* `relative` sin `z-*`: sube el contenido por encima del fondo de foto SIN crear un contexto de
+          apilamiento; con `z-10` las hojas (z-40) quedaban atrapadas debajo de la cabecera y la barra. */}
+      <main className="relative flex-1 px-4 pb-28 pt-4">
         {tab === 'home' && <Home goSettings={() => setTab('settings')} />}
         {tab === 'history' && <History />}
         {tab === 'stats' && <Stats />}

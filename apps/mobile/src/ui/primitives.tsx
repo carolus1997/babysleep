@@ -56,13 +56,23 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
+  // Mientras hay una hoja abierta, la página de detrás no debe desplazarse (en iOS «baila» con ella).
+  useEffect(() => {
+    const prev = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.documentElement.style.overflow = prev;
+    };
+  }, []);
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center overscroll-contain bg-black/50" onClick={onClose}>
+      {/* overflow-x-hidden + touch-action: pan-y: con `overflow-y: auto` el eje X pasa a `auto` y cualquier
+          píxel de más permite arrastrar la hoja hacia los lados. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={id}
-        className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-bg p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl"
+        className="max-h-[92dvh] w-full max-w-md touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-3xl bg-bg p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
@@ -88,4 +98,5 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
-export const inputCls = 'w-full min-h-12 rounded-2xl border border-line bg-surface px-3 text-fg';
+/** `min-w-0 max-w-full`: en Safari de iOS los campos tienen un ancho intrínseco que, en rejillas o flex, desborda la pantalla. */
+export const inputCls = 'block w-full min-w-0 max-w-full min-h-12 rounded-2xl border border-line bg-surface px-3 text-fg';

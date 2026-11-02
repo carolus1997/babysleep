@@ -117,7 +117,7 @@ function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void 
         <input className={inputCls} inputMode="numeric" value={gest} onChange={(e) => setGest(e.target.value)} placeholder="40" />
         <span className="mt-1 block text-xs text-muted">{t('baby.gestationHint')}</span>
       </Field>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
         <Field label={t('baby.weight')}>
           <input className={inputCls} inputMode="numeric" value={weight} onChange={(e) => setWeight(e.target.value)} />
         </Field>
