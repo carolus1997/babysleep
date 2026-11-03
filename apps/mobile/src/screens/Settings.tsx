@@ -9,7 +9,7 @@ import { addLifeEvent, deleteLifeEvent, listLifeEvents } from '../domain/notes';
 import { mergeBabies } from '../domain/merge';
 import { removeBabyPhoto, setBabyPhoto } from '../domain/photo';
 import { t } from '../i18n/es';
-import { download, fmtAge } from '../ui/format';
+import { download, fmtAges } from '../ui/format';
 import { getThemePref, setThemePref, useLive, type ThemePref } from '../ui/hooks';
 import { resizeImage } from '../ui/image';
 import { Avatar, useBabyPhotoUrl, useBlobUrl } from '../ui/photo';
@@ -384,7 +384,12 @@ export function Settings() {
                 <Avatar baby={b} size={36} />
                 <span>
                   <span className="font-medium">{b.alias}</span>
-                  <span className="ml-2 text-sm text-muted">{fmtAge(b.birth_date, Date.now())}</span>
+                  <span className="ml-2 text-sm text-muted">
+                    {(() => {
+                      const a = fmtAges(b.birth_date, b.gestational_weeks, Date.now());
+                      return a.corrected === null ? a.age : `${a.age} · corregida: ${a.corrected}`;
+                    })()}
+                  </span>
                 </span>
               </span>
               <Btn variant="ghost" onClick={() => setBabySheet(b)}>

@@ -1,3 +1,4 @@
+import type { BabyT } from '@babysleep/contract';
 import { useEffect, useState } from 'react';
 import { useApp } from './app/AppContext';
 import { t, type I18nKey } from './i18n/es';
@@ -6,7 +7,7 @@ import { Home } from './screens/Home';
 import { Onboarding } from './screens/Onboarding';
 import { Settings } from './screens/Settings';
 import { Stats } from './screens/Stats';
-import { fmtAge } from './ui/format';
+import { fmtAges } from './ui/format';
 import { Avatar, useBabyPhotoUrl } from './ui/photo';
 import { Sheet } from './ui/primitives';
 
@@ -17,6 +18,17 @@ const TABS: ReadonlyArray<{ id: Tab; label: I18nKey; icon: string }> = [
   { id: 'stats', label: 'tab.stats', icon: '▥' },
   { id: 'settings', label: 'tab.settings', icon: '⚙' },
 ];
+
+/** Edad real y, en prematuros menores de 24 meses, la corregida. */
+function AgeLabel({ baby }: { baby: BabyT }) {
+  const { age, corrected } = fmtAges(baby.birth_date, baby.gestational_weeks, Date.now());
+  return (
+    <span className="text-sm text-muted">
+      {age}
+      {corrected !== null && <span title="Edad corregida: descuenta lo que faltó hasta las 40 semanas"> · corregida: {corrected}</span>}
+    </span>
+  );
+}
 
 export function App() {
   const { baby, babies, selectBaby } = useApp();
@@ -47,7 +59,7 @@ export function App() {
           <span className="flex items-center gap-2">
             <Avatar baby={baby} size={32} />
             <span className="text-xl font-bold">{baby.alias}</span>
-            <span className="text-sm text-muted">{fmtAge(baby.birth_date, Date.now())}</span>
+            <AgeLabel baby={baby} />
           </span>
           {babies.length > 1 && <span className="text-muted">⇅</span>}
         </button>
@@ -99,7 +111,7 @@ export function App() {
                 >
                   <Avatar baby={b} size={32} />
                   <span className="font-semibold">{b.alias}</span>
-                  <span className="text-sm text-muted">{fmtAge(b.birth_date, Date.now())}</span>
+                  <AgeLabel baby={b} />
                 </button>
               </li>
             ))}

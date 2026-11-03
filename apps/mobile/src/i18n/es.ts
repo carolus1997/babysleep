@@ -224,7 +224,7 @@ export const es = {
   'baby.sex.male': 'Niño',
   'baby.sex.none': 'Sin indicar',
   'baby.gestation': 'Semanas de gestación al nacer',
-  'baby.gestationHint': 'Opcional. Importante si nació antes de la semana 37.',
+  'baby.gestationHint': 'Opcional. Si nació antes de la semana 37 se muestra también su edad corregida (hasta los 24 meses).',
   'baby.weight': 'Peso al nacer (g)',
   'baby.length': 'Talla al nacer (cm)',
   'baby.notes': 'Notas del perfil',
