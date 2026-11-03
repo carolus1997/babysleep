@@ -1,0 +1,91 @@
+# COPIA DIARIA CIFRADA de BabySleep.
+#
+# Este archivo va en un repositorio PRIVADO (p. ej. «babysleep-backups»), en .github/workflows/backup.yml.
+# NO lo pongas en el repositorio público: ahí los secretos y los archivos generados serían visibles.
+# Guía completa: ops/backups/README.md del repositorio público.
+#
+# Necesita en el repositorio privado:
+#   Secreto  SUPABASE_DB_URL   URL del «Session pooler» de Supabase (con la contraseña de la base de datos)
+#   Variable AGE_RECIPIENTS    las claves PÚBLICAS age (age1…) de los dos progenitores, una por línea
+name: Copia diaria cifrada
+
+on:
+  schedule:
+    - cron: '17 3 * * *'   # cada día a las 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write           # solo para publicar la copia mensual como «release»
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      scratch:              # base de datos desechable para la prueba de restauración
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: scratch
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      # Los scripts salen del repositorio público, en una versión FIJADA por commit. Actualízala a propósito
+      # (revisando el cambio) y nunca la sustituyas por «main»: un cambio malicioso podría leer los secretos.
+      - name: Scripts de copia (versión fijada)
+        uses: actions/checkout@v4
+        with:
+          repository: carolus1997/babysleep
+          ref: REEMPLAZA_POR_EL_SHA_DEL_COMMIT   # ← 40 caracteres, ver README
+          path: code
+          persist-credentials: false
+
+      - name: Herramientas (pg_dump 17 y age)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common age
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Copia, restauración de prueba y cifrado
+        env:
+          SOURCE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SCRATCH_DB_URL: postgresql://postgres:scratch@localhost:5432/postgres
+          AGE_RECIPIENTS: ${{ vars.AGE_RECIPIENTS }}
+          WRITE_STATUS: '1'
+          OUT_DIR: out
+        run: bash code/ops/backups/backup.sh
+
+      - name: Guardar la copia cifrada (90 días)
+        uses: actions/upload-artifact@v4
+        with:
+          name: babysleep-copia-${{ github.run_id }}
+          path: out/*
+          retention-days: 90
+          if-no-files-found: error
+
+      # Solo después de subir el archivo se marca como almacenada: si la subida falla, no se anota.
+      - name: Marcar como almacenada
+        env:
+          SOURCE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: bash code/ops/backups/mark-stored.sh
+
+      # El día 1 de cada mes se guarda además una copia que no caduca (las demás duran 90 días).
+      - name: Copia mensual duradera
+        if: ${{ github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(date -u +%d)" = "01" ]; then
+            gh release create "mensual-$(date -u +%Y-%m)" out/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Copia mensual $(date -u +%Y-%m)" \
+              --notes "Copia cifrada con age. Solo se abre con la clave privada de un progenitor."
+          fi

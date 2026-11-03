@@ -7,6 +7,7 @@ import { connectDevice } from '../sync/identity';
 import { rejectedEntries, retryRejected } from '../sync/outbox';
 import { getSupabaseClient, hasStoredSession, supabaseTransport } from '../sync/supabase';
 import type { SyncStatus } from '../sync/useAutoSync';
+import { BackupSection } from './BackupSection';
 import { ConflictsSection } from './ConflictsSection';
 import { useLive } from '../ui/hooks';
 import { Btn, Card, Chip, Field, inputCls, Sheet } from '../ui/primitives';
@@ -322,6 +323,7 @@ export function SyncCard() {
             )}
           </div>
           {!status?.sessionExpired && <ConflictsSection />}
+          {!status?.sessionExpired && <BackupSection />}
           {!status?.sessionExpired && <FamilySection />}
         </>
       )}

@@ -182,6 +182,7 @@ export const es = {
   'conflicts.title': 'Conflictos por revisar ({n})',
   'conflicts.help': 'Dos móviles cambiaron lo mismo a la vez. Elige qué valor queda; el otro se conserva en el historial del servidor.',
   'conflicts.resolved': 'Conflicto resuelto',
+  'backups.title': 'Copias automáticas',
   'family.title': 'Familia',
   'family.invite': 'Invitar a alguien',
   'family.name': 'Nombre',

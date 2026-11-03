@@ -22,6 +22,8 @@ jobs:
       - run: npm run check:private-data
       - name: El SQL único de Supabase está al día con las migraciones
         run: node tools/build-supabase-setup.mjs --check
+      - name: El shim de las copias es fiel al de las pruebas
+        run: node tools/check-backup-shim.mjs
       - run: npm run typecheck
       - run: npm test
       - name: La PWA compila
@@ -78,3 +80,33 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f tests/db/security.test.sql
       - name: Pruebas de sincronización (apply_changes, conflictos, historial)
         run: psql -v ON_ERROR_STOP=1 -f tests/db/sync.test.sql
+
+  backups:
+    name: Copias cifradas (extremo a extremo)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Herramientas (pg_dump 17 y age)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common age
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+      - name: Los scripts tienen sintaxis válida
+        run: |
+          for f in ops/backups/backup.sh ops/backups/mark-stored.sh ops/backups/test-backup.sh; do bash -n "$f"; done
+      - name: Copia, restauración de prueba, cifrado y fallos esperados
+        env:
+          PG_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: bash ops/backups/test-backup.sh
