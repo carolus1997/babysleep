@@ -144,7 +144,7 @@ function FamilySection() {
 }
 
 /** Cuenta y sincronización. Con el móvil sin conectar, no descarga nada de la librería hasta que se necesita. */
-export function SyncCard() {
+export function SyncCard({ fresh = false }: { fresh?: boolean }) {
   const { ctx, run, toast, replaceCtx } = useApp();
   const [phase, setPhase] = useState<Phase>(ctx.db.syncEnabled || hasStoredSession() ? 'checking' : 'signed_out');
   const [email, setEmail] = useState('');
@@ -284,9 +284,9 @@ export function SyncCard() {
 
       {phase === 'linked' && (
         <>
-          <p className="mb-3 text-sm text-muted">{t('sync.connectHelp')}</p>
+          <p className="mb-3 text-sm text-muted">{t(fresh ? 'sync.connectFresh' : 'sync.connectHelp')}</p>
           <Btn variant="primary" className="w-full" disabled={busy} onClick={connect}>
-            {t('sync.connect')}
+            {t(fresh ? 'sync.connectFreshBtn' : 'sync.connect')}
           </Btn>
         </>
       )}

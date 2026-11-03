@@ -21,6 +21,7 @@ import {
 } from '../domain/sleep';
 import { t } from '../i18n/es';
 import { fmtClock, fmtDur, fmtElapsed } from '../ui/format';
+import type { SyncStatus } from '../sync/useAutoSync';
 import { useLive, useNow } from '../ui/hooks';
 import { Btn, Card, Chip } from '../ui/primitives';
 import { FeedingCard } from './FeedingCard';
@@ -33,6 +34,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
   const attempt = useLive(() => getOpenAttempt(ctx, babyId), [ctx, babyId], undefined as SettlingAttemptT | undefined);
   const sessions = useLive(() => listSessions(ctx, babyId), [ctx, babyId], [] as SleepSessionT[]);
   const reminder = useLive(() => backupReminderDue(ctx), [ctx, sessions.length], false);
+  const expired = useLive(async () => ((await ctx.db.meta.get('sync_status'))?.value as SyncStatus | undefined)?.sessionExpired === true, [ctx], false);
   const now = useNow(open || attempt ? 1000 : 30_000);
   const [notes, setNotes] = useState<ObservationTarget | null>(null);
 
@@ -74,6 +76,11 @@ export function Home({ goSettings }: { goSettings: () => void }) {
 
   return (
     <div className="space-y-4">
+      {expired && (
+        <button className="w-full rounded-2xl border border-danger bg-surface2 p-3 text-left text-sm" onClick={goSettings} role="alert">
+          {t('home.sessionExpired')}
+        </button>
+      )}
       {reminder && (
         <button className="w-full rounded-2xl border border-line bg-surface2 p-3 text-left text-sm" onClick={goSettings}>
           {t('home.backupDue')}

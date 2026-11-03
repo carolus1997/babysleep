@@ -434,6 +434,38 @@ describe('operaciones rechazadas', () => {
   });
 });
 
+describe('volver a entrar con la cuenta en un móvil limpio', () => {
+  it('el almacenamiento se borró (o es un móvil nuevo): al entrar con la misma cuenta se recupera todo, sin crear ni duplicar nada', async () => {
+    const { clock, server, A, B, baby, session } = await connectedPair();
+    // lo que hay antes: tomas, notas y perfil completos
+    const f = await startFeed(A.ctx, baby, 'breast', { side: 'left' });
+    clock.tick(10 * MIN);
+    await finishFeed(A.ctx, f.id);
+    const inArms = (await listTags(A.ctx)).find((t) => t.tag_slug === 'onset.in_arms')!;
+    await saveObservation(A.ctx, { target: { sessionId: session }, moment: 'onset', text: 'Costó un rato', tagIds: [inArms.id] });
+    await settle(A, B);
+    const before = {
+      babies: await A.ctx.db.baby.count(), sessions: await A.ctx.db.sleep_session.count(), feedings: await A.ctx.db.feeding.count(),
+      tags: await A.ctx.db.tag.count(), observations: await A.ctx.db.observation.count(),
+    };
+
+    // el mismo progenitor en un móvil recién estrenado: sin ningún bebé, todo local desde cero
+    const fresh = await makePhone(server, clock, 'A-limpio', 0);
+    expect(await listBabies(fresh.ctx)).toHaveLength(0); // aquí la app mostraría la bienvenida
+    const report = await fresh.connect();
+    expect(report).toMatchObject({ ok: true, rejected: 0, invalidRows: 0 });
+
+    expect(await listBabies(fresh.ctx)).toHaveLength(1); // ya no hay bienvenida: el bebé viene del servidor
+    expect(before).toEqual({
+      babies: await fresh.ctx.db.baby.count(), sessions: await fresh.ctx.db.sleep_session.count(), feedings: await fresh.ctx.db.feeding.count(),
+      tags: await fresh.ctx.db.tag.count(), observations: await fresh.ctx.db.observation.count(),
+    });
+    expect(server.rows('baby')).toHaveLength(1); // el servidor no recibió ningún bebé «nuevo»
+    expect(await pendingCount(fresh.ctx.db)).toBe(0); // y nada local quedó sin enviar
+    await expectConverged(server, A, B, fresh);
+  });
+});
+
 describe('tomas entre dos móviles', () => {
   it('una toma iniciada en un móvil se ve en curso en el otro, que puede terminarla; las notas viajan con ella', async () => {
     const { clock, server, A, B, baby } = await connectedPair();
