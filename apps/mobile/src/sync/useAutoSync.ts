@@ -2,7 +2,7 @@ import { toIso } from '@babysleep/core';
 import { liveQuery } from 'dexie';
 import { useEffect } from 'react';
 import type { Ctx } from '../domain/context';
-import { currentSession } from './auth';
+import { currentSession, isAuthFailure, signOut } from './auth';
 import { syncOnce } from './engine';
 import { getSupabaseClient, supabaseTransport } from './supabase';
 
@@ -49,6 +49,13 @@ export function useAutoSync(ctx: Ctx): void {
           return;
         }
         const report = await syncOnce(ctx, supabaseTransport(client));
+        if (!report.ok && isAuthFailure(report.error ?? '')) {
+          // La sesión ya no vale: se olvida en este móvil (sin red no hace falta) y se avisa. Los datos y la cola se
+          // conservan; al volver a entrar, todo se envía.
+          await signOut(client, 'local').catch(() => undefined);
+          await save({ at: toIso(ctx.now()), ok: false, error: null, rejected: 0, conflicts: 0, sessionExpired: true });
+          return;
+        }
         await save({
           at: toIso(ctx.now()), ok: report.ok, error: report.error ?? null,
           rejected: report.rejected, conflicts: report.conflicts.length, sessionExpired: false,

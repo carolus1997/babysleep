@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { t } from '../i18n/es';
+import { buildBackupJson } from '../domain/export';
+import { toIso } from '@babysleep/core';
+import { download } from '../ui/format';
+import { wipeBlockers, wipeLocalDevice } from '../sync/wipe';
 import { claimMembership, currentSession, disableCaregiver, inviteCaregiver, isLinked, listFamily, requestCode, signOut, verifyCode, type FamilyMember } from '../sync/auth';
 import { syncOnce } from '../sync/engine';
 import { connectDevice } from '../sync/identity';
@@ -143,6 +147,112 @@ function FamilySection() {
   );
 }
 
+/**
+ * Cerrar sesión, con tres niveles según lo que haya pasado. «Borrar los datos de este móvil» es irreversible:
+ * antes envía lo pendiente, dice si algo se perdería, ofrece una copia JSON y pide escribir BORRAR.
+ */
+function SignOutSheet({ onClose, onSignedOut }: { onClose: () => void; onSignedOut: () => void }) {
+  const { ctx, run, toast } = useApp();
+  const [step, setStep] = useState<'menu' | 'wipe'>('menu');
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [ack, setAck] = useState(false);
+  const [typed, setTyped] = useState('');
+
+  const markSignedOut = () =>
+    ctx.db.meta.put({ key: 'sync_status', value: { at: toIso(ctx.now()), ok: false, error: null, rejected: 0, conflicts: 0, sessionExpired: true } });
+
+  const signOutNow = (scope: 'local' | 'global') =>
+    run(async () => {
+      await signOut(await getSupabaseClient(), scope);
+      await markSignedOut();
+      onSignedOut();
+      toast(t('signout.done'));
+      onClose();
+      return true;
+    });
+
+  const startWipe = async () => {
+    setStep('wipe');
+    setPendingCount(null);
+    try {
+      const client = await getSupabaseClient();
+      if ((await currentSession(client)) !== null) await syncOnce(ctx, supabaseTransport(client)); // lo pendiente, primero
+    } catch {
+      /* sin conexión: se avisará de lo que quede sin enviar */
+    }
+    setPendingCount((await wipeBlockers(ctx.db)).pending);
+  };
+
+  const wipe = () =>
+    run(async () => {
+      try {
+        await signOut(await getSupabaseClient(), 'local');
+      } catch {
+        /* sin conexión: igualmente se borra la sesión guardada */
+      }
+      await wipeLocalDevice(ctx.db);
+      location.reload(); // la app arranca limpia, con la bienvenida
+      return true;
+    });
+
+  const canWipe = pendingCount !== null && typed.trim().toUpperCase() === 'BORRAR' && (pendingCount === 0 || ack);
+
+  return (
+    <Sheet title={t('signout.title')} onClose={onClose}>
+      {step === 'menu' ? (
+        <div className="space-y-4">
+          <div>
+            <Btn className="w-full" onClick={() => signOutNow('local')}>
+              {t('signout.here')}
+            </Btn>
+            <p className="mt-1 text-xs text-muted">{t('signout.hereHelp')}</p>
+          </div>
+          <div>
+            <Btn className="w-full" onClick={() => signOutNow('global')}>
+              {t('signout.all')}
+            </Btn>
+            <p className="mt-1 text-xs text-muted">{t('signout.allHelp')}</p>
+          </div>
+          <div>
+            <Btn variant="danger" className="w-full" onClick={startWipe}>
+              {t('signout.wipe')}
+            </Btn>
+            <p className="mt-1 text-xs text-muted">{t('signout.wipeHelp')}</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {pendingCount === null ? (
+            <p className="mb-3 text-sm text-muted">{t('signout.checking')}</p>
+          ) : pendingCount === 0 ? (
+            <p className="mb-3 text-sm text-ok">{t('signout.safe')}</p>
+          ) : (
+            <div className="mb-3 rounded-2xl border border-danger p-3 text-sm" role="alert">
+              <p className="mb-2 font-semibold text-danger">{t('signout.pending', { n: pendingCount })}</p>
+              <Btn className="mb-2 w-full" onClick={async () => download(await buildBackupJson(ctx))}>
+                {t('signout.backup')}
+              </Btn>
+              <label className="flex min-h-11 items-center gap-2">
+                <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
+                {t('signout.ack')}
+              </label>
+            </div>
+          )}
+          <Field label={t('signout.type')}>
+            <input className={inputCls} autoComplete="off" autoCapitalize="characters" value={typed} onChange={(e) => setTyped(e.target.value)} />
+          </Field>
+          <Btn variant="danger" className="w-full" disabled={!canWipe} onClick={wipe}>
+            {t('signout.wipeDo')}
+          </Btn>
+          <Btn variant="ghost" className="mt-1 w-full" onClick={() => setStep('menu')}>
+            {t('signout.back')}
+          </Btn>
+        </>
+      )}
+    </Sheet>
+  );
+}
+
 /** Cuenta y sincronización. Con el móvil sin conectar, no descarga nada de la librería hasta que se necesita. */
 export function SyncCard({ fresh = false }: { fresh?: boolean }) {
   const { ctx, run, toast, replaceCtx } = useApp();
@@ -225,11 +335,7 @@ export function SyncCard({ fresh = false }: { fresh?: boolean }) {
       toast(t('sync.done'));
     });
 
-  const out = () =>
-    guarded(async () => {
-      await signOut(await getSupabaseClient());
-      setPhase('signed_out');
-    });
+  const [signOutOpen, setSignOutOpen] = useState(false);
 
   return (
     <Card title={t('sync.title')}>
@@ -317,7 +423,7 @@ export function SyncCard({ fresh = false }: { fresh?: boolean }) {
                 {t('sync.enter')}
               </Btn>
             ) : (
-              <Btn variant="ghost" disabled={busy} onClick={out}>
+              <Btn variant="ghost" disabled={busy} onClick={() => setSignOutOpen(true)}>
                 {t('sync.signOut')}
               </Btn>
             )}
@@ -327,6 +433,7 @@ export function SyncCard({ fresh = false }: { fresh?: boolean }) {
           {!status?.sessionExpired && <FamilySection />}
         </>
       )}
+      {signOutOpen && <SignOutSheet onClose={() => setSignOutOpen(false)} onSignedOut={() => setPhase('signed_out')} />}
     </Card>
   );
 }

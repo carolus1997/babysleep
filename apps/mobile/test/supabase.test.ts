@@ -7,7 +7,7 @@ import { editSession, finishSleep, listSessions, startSleep } from '../src/domai
 import { AuthError, claimMembership, disableCaregiver, inviteCaregiver, isLinked, listFamily, requestCode, verifyCode } from '../src/sync/auth';
 import { syncOnce } from '../src/sync/engine';
 import { connectDevice } from '../src/sync/identity';
-import { NotLinkedError, supabaseTransport } from '../src/sync/supabase';
+import { ACCESS_REVOKED_MESSAGE, NotLinkedError, supabaseTransport } from '../src/sync/supabase';
 import { SYNC_TABLES } from '../src/sync/tables';
 import { fakeSupabase, type FakeClient } from './fake-supabase';
 import { HOUR, MADRID } from './harness';
@@ -107,6 +107,20 @@ describe('transporte de Supabase', () => {
     expect((await syncOnce(a.ctx, supabaseTransport(a.fake.client))).ok).toBe(true);
     expect(await a.ctx.db.outbox.count()).toBe(0);
     expect(server.rows('sleep_session')).toHaveLength(1);
+  });
+
+  it('si se retira el acceso a alguien, su móvil lo dice con palabras (no «not_allowed») y conserva sus cambios', async () => {
+    const { phone } = setup();
+    const a = await phone(0);
+    await createBaby(a.ctx, { alias: 'Lía', birthDate: '2026-07-01' });
+    a.ctx = (await connectDevice(a.ctx, supabaseTransport(a.fake.client))).ctx;
+    await startSleep(a.ctx, (await listBabies(a.ctx))[0]!.id);
+
+    a.fake.opts.failApply = 'not_allowed';
+    const r = await syncOnce(a.ctx, supabaseTransport(a.fake.client));
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe(ACCESS_REVOKED_MESSAGE);
+    expect(await a.ctx.db.outbox.count()).toBeGreaterThan(0); // nada se pierde
   });
 
   it('un usuario sin cuidador vinculado se rechaza con un error claro', async () => {

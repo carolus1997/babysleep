@@ -1,4 +1,4 @@
-import type { AppClient } from './supabase';
+import { clearStoredSession, type AppClient } from './supabase';
 
 /** Resultados de `app.claim_membership` (migración 0002), con el mensaje que ve la persona. */
 export const CLAIM_MESSAGES: Record<string, string> = {
@@ -14,6 +14,14 @@ export class AuthError extends Error {
     super(message);
     this.name = 'AuthError';
   }
+}
+
+/**
+ * ¿El error significa que la SESIÓN ya no vale (token inválido, caducado sin poder renovarse, revocado)? Se distingue
+ * de un fallo de red o del servidor porque reintentar cada minuto no arregla nada: hay que volver a entrar.
+ */
+export function isAuthFailure(message: string): boolean {
+  return /jwt|invalid.*(token|claim)|refresh.?token|not authenticated|no hay una sesión|session.*(expired|missing|not found)|\b401\b/i.test(message);
 }
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
@@ -60,8 +68,17 @@ export async function claimMembership(client: AppClient, code: string): Promise<
   if (status !== 'ok') throw new AuthError(CLAIM_MESSAGES[status] ?? 'No se pudo completar el alta.', status);
 }
 
-export async function signOut(client: AppClient): Promise<void> {
-  await client.auth.signOut();
+/**
+ * Cierra la sesión. `local` solo en este móvil; `global` la revoca en TODOS los dispositivos (por si se perdió uno).
+ * No borra ningún dato. Para dejar sin acceso a otra persona de la familia, el administrador usa «Quitar acceso».
+ */
+export async function signOut(client: AppClient, scope: 'local' | 'global' = 'local'): Promise<void> {
+  const { error } = await client.auth.signOut({ scope });
+  if (error === null) return;
+  // Sin red, la librería NO cierra la sesión de este móvil. «Solo este móvil» debe cerrarse siempre: se olvida la
+  // sesión guardada. En «todos los dispositivos» sí hace falta el servidor, y se avisa.
+  if (scope === 'local') return clearStoredSession();
+  throw new Error(friendly(error.message));
 }
 
 // ----------------------------------------------------------------- familia (solo administradores)

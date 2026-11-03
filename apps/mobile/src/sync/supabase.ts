@@ -33,6 +33,15 @@ export function hasStoredSession(): boolean {
   }
 }
 
+/** Olvida la sesión guardada en este navegador (no avisa al servidor). */
+export function clearStoredSession(): void {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith('sb-') && k.endsWith('-auth-token')) localStorage.removeItem(k);
+  } catch {
+    /* sin almacenamiento accesible: no hay sesión que olvidar */
+  }
+}
+
 /** El usuario inició sesión pero aún no está vinculado a un cuidador de la familia. */
 export class NotLinkedError extends Error {
   constructor() {
@@ -43,8 +52,14 @@ export class NotLinkedError extends Error {
 
 type Row = Record<string, unknown>;
 
+/** Mensaje que ve la persona cuando el servidor dice `not_allowed`: su acceso a la familia se retiró (o es solo lectura). */
+export const ACCESS_REVOKED_MESSAGE = 'Tu acceso a la familia ya no permite registrar. Pide a quien administra que te vuelva a invitar.';
+
 function check<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
-  if (res.error !== null) throw new Error(`${what}: ${res.error.message}`);
+  if (res.error !== null) {
+    if (res.error.message.includes('not_allowed')) throw new Error(ACCESS_REVOKED_MESSAGE);
+    throw new Error(`${what}: ${res.error.message}`);
+  }
   return res.data as T;
 }
 
