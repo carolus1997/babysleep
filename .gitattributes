@@ -1,0 +1,9 @@
+# Finales de línea: los scripts y el SQL se ejecutan en Linux (CI, GitHub Actions) y deben ser siempre LF,
+# aunque se editen en Windows.
+* text=auto
+*.sh text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.mjs text eol=lf
+*.py text eol=lf
