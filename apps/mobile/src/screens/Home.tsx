@@ -23,6 +23,7 @@ import { t } from '../i18n/es';
 import { fmtClock, fmtDur, fmtElapsed } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
 import { Btn, Card, Chip } from '../ui/primitives';
+import { FeedingCard } from './FeedingCard';
 import { NotesSheet } from './NotesSheet';
 
 export function Home({ goSettings }: { goSettings: () => void }) {
@@ -141,6 +142,8 @@ export function Home({ goSettings }: { goSettings: () => void }) {
           )}
         </Card>
       )}
+
+      <FeedingCard />
 
       <Card title={t('home.today')}>
         <div className="grid grid-cols-2 gap-3 text-center">

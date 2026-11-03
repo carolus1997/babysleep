@@ -113,6 +113,63 @@ export async function buildSessionsCsv(ctx: Ctx): Promise<ExportFile> {
   };
 }
 
+export const FEEDING_CSV_COLUMNS = [
+  'feeding_id',
+  'baby',
+  'feed_type',
+  'start_local',
+  'end_local',
+  'start_utc',
+  'end_utc',
+  'duration_s',
+  'breast_side',
+  'amount_ml',
+  'start_tz',
+  'end_tz',
+  'start_quality',
+  'end_quality',
+  'source',
+  'deleted',
+] as const;
+
+/** Tomas en CSV (UTF-8 con BOM). Lo que no se sabe (ml, pecho, fin de una toma en curso) queda VACÍO, nunca en 0. */
+export async function buildFeedingsCsv(ctx: Ctx): Promise<ExportFile> {
+  const babies = new Map((await ctx.db.baby.toArray()).map((b) => [b.id, b.alias]));
+  const feedings = (await ctx.db.feeding.toArray()).sort((a, b) => a.start_utc.localeCompare(b.start_utc));
+  const lines = [FEEDING_CSV_COLUMNS.join(',')];
+  for (const f of feedings) {
+    const startMs = parseInstant(f.start_utc);
+    const endMs = f.end_utc === null ? null : parseInstant(f.end_utc);
+    lines.push(
+      [
+        f.id,
+        babies.get(f.baby_id) ?? '',
+        f.feed_type,
+        formatLocal(startMs, f.start_tz),
+        endMs === null || f.end_tz === null ? '' : formatLocal(endMs, f.end_tz),
+        f.start_utc,
+        f.end_utc,
+        endMs === null ? '' : Math.round((endMs - startMs) / 1000),
+        f.breast_side,
+        f.amount_ml,
+        f.start_tz,
+        f.end_tz,
+        f.start_quality,
+        f.end_quality,
+        f.source,
+        f.deleted_at !== null,
+      ]
+        .map(csvCell)
+        .join(','),
+    );
+  }
+  return {
+    filename: `babysleep-tomas-${stamp(ctx)}.csv`,
+    mime: 'text/csv;charset=utf-8',
+    content: '\ufeff' + lines.join('\r\n') + '\r\n',
+  };
+}
+
 /** Sin ninguna copia previa, el aviso espera a que haya datos con 3 días de antigüedad (no molestar el primer día). */
 export const FIRST_BACKUP_GRACE_DAYS = 3;
 

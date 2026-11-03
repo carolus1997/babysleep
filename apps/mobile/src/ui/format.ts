@@ -39,6 +39,11 @@ export function toLocalInput(ms: number, zone: string): string {
 }
 
 /** Edad aproximada: «3 meses y 2 semanas», «5 semanas», «12 días». */
+/** Icono pequeño de cada tipo de toma (siempre acompaña al texto, nunca lo sustituye). */
+export function feedIcon(type: 'breast' | 'bottle' | 'solids'): string {
+  return { breast: '🤱', bottle: '🍼', solids: '🥣' }[type];
+}
+
 /** Etiqueta de una edad expresada en días: «5 días», «6 semanas», «3 meses y 2 sem». */
 export function fmtAgeDays(days: number): string {
   if (days < 14) return `${days} días`;

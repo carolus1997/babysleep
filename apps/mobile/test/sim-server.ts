@@ -32,6 +32,13 @@ const REFS: Record<string, SyncTable> = {
   tag_id: 'tag',
   category_id: 'event_category',
   merged_into: 'sleep_session',
+  feeding_id: 'feeding',
+};
+
+/** Campos que solo tienen sentido juntos: se fusionan juntos o no se fusionan (ver migración 0008). */
+const GROUPS: Partial<Record<SyncTable, string[][]>> = {
+  sleep_session: [['sleep_end_utc', 'end_tz', 'end_quality']],
+  feeding: [['feed_type', 'breast_side', 'amount_ml'], ['end_utc', 'end_tz', 'end_quality']],
 };
 
 const eq = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -145,7 +152,13 @@ export class SimServer {
     if (op.base_rev > rev) throw new Error('base_rev_ahead');
 
     // ---- fusión campo a campo (lo que escribiría la base de datos se valida con el contrato)
-    const candidate = schema.parse({ ...cur, ...fields }) as unknown as Record<string, unknown>;
+    // El formato de cada campo se valida ahora; la coherencia ENTRE campos (p. ej. ml solo en un biberón), solo sobre la
+    // fila FINAL, como las restricciones de la base de datos: una operación incoherente con el estado actual no se
+    // rechaza, se convierte en conflicto (campos acoplados).
+    const merged = { ...cur, ...fields };
+    const check = schema.safeParse(merged);
+    if (!check.success && check.error.issues.some((i) => i.code !== 'custom')) throw new Error(check.error.issues[0]?.message ?? 'invalid');
+    const candidate = (check.success ? check.data : merged) as unknown as Record<string, unknown>;
     const old = op.base_rev < rev ? this.revisions.get(`${table}:${op.row_id}`)?.get(op.base_rev) : undefined;
     const apply: string[] = [];
     const conflicts: string[] = [];
@@ -174,6 +187,19 @@ export class SimServer {
         }
       } else {
         conflict(k, 'field', 'open', cur[k], inc);
+        open = true;
+      }
+    }
+
+    // ---- campos acoplados: juntos o ninguno
+    for (const group of GROUPS[table] ?? []) {
+      const touched = op.base_rev < rev && (old === undefined || group.some((k) => !eq(cur[k], old[k])));
+      if (!touched) continue;
+      for (const k of group) {
+        const i = apply.indexOf(k);
+        if (i < 0) continue;
+        apply.splice(i, 1);
+        conflict(k, 'field', 'open', cur[k], candidate[k]);
         open = true;
       }
     }

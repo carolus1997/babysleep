@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { BUILD_ID, BUILD_TIME } from '../build-info';
 import { createBaby, deleteBaby, listDeletedBabies, renameBaby, restoreBaby } from '../domain/bootstrap';
-import { buildBackupJson, buildSessionsCsv } from '../domain/export';
+import { buildBackupJson, buildFeedingsCsv, buildSessionsCsv } from '../domain/export';
 import { applyImport, planImport, type ImportPlan } from '../domain/import';
 import { addLifeEvent, deleteLifeEvent, listLifeEvents } from '../domain/notes';
 import { mergeBabies } from '../domain/merge';
@@ -458,6 +458,7 @@ export function Settings() {
             {t('settings.exportJson')}
           </Btn>
           <Btn onClick={async () => download(await buildSessionsCsv(ctx))}>{t('settings.exportCsv')}</Btn>
+          <Btn onClick={async () => download(await buildFeedingsCsv(ctx))}>{t('settings.exportFeedCsv')}</Btn>
           <Btn onClick={() => fileRef.current?.click()}>{t('settings.import')}</Btn>
           <input
             ref={fileRef}

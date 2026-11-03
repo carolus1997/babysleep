@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from './app/AppContext';
 import { t, type I18nKey } from './i18n/es';
 import { History } from './screens/History';
+import { Feeds } from './screens/Feeds';
 import { Home } from './screens/Home';
 import { Onboarding } from './screens/Onboarding';
 import { Settings } from './screens/Settings';
@@ -11,9 +12,10 @@ import { fmtAges } from './ui/format';
 import { Avatar, useBabyPhotoUrl } from './ui/photo';
 import { Sheet } from './ui/primitives';
 
-type Tab = 'home' | 'history' | 'stats' | 'settings';
+type Tab = 'home' | 'feeds' | 'history' | 'stats' | 'settings';
 const TABS: ReadonlyArray<{ id: Tab; label: I18nKey; icon: string }> = [
   { id: 'home', label: 'tab.home', icon: '☾' },
+  { id: 'feeds', label: 'tab.feeds', icon: '🍼' },
   { id: 'history', label: 'tab.history', icon: '☰' },
   { id: 'stats', label: 'tab.stats', icon: '▥' },
   { id: 'settings', label: 'tab.settings', icon: '⚙' },
@@ -69,6 +71,7 @@ export function App() {
           apilamiento; con `z-10` las hojas (z-40) quedaban atrapadas debajo de la cabecera y la barra. */}
       <main className="relative flex-1 px-4 pb-28 pt-4">
         {tab === 'home' && <Home goSettings={() => setTab('settings')} />}
+        {tab === 'feeds' && <Feeds />}
         {tab === 'history' && <History />}
         {tab === 'stats' && <Stats />}
         {tab === 'settings' && <Settings />}
@@ -76,7 +79,7 @@ export function App() {
 
       <nav
         aria-label="Principal"
-        className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-md grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
+        className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-md grid-cols-5 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
       >
         {TABS.map((x) => (
           <button

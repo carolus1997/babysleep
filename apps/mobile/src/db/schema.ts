@@ -6,6 +6,7 @@ import type {
   CaregiverT,
   EventCategoryT,
   FamilyT,
+  FeedingT,
   LifeEventT,
   ObservationT,
   ObservationTagT,
@@ -71,6 +72,7 @@ export class BabySleepDb extends Dexie {
   family!: Table<FamilyT, string>;
   caregiver!: Table<CaregiverT, string>;
   baby!: Table<BabyT, string>;
+  feeding!: Table<FeedingT, string>;
   sleep_session!: Table<SleepSessionT, string>;
   settling_attempt!: Table<SettlingAttemptT, string>;
   wake_episode!: Table<WakeEpisodeT, string>;
@@ -105,6 +107,8 @@ export class BabySleepDb extends Dexie {
     this.version(2).stores({ baby_photo: 'baby_id' });
     // v3: cola de sincronización y última versión conocida del servidor. Solo añade tablas.
     this.version(3).stores({ outbox: '++seq, [table+row_id]', sync_row: 'key' });
+    // v4: tomas de comida y su índice en las notas. Solo añade; no toca datos existentes.
+    this.version(4).stores({ feeding: 'id, baby_id, start_utc', observation: 'id, session_id, settling_attempt_id, feeding_id' });
   }
 }
 
@@ -112,6 +116,7 @@ export const TABLES_FOR_EXPORT = [
   'family',
   'caregiver',
   'baby',
+  'feeding',
   'sleep_session',
   'settling_attempt',
   'wake_episode',

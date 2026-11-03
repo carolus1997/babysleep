@@ -5,18 +5,22 @@ import type { Ctx } from './context';
 import { DomainError } from './context';
 import { insertRow, newRow, softDelete, updateRow } from './write';
 
-export type ObservationTarget = { sessionId: string } | { attemptId: string };
+export type ObservationTarget = { sessionId: string } | { attemptId: string } | { feedingId: string };
 
 const targetFields = (t: ObservationTarget) =>
   'sessionId' in t
-    ? { session_id: t.sessionId, settling_attempt_id: null }
-    : { session_id: null, settling_attempt_id: t.attemptId };
+    ? { session_id: t.sessionId, settling_attempt_id: null, feeding_id: null }
+    : 'attemptId' in t
+      ? { session_id: null, settling_attempt_id: t.attemptId, feeding_id: null }
+      : { session_id: null, settling_attempt_id: null, feeding_id: t.feedingId };
 
 export async function findObservation(ctx: Ctx, target: ObservationTarget, moment: ObservationMomentT) {
   const rows =
     'sessionId' in target
       ? await ctx.db.observation.where('session_id').equals(target.sessionId).toArray()
-      : await ctx.db.observation.where('settling_attempt_id').equals(target.attemptId).toArray();
+      : 'attemptId' in target
+        ? await ctx.db.observation.where('settling_attempt_id').equals(target.attemptId).toArray()
+        : await ctx.db.observation.where('feeding_id').equals(target.feedingId).toArray();
   return rows.find((o) => o.moment === moment && o.deleted_at === null);
 }
 

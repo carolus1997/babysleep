@@ -5,9 +5,20 @@
  */
 export interface SeedTag {
   slug: string;
-  category: 'settling' | 'onset' | 'during' | 'wake';
+  category: 'settling' | 'onset' | 'during' | 'wake' | 'feeding';
   es: string;
 }
+
+// Notas rápidas de una toma
+export const SEED_FEEDING_TAGS: readonly SeedTag[] = [
+  { slug: 'feeding.good', category: 'feeding', es: 'Comió bien' },
+  { slug: 'feeding.took_little', category: 'feeding', es: 'Tomó poco' },
+  { slug: 'feeding.refused', category: 'feeding', es: 'La rechazó' },
+  { slug: 'feeding.fussy', category: 'feeding', es: 'Inquieto' },
+  { slug: 'feeding.spit_up', category: 'feeding', es: 'Regurgitó' },
+  { slug: 'feeding.gas', category: 'feeding', es: 'Gases' },
+  { slug: 'feeding.fell_asleep', category: 'feeding', es: 'Se durmió comiendo' },
+];
 
 export const SEED_TAGS: readonly SeedTag[] = [
   // Conciliación (dificultad para dormirse)
@@ -41,6 +52,7 @@ export const SEED_TAGS: readonly SeedTag[] = [
   { slug: 'wake.noise', category: 'wake', es: 'Por un ruido' },
   { slug: 'wake.woken_by_caregiver', category: 'wake', es: 'Lo despertamos' },
   { slug: 'wake.calm', category: 'wake', es: 'Tranquilo' },
+  ...SEED_FEEDING_TAGS,
 ];
 
 export const SEED_EVENT_CATEGORIES: ReadonlyArray<{ slug: string; es: string }> = [

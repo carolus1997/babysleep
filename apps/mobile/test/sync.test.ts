@@ -5,6 +5,7 @@ import { BabySleepDb } from '../src/db/schema';
 import { createBaby, deleteBaby, ensureBootstrap, listBabies, renameBaby, restoreBaby } from '../src/domain/bootstrap';
 import { mergeBabies } from '../src/domain/merge';
 import type { Ctx } from '../src/domain/context';
+import { deleteFeeding, editFeeding, finishFeeding as finishFeed, getOpenFeeding, listFeedings, nudgeFeedingStart, restoreFeeding, startFeeding as startFeed } from '../src/domain/feeding';
 import { listTags, saveObservation } from '../src/domain/notes';
 import { SEED_EVENT_CATEGORIES, SEED_TAGS } from '../src/domain/seed';
 import {
@@ -433,6 +434,89 @@ describe('operaciones rechazadas', () => {
   });
 });
 
+describe('tomas entre dos móviles', () => {
+  it('una toma iniciada en un móvil se ve en curso en el otro, que puede terminarla; las notas viajan con ella', async () => {
+    const { clock, server, A, B, baby } = await connectedPair();
+    const f = await startFeed(A.ctx, baby, 'bottle');
+    await settle(A, B);
+    expect((await getOpenFeeding(B.ctx, baby))?.id).toBe(f.id); // en curso en el otro móvil
+
+    clock.tick(12 * MIN);
+    await finishFeed(B.ctx, f.id, { amountMl: 110 });
+    const little = (await listTags(B.ctx)).find((t) => t.tag_slug === 'feeding.took_little')!;
+    await saveObservation(B.ctx, { target: { feedingId: f.id }, moment: 'feeding', text: 'Se distrajo', tagIds: [little.id] });
+    await settle(A, B);
+
+    for (const p of [A, B]) {
+      expect(await getOpenFeeding(p.ctx, baby)).toBeUndefined();
+      expect((await p.ctx.db.feeding.get(f.id))?.amount_ml).toBe(110);
+      expect((await p.ctx.db.observation.where('feeding_id').equals(f.id).toArray())[0]?.note_text).toBe('Se distrajo');
+    }
+    expect(server.rows('feeding')).toHaveLength(1);
+    await expectConverged(server, A, B);
+  });
+
+  it('editar, borrar y recuperar una toma se propaga; el tipo y sus datos viajan juntos', async () => {
+    const { clock, server, A, B, baby } = await connectedPair();
+    const f = await startFeed(A.ctx, baby, 'breast', { side: 'left' });
+    clock.tick(10 * MIN);
+    await finishFeed(A.ctx, f.id);
+    await settle(A, B);
+
+    await editFeeding(B.ctx, f.id, { type: 'bottle', amountMl: 90 });       // pecho → biberón: quita el pecho
+    await settle(A, B);
+    expect(await A.ctx.db.feeding.get(f.id)).toMatchObject({ feed_type: 'bottle', breast_side: null, amount_ml: 90 });
+
+    await deleteFeeding(A.ctx, f.id);
+    await settle(A, B);
+    expect(await listFeedings(B.ctx, baby)).toHaveLength(0);
+    expect(server.get('feeding', f.id)?.deleted_at).not.toBeNull();
+    await restoreFeeding(B.ctx, f.id);
+    await settle(A, B);
+    expect(await listFeedings(A.ctx, baby)).toHaveLength(1);
+    await expectConverged(server, A, B);
+  });
+
+  it('dos móviles terminan la misma toma a la vez: converge sin perder ninguna', async () => {
+    const { clock, server, A, B, baby } = await connectedPair();
+    const f = await startFeed(A.ctx, baby, 'breast');
+    await settle(A, B);
+    clock.tick(15 * MIN);
+    await finishFeed(A.ctx, f.id, { side: 'left' });
+    clock.tick(MIN);
+    await finishFeed(B.ctx, f.id, { side: 'right' });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    expect(server.rows('feeding')).toHaveLength(1);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    await expectConverged(server, A, B);
+  });
+});
+
+describe('campos acoplados entre dos móviles', () => {
+  it('uno cambia pecho→biberón mientras el otro anota los ml: nadie queda atascado y la toma es coherente', async () => {
+    const { clock, server, A, B, baby } = await connectedPair();
+    const f = await startFeed(A.ctx, baby, 'bottle');
+    await settle(A, B);
+    clock.tick(10 * MIN);
+    await editFeeding(A.ctx, f.id, { type: 'breast', side: 'left' });
+    await finishFeed(B.ctx, f.id, { amountMl: 90 });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    const row = server.get('feeding', f.id);
+    expect(row).toMatchObject({ feed_type: 'breast', breast_side: 'left', amount_ml: null });
+    expect(row?.['end_utc']).not.toBeNull(); // el cierre sí se aplicó
+    expect(server.conflicts.some((c) => c.field === 'amount_ml' && c.status === 'open' && c.alternate === 90)).toBe(true);
+    await expectConverged(server, A, B);
+  });
+});
+
 describe('eliminar perfiles entre dos móviles', () => {
   it('eliminar un perfil en un móvil lo quita del otro, y recuperarlo lo devuelve (con sus sesiones)', async () => {
     const { clock, server, A, B } = await pair();
@@ -520,9 +604,11 @@ describe('convergencia (prueba aleatoria)', () => {
       const closed = live.filter((s) => s.sleep_end_utc !== null);
       const trashed = (await p.ctx.db.sleep_session.toArray()).filter((s) => s.deleted_at !== null);
       const open = await getOpenSession(p.ctx, baby);
+      const openFeed = await getOpenFeeding(p.ctx, baby);
+      const feeds = (await p.ctx.db.feeding.toArray()).filter((x) => x.baby_id === baby && x.deleted_at === null);
       clock.tick((1 + Math.floor(rand() * 25)) * MIN);
 
-      const action = pick(['start', 'finish', 'cancel', 'edit', 'delete', 'restore', 'manual', 'note', 'profile', 'sync', 'sync', 'sync', 'fail']);
+      const action = pick(['start', 'finish', 'cancel', 'edit', 'delete', 'restore', 'manual', 'note', 'profile', 'feedStart', 'feedFinish', 'feedEdit', 'feedNote', 'feedDelete', 'sync', 'sync', 'sync', 'fail']);
       trace.push(`${step} ${p.name} ${action} open=${open?.id.slice(-6) ?? '-'} live=[${live.map((x) => x.id.slice(-6))}] trash=[${trashed.map((x) => x.id.slice(-6))}]`);
       try {
         if (action === 'start' && !open) await startSleep(p.ctx, baby);
@@ -539,6 +625,17 @@ describe('convergencia (prueba aleatoria)', () => {
         } else if (action === 'note' && live.length > 0) {
           await saveObservation(p.ctx, { target: { sessionId: pick(live).id }, moment: 'onset', text: `nota ${step}`, tagIds: [pick(tags).id] });
         } else if (action === 'profile') await renameBaby(p.ctx, baby, { alias: `Lía ${step}`, birth_weight_g: 2500 + step });
+        else if (action === 'feedStart' && !openFeed) await startFeed(p.ctx, baby, pick(['breast', 'bottle', 'solids'] as const));
+        else if (action === 'feedFinish' && openFeed) {
+          await finishFeed(p.ctx, openFeed.id, openFeed.feed_type === 'bottle' ? { amountMl: 30 + Math.floor(rand() * 120) } : openFeed.feed_type === 'breast' ? { side: pick(['left', 'right', 'both'] as const) } : {});
+        } else if (action === 'feedEdit' && feeds.length > 0) {
+          const f = pick(feeds);
+          if (rand() < 0.5) await editFeeding(p.ctx, f.id, { type: pick(['breast', 'bottle', 'solids'] as const) });
+          else await nudgeFeedingStart(p.ctx, f.id, -5);
+        } else if (action === 'feedNote' && feeds.length > 0) {
+          const ft = (await listTags(p.ctx)).filter((t) => t.category === 'feeding');
+          await saveObservation(p.ctx, { target: { feedingId: pick(feeds).id }, moment: 'feeding', text: `toma ${step}`, tagIds: [pick(ft).id] });
+        } else if (action === 'feedDelete' && feeds.length > 0) await deleteFeeding(p.ctx, pick(feeds).id);
         else if (action === 'sync') await p.sync();
         else if (action === 'fail') {
           p.transport[rand() < 0.5 ? 'dropNextResponse' : 'offline'] = true;

@@ -7,7 +7,7 @@ import { z } from 'zod';
  * de PostgreSQL (database/migrations). Los instantes son siempre UTC ISO-8601
  * con sufijo `Z`; la zona IANA y el offset viajan aparte en cada evento.
  */
-export const CONTRACT_VERSION = '0.2.0';
+export const CONTRACT_VERSION = '0.3.0';
 
 // ---------------------------------------------------------------- primitivos
 
@@ -93,6 +93,37 @@ export const Baby = SyncedRow.extend({
   notes: z.string().max(1000).nullable().default(null),
 });
 
+// ---------------------------------------------------------------------- tomas
+
+export const FeedType = z.enum(['breast', 'bottle', 'solids']);
+export const BreastSide = z.enum(['left', 'right', 'both']);
+
+/**
+ * Una toma de comida. `end_*` es `null` mientras la toma sigue en curso (cronómetro). El pecho usado solo
+ * existe en una toma de pecho y la cantidad en ml solo en un biberón. Todo dato opcional es `null` si no
+ * se conoce (nunca 0).
+ */
+export const Feeding = SyncedRow.extend({
+  baby_id: Uuid,
+  feed_type: FeedType,
+  start_utc: InstantUtc,
+  start_tz: IanaZone,
+  start_quality: TimeQuality.default('exact'),
+  end_utc: InstantUtc.nullable(),
+  end_tz: IanaZone.nullable(),
+  end_quality: TimeQuality.nullable(),
+  breast_side: BreastSide.nullable().default(null),
+  amount_ml: z.number().int().min(1).max(500).nullable().default(null),
+  source: z.enum(['timer', 'manual', 'import']),
+})
+  .refine((f) => f.end_utc === null || Date.parse(f.end_utc) > Date.parse(f.start_utc), {
+    message: 'El fin de la toma debe ser posterior al inicio',
+  })
+  .refine((f) => (f.end_utc === null) === (f.end_tz === null), { message: 'end_utc y end_tz van juntos' })
+  .refine((f) => f.breast_side === null || f.feed_type === 'breast', { message: 'El pecho solo se indica en una toma de pecho' })
+  .refine((f) => f.amount_ml === null || f.feed_type === 'bottle', { message: 'Los ml solo se indican en un biberón' });
+
+
 export const SleepSession = SyncedRow.extend({
   baby_id: Uuid,
   sleep_start_utc: InstantUtc,
@@ -140,15 +171,17 @@ export const WakeEpisode = SyncedRow.extend({
   duration_s: z.number().int().positive().nullable(),
 });
 
-export const ObservationMoment = z.enum(['onset', 'during', 'wake', 'settling']);
+export const ObservationMoment = z.enum(['onset', 'during', 'wake', 'settling', 'feeding']);
 export const Observation = SyncedRow.extend({
   session_id: Uuid.nullable(),
   settling_attempt_id: Uuid.nullable(),
+  /** Toma a la que pertenece la nota (desde contrato 0.3.0). Las filas anteriores no lo tienen: es `null`. */
+  feeding_id: Uuid.nullable().default(null),
   moment: ObservationMoment,
   occurred_utc: InstantUtc.nullable(),
   note_text: z.string().nullable(),
-}).refine((o) => (o.session_id === null) !== (o.settling_attempt_id === null), {
-  message: 'Una observación se vincula a una sesión o a un intento, nunca a ambos ni a ninguno',
+}).refine((o) => [o.session_id, o.settling_attempt_id, o.feeding_id].filter((x) => x !== null).length === 1, {
+  message: 'Una observación se vincula a una sesión, a un intento o a una toma: exactamente a uno',
 });
 
 export const Tag = SyncedRow.extend({
@@ -213,6 +246,9 @@ export type SleepSessionT = z.infer<typeof SleepSession>;
 export type SettlingAttemptT = z.infer<typeof SettlingAttempt>;
 export type WakeEpisodeT = z.infer<typeof WakeEpisode>;
 export type ObservationT = z.infer<typeof Observation>;
+export type FeedingT = z.infer<typeof Feeding>;
+export type FeedTypeT = z.infer<typeof FeedType>;
+export type BreastSideT = z.infer<typeof BreastSide>;
 export type BabyT = z.infer<typeof Baby>;
 export type FamilyT = z.infer<typeof Family>;
 export type AggregateItemT = z.infer<typeof AggregateItem>;

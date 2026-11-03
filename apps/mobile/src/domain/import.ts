@@ -3,6 +3,7 @@ import {
   AggregatePeriod,
   Baby,
   EventCategory,
+  Feeding,
   LifeEvent,
   Observation,
   ObservationTag,
@@ -27,6 +28,7 @@ const IMPORT_TABLES = [
   ['tag', Tag],
   ['event_category', EventCategory],
   ['baby', Baby],
+  ['feeding', Feeding],
   ['settling_attempt', SettlingAttempt],
   ['sleep_session', SleepSession],
   ['wake_episode', WakeEpisode],
@@ -178,6 +180,7 @@ export async function planImport(ctx: Ctx, text: string): Promise<ImportPlan> {
   const ids = async (table: string) => new Set<string>((await db.table(table).toArray()).map((r: { id: string }) => r.id));
   const known = {
     baby: await ids('baby'),
+    feeding: await ids('feeding'),
     sleep_session: await ids('sleep_session'),
     settling_attempt: await ids('settling_attempt'),
     observation: await ids('observation'),
@@ -196,12 +199,14 @@ export async function planImport(ctx: Ctx, text: string): Promise<ImportPlan> {
       }
     }
   };
+  need('feeding', 'baby_id', 'baby');
   need('settling_attempt', 'baby_id', 'baby');
   need('sleep_session', 'baby_id', 'baby');
   need('sleep_session', 'settling_attempt_id', 'settling_attempt', true);
   need('wake_episode', 'session_id', 'sleep_session');
   need('observation', 'session_id', 'sleep_session', true);
   need('observation', 'settling_attempt_id', 'settling_attempt', true);
+  need('observation', 'feeding_id', 'feeding', true);
   need('observation_tag', 'observation_id', 'observation');
   need('observation_tag', 'tag_id', 'tag');
   need('life_event', 'baby_id', 'baby', true);

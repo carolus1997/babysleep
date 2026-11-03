@@ -16,12 +16,13 @@ const LABEL: Record<ObservationMomentT, I18nKey> = {
   during: 'notes.during',
   wake: 'notes.wake',
   settling: 'notes.settling',
+  feeding: 'notes.feeding',
 };
 
 /** Notas y etiquetas rápidas de un momento (al dormirse, durante, al despertar o conciliación). Todo es opcional. */
 export function NotesSheet({ target, onClose }: { target: ObservationTarget; onClose: () => void }) {
   const { ctx, run, toast } = useApp();
-  const moments: ObservationMomentT[] = 'sessionId' in target ? ['onset', 'during', 'wake'] : ['settling'];
+  const moments: ObservationMomentT[] = 'sessionId' in target ? ['onset', 'during', 'wake'] : 'attemptId' in target ? ['settling'] : ['feeding'];
   const [moment, setMoment] = useState<ObservationMomentT>(moments[0] as ObservationMomentT);
   const [drafts, setDrafts] = useState<Partial<Record<ObservationMomentT, Draft>>>({});
   const tags = useLive(() => listTags(ctx), [ctx], [] as TagT[]);

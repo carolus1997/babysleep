@@ -571,4 +571,134 @@ begin
   perform tests.as_superuser();
 end $$;
 
+-- S22 · tomas (0008): alta, validaciones y aislamiento entre familias
+do $$
+declare r jsonb; n int; v_ml int; v_end timestamptz;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('feeding', 50, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'feed_type', 'breast', 'start_utc', '2027-01-14T10:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'end_utc', '2027-01-14T10:20:00.000Z', 'end_tz', 'Europe/Madrid', 'end_quality', 'exact', 'breast_side', 'left', 'source', 'timer')));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 1, 'S22a toma de pecho con el pecho usado');
+  r := tests.go(tests.op('feeding', 51, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'feed_type', 'bottle', 'start_utc', '2027-01-14T13:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'end_utc', '2027-01-14T13:15:00.000Z', 'end_tz', 'Europe/Madrid', 'end_quality', 'approx', 'amount_ml', 120, 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S22b biberón con cantidad');
+  r := tests.go(tests.op('feeding', 52, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'feed_type', 'bottle', 'start_utc', '2027-01-14T16:00:00.000Z', 'start_tz', 'Europe/Madrid', 'source', 'timer')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S22c una toma en curso no tiene fin');
+
+  -- lo incoherente lo rechaza la base de datos, no solo la app
+  r := tests.go(tests.op('feeding', 53, null, jsonb_build_object('baby_id', tests.u(1), 'feed_type', 'breast', 'start_utc', '2027-01-14T10:00:00.000Z',
+    'start_tz', 'Europe/Madrid', 'amount_ml', 100, 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S22d ml en una toma de pecho: rechazado');
+  r := tests.go(tests.op('feeding', 54, null, jsonb_build_object('baby_id', tests.u(1), 'feed_type', 'bottle', 'start_utc', '2027-01-14T10:00:00.000Z',
+    'start_tz', 'Europe/Madrid', 'breast_side', 'left', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S22e pecho en un biberón: rechazado');
+  r := tests.go(tests.op('feeding', 55, null, jsonb_build_object('baby_id', tests.u(1), 'feed_type', 'bottle', 'start_utc', '2027-01-14T10:00:00.000Z',
+    'start_tz', 'Europe/Madrid', 'end_utc', '2027-01-14T09:00:00.000Z', 'end_tz', 'Europe/Madrid', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S22f fin anterior al inicio: rechazado');
+  r := tests.go(tests.op('feeding', 56, null, jsonb_build_object('baby_id', tests.u(1), 'feed_type', 'bottle', 'start_utc', '2027-01-14T10:00:00.000Z',
+    'start_tz', 'Europe/Madrid', 'amount_ml', 0, 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S22g 0 ml: rechazado');
+  r := tests.go(tests.op('feeding', 57, null, jsonb_build_object('baby_id', tests.u(1), 'feed_type', 'leche', 'start_utc', '2027-01-14T10:00:00.000Z',
+    'start_tz', 'Europe/Madrid', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S22h un tipo desconocido: rechazado');
+
+  -- un bebé de OTRA familia no se puede usar
+  r := tests.go(tests.op('feeding', 58, null, jsonb_build_object('baby_id', tests.u(2), 'feed_type', 'breast', 'start_utc', '2027-01-14T10:00:00.000Z',
+    'start_tz', 'Europe/Madrid', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected' and r ->> 'reason' like 'invalid_reference%', 'S22i una toma no puede colgar de un bebé de otra familia');
+
+  -- cerrar la toma en curso: fin + ml
+  r := tests.go(tests.op('feeding', 52, 1, '{"end_utc":"2027-01-14T16:12:00.000Z","end_tz":"Europe/Madrid","end_quality":"exact","amount_ml":90}'));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 2, 'S22j se cierra la toma en curso con su cantidad');
+  perform tests.as_superuser();
+  select amount_ml, end_utc into v_ml, v_end from app.feeding where id = tests.u(52);
+  perform tests.assert(v_ml = 90 and v_end = '2027-01-14T16:12:00Z', 'S22k la toma queda con 90 ml y su fin');
+
+  -- visibilidad por familia
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  select count(*) into n from app.feeding;
+  perform tests.as_superuser();
+  perform tests.assert(n = 0, 'S22l otra familia no ve tus tomas');
+  perform tests.as_user('a0000000-0000-4000-8000-000000000003', 'lector@example.test');             -- lector: ve, pero no escribe
+  select count(*) into n from app.feeding;
+  perform tests.assert(n = 3, 'S22m un lector de la familia sí las ve');
+  perform tests.as_superuser();
+end $$;
+
+-- S23 · notas de una toma: exactamente un destino
+do $$
+declare r jsonb; v_fid uuid; v_sid uuid;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('observation', 60, null, jsonb_build_object('feeding_id', tests.u(50), 'moment', 'feeding', 'note_text', 'tomó bien')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S23a una nota se asocia a una toma');
+  perform tests.as_superuser();
+  select feeding_id, session_id into v_fid, v_sid from app.observation where id = tests.u(60);
+  perform tests.assert(v_fid = tests.u(50) and v_sid is null, 'S23b queda ligada a la toma y no a una sesión');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('observation', 61, null, jsonb_build_object('feeding_id', tests.u(50), 'session_id', tests.u(10), 'moment', 'feeding')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S23c toma y sesión a la vez: rechazado');
+  r := tests.go(tests.op('observation', 62, null, jsonb_build_object('moment', 'feeding', 'note_text', 'huérfana')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S23d sin destino: rechazado');
+  r := tests.go(tests.op('observation', 63, null, jsonb_build_object('feeding_id', tests.u(50), 'moment', 'otro')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S23e un momento desconocido: rechazado');
+
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  r := tests.go(tests.op('observation', 64, null, jsonb_build_object('feeding_id', tests.u(50), 'moment', 'feeding')));
+  perform tests.assert(r ->> 'status' = 'rejected' and r ->> 'reason' like 'invalid_reference%', 'S23f no se pueden colgar notas de una toma de otra familia');
+  perform tests.as_superuser();
+end $$;
+
+-- S24 · dos cuidadores editan la misma toma a la vez: los campos distintos se fusionan
+do $$
+declare r jsonb; v_ml int; v_side text; n int;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('feeding', 70, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'feed_type', 'breast', 'start_utc', '2027-01-14T20:00:00.000Z', 'start_tz', 'Europe/Madrid', 'source', 'timer')));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  perform tests.go(tests.op('feeding', 70, 1, '{"end_utc":"2027-01-14T20:25:00.000Z","end_tz":"Europe/Madrid","end_quality":"exact"}'));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('feeding', 70, 1, '{"breast_side":"both"}'));               -- base obsoleta, otro campo
+  perform tests.assert(r ->> 'status' = 'applied', 'S24a otro campo con base obsoleta se fusiona');
+  perform tests.as_superuser();
+  select breast_side into v_side from app.feeding where id = tests.u(70);
+  select count(*) into n from app.sync_conflict where row_id = tests.u(70);
+  perform tests.assert(v_side = 'both' and n = 0, 'S24b ambos cambios conviven sin conflicto');
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('feeding', 70, 3, null, true));            -- tras las dos ediciones la toma va por la versión 3
+  perform tests.assert(r ->> 'status' = 'applied', 'S24c una toma se borra de forma lógica');
+  perform tests.as_superuser();
+  perform tests.assert((select deleted_at is not null from app.feeding where id = tests.u(70)), 'S24d y se conserva en la base de datos');
+end $$;
+
+-- S25 · campos acoplados: uno cambia el tipo de toma y otro anota los ml a la vez -> juntos o ninguno
+do $$
+declare r jsonb; v_type text; v_side text; v_ml int; v_end timestamptz; n int;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('feeding', 80, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'feed_type', 'bottle', 'start_utc', '2027-01-14T20:00:00.000Z', 'start_tz', 'Europe/Madrid', 'source', 'timer')));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  r := tests.go(tests.op('feeding', 80, 1, '{"feed_type":"breast","breast_side":"right"}'));    -- cambia a pecho
+  perform tests.assert(r ->> 'status' = 'applied', 'S25a el primero cambia la toma a pecho');
+
+  -- el segundo (base obsoleta) cierra la toma con 90 ml, como si siguiera siendo un biberón
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('feeding', 80, 1,
+    '{"end_utc":"2027-01-14T20:15:00.000Z","end_tz":"Europe/Madrid","end_quality":"exact","amount_ml":90}'));
+  perform tests.assert(r ->> 'status' = 'merged', 'S25b en vez de rechazarse, se fusiona y avisa del conflicto');
+
+  perform tests.as_superuser();
+  select feed_type, breast_side, amount_ml, end_utc into v_type, v_side, v_ml, v_end from app.feeding where id = tests.u(80);
+  perform tests.assert(v_type = 'breast' and v_side = 'right' and v_ml is null, 'S25c la toma sigue siendo coherente: pecho, sin ml');
+  perform tests.assert(v_end = '2027-01-14T20:15:00Z', 'S25d el fin, que no estaba en disputa, sí se aplicó');
+  select count(*) into n from app.sync_conflict where row_id = tests.u(80) and field_name = 'amount_ml' and status = 'open';
+  perform tests.assert(n = 1, 'S25e los ml quedan como conflicto abierto (alternativo 90), nada se pierde en silencio');
+end $$;
+
 rollback;

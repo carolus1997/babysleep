@@ -3,6 +3,7 @@ import {
   AggregateItem,
   Baby,
   Family,
+  Feeding,
   Observation,
   SettlingAttempt,
   SleepSession,
@@ -92,6 +93,11 @@ describe('contrato Observation', () => {
     note_text: 'Costó dormirlo',
     ...over,
   });
+  it('se vincula a una toma, y exactamente a un destino', () => {
+    expect(Observation.safeParse(obs({ session_id: null, feeding_id: U(30), moment: 'feeding' })).success).toBe(true);
+    expect(Observation.safeParse(obs({ feeding_id: U(30) })).success).toBe(false); // sesión y toma a la vez
+    expect(Observation.parse(obs()).feeding_id).toBeNull(); // las filas antiguas no lo tienen
+  });
   it('se vincula a una sesión o a un intento, nunca a ambos ni a ninguno', () => {
     expect(Observation.safeParse(obs()).success).toBe(true);
     expect(Observation.safeParse(obs({ session_id: null, settling_attempt_id: U(3), moment: 'settling' })).success).toBe(true);
@@ -110,6 +116,38 @@ describe('contrato Baby', () => {
     expect(Baby.safeParse(baby({ sex: 'female', gestational_weeks: 40, birth_weight_g: 3300, birth_length_cm: 50.5 })).success).toBe(true);
     for (const bad of [{ sex: 'x' }, { gestational_weeks: 21 }, { gestational_weeks: 38.5 }, { birth_weight_g: 0 }, { birth_length_cm: 100 }]) {
       expect(Baby.safeParse(baby(bad)).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+});
+
+describe('contrato Feeding', () => {
+  const feeding = (over: Record<string, unknown> = {}) => ({
+    ...row(20), baby_id: U(2), feed_type: 'breast', start_utc: '2027-01-14T10:00:00.000Z', start_tz: 'Europe/Madrid',
+    end_utc: '2027-01-14T10:20:00.000Z', end_tz: 'Europe/Madrid', end_quality: 'exact', source: 'timer', ...over,
+  });
+  it('acepta tomas válidas y rellena lo opcional con null', () => {
+    const f = Feeding.parse(feeding());
+    expect([f.breast_side, f.amount_ml, f.start_quality]).toEqual([null, null, 'exact']);
+    expect(Feeding.safeParse(feeding({ breast_side: 'left' })).success).toBe(true);
+    expect(Feeding.safeParse(feeding({ feed_type: 'bottle', amount_ml: 120 })).success).toBe(true);
+    expect(Feeding.safeParse(feeding({ feed_type: 'solids' })).success).toBe(true);
+  });
+  it('una toma en curso no tiene fin ni zona de fin', () => {
+    expect(Feeding.safeParse(feeding({ end_utc: null, end_tz: null, end_quality: null })).success).toBe(true);
+    expect(Feeding.safeParse(feeding({ end_utc: null })).success).toBe(false);
+  });
+  it('rechaza lo incoherente', () => {
+    for (const bad of [
+      { end_utc: '2027-01-14T10:00:00.000Z' },                       // fin = inicio
+      { end_utc: '2027-01-14T09:00:00.000Z' },                       // fin antes del inicio
+      { feed_type: 'bottle', breast_side: 'left' },                  // pecho en un biberón
+      { feed_type: 'breast', amount_ml: 100 },                       // ml en una toma de pecho
+      { feed_type: 'bottle', amount_ml: 0 },
+      { feed_type: 'bottle', amount_ml: 501 },
+      { feed_type: 'bottle', amount_ml: 90.5 },
+      { feed_type: 'leche' },
+    ]) {
+      expect(Feeding.safeParse(feeding(bad)).success, JSON.stringify(bad)).toBe(false);
     }
   });
 });
