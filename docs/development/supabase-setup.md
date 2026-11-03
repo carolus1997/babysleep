@@ -65,7 +65,7 @@ Con el registro cerrado, los usuarios los creas tú. **Authentication → Users 
    ```
 
    Devuelve un **código de alta** (64 caracteres). **Se muestra una sola vez**: guárdalo en tu gestor. Caduca a los 30 minutos y es de un solo uso. Lo usarás en la app al entrar por primera vez.
-4. Para tu pareja, más adelante, desde la propia app (o con otro `insert` en `app.caregiver`) se invita y se abre una ventana de alta.
+4. Para tu pareja (u otra persona): crea su usuario en **Authentication → Users** (paso 5) y, desde la app, **Ajustes → Cuenta y sincronización → Familia → Invitar a alguien**. La app genera su código de alta (30 min, un uso). Ya no hace falta SQL.
 
 ## 7. Exponer el esquema `app`
 
@@ -83,6 +83,15 @@ Es seguro compartirlas: la clave pública no da acceso a nada sin una sesión v�
 ## 9. Qué hace la app con esto
 
 La URL y la clave pública están en `apps/mobile/src/sync/config.ts` (públicas por diseño; el sitio publicado las lleva de todos modos). En Ajustes → «Cuenta y sincronización»: correo → código de 6 dígitos → código de alta (solo la primera vez) → «Conectar este móvil».
+
+## Actualizar un proyecto que ya tienes
+
+`setup.sql` es solo para el **primer** montaje. Si ya lo ejecutaste, cuando salga una migración nueva se ejecuta **solo esa** (SQL Editor → pegar el archivo → Run), en orden:
+
+| Migración | Qué añade | Estado en tu proyecto |
+|---|---|---|
+| 0001–0005 | Tablas, seguridad, sincronización, perfil, restaurar | Aplicadas |
+| `0006_family_admin.sql` | Invitar y retirar cuidadores desde la app | **Pendiente** |
 
 ## Cosas que conviene saber
 

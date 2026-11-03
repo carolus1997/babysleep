@@ -4,7 +4,7 @@ import { BabySleepDb } from '../src/db/schema';
 import { createBaby, ensureBootstrap, listBabies } from '../src/domain/bootstrap';
 import type { Ctx } from '../src/domain/context';
 import { editSession, finishSleep, listSessions, startSleep } from '../src/domain/sleep';
-import { AuthError, claimMembership, isLinked, requestCode, verifyCode } from '../src/sync/auth';
+import { AuthError, claimMembership, disableCaregiver, inviteCaregiver, isLinked, listFamily, requestCode, verifyCode } from '../src/sync/auth';
 import { syncOnce } from '../src/sync/engine';
 import { connectDevice } from '../src/sync/identity';
 import { NotLinkedError, supabaseTransport } from '../src/sync/supabase';
@@ -120,6 +120,55 @@ describe('transporte de Supabase', () => {
     // ...y el vinculado sí se reconoce
     expect(await isLinked(a.fake.client, a.fake.userId as string)).toBe(true);
     expect(stranger.userId).toBe(OTHER);
+  });
+});
+
+describe('gestión de la familia', () => {
+  const rpcClient = (result: { data?: unknown; error?: { message: string } | null }) => {
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const client = {
+      rpc: (name: string, args: Record<string, unknown>) => {
+        calls.push({ name, args });
+        return Promise.resolve({ data: result.data ?? null, error: result.error ?? null });
+      },
+    } as never;
+    return { client, calls };
+  };
+
+  it('invitar devuelve el código y envía el nombre y el correo recortados', async () => {
+    const { client, calls } = rpcClient({ data: 'c'.repeat(64) });
+    const code = await inviteCaregiver(client, '  Claudia ', ' claudia@example.test ', 'caregiver');
+    expect(code).toHaveLength(64);
+    expect(calls[0]).toEqual({ name: 'invite_caregiver', args: { p_display_name: 'Claudia', p_email: 'claudia@example.test', p_role: 'caregiver' } });
+  });
+
+  it.each([
+    ['not_admin', /administra/i],
+    ['invalid_email', /correo/i],
+    ['already_member', /ya forma parte/i],
+    ['cannot_disable_self', /ti mismo/i],
+  ])('traduce el error «%s» del servidor a un mensaje comprensible', async (raw, msg) => {
+    const { client } = rpcClient({ error: { message: raw } });
+    const err = await inviteCaregiver(client, 'A', 'a@example.test', 'viewer').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AuthError);
+    expect((err as AuthError).message).toMatch(msg);
+    expect((err as AuthError).code).toBe(raw);
+    const err2 = await disableCaregiver(client, 'x').catch((e: unknown) => e);
+    expect(err2).toBeInstanceOf(AuthError);
+  });
+
+  it('retirar el acceso llama a la función con el id del cuidador', async () => {
+    const { client, calls } = rpcClient({});
+    await disableCaregiver(client, 'abc');
+    expect(calls[0]).toEqual({ name: 'disable_caregiver', args: { p_caregiver_id: 'abc' } });
+  });
+
+  it('listar la familia devuelve los miembros en orden y excluye los eliminados', async () => {
+    const { server, phone } = setup();
+    const a = await phone(0);
+    const list = await listFamily(a.fake.client);
+    expect(list.map((m) => m.display_name)).toEqual(server.identityFor(server.caregiverIds[0] as string).caregivers.map((c) => c['display_name']));
+    expect(list[0]).toMatchObject({ role: 'admin', status: 'active' });
   });
 });
 

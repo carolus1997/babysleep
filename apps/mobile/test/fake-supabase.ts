@@ -16,12 +16,17 @@ class Query implements PromiseLike<Result> {
     this.rows = this.rows.filter((r) => Number(r[col]) > v);
     return this;
   }
+  is(col: string, v: unknown) {
+    this.rows = this.rows.filter((r) => (r[col] ?? null) === v);
+    return this;
+  }
   eq(col: string, v: unknown) {
     this.rows = this.rows.filter((r) => r[col] === v);
     return this;
   }
   order(col: string, o: { ascending: boolean }) {
-    this.rows = [...this.rows].sort((a, b) => (Number(a[col]) - Number(b[col])) * (o.ascending ? 1 : -1));
+    const num = (x: unknown) => (typeof x === 'number' ? x : Number.NaN);
+    this.rows = Number.isNaN(num(this.rows[0]?.[col])) ? this.rows : [...this.rows].sort((a, b) => (num(a[col]) - num(b[col])) * (o.ascending ? 1 : -1));
     return this;
   }
   limit(n: number) {

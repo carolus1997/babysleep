@@ -289,4 +289,86 @@ begin
   perform tests.assert(a > 0 and c = 0, 'T14d solo un admin ve la auditoría');
 end $$;
 
+-- T15 · invitar a un cuidador (0006): código de un solo uso, correo normalizado y acceso tras canjearlo
+do $$
+declare v_code text; r jsonb; n int; v_role text; v_status text;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  v_code := app.invite_caregiver('Nuevo', '  NUEVO@Example.test ', 'caregiver');
+  perform tests.assert(length(v_code) = 64, 'T15a la invitación devuelve un código de alta');
+  perform tests.as_superuser();
+  select role, status into v_role, v_status from app.caregiver where email_normalized = 'nuevo@example.test';
+  perform tests.assert(v_role = 'caregiver' and v_status = 'invited', 'T15b queda invitado y con el correo normalizado');
+
+  perform tests.as_user('10000000-0000-4000-8000-000000000001', 'nuevo@example.test');
+  r := app.claim_membership(v_code);
+  select count(*) into n from app.baby;
+  perform tests.as_superuser();
+  perform tests.assert(r ->> 'status' = 'ok' and n = 1, 'T15c el invitado canjea el código y ve los datos de su familia');
+end $$;
+
+-- T16 · solo un admin invita; validaciones; aislamiento entre familias
+do $$
+declare ok boolean; v_code text; v_fam text;
+begin
+  perform tests.as_user('10000000-0000-4000-8000-000000000001', 'nuevo@example.test');      -- cuidador, no admin
+  begin perform app.invite_caregiver('X', 'x@example.test'); ok := false; exception when insufficient_privilege then ok := true; end;
+  perform tests.assert(ok, 'T16a un cuidador no puede invitar');
+  begin perform app.disable_caregiver(gen_random_uuid()); ok := false; exception when insufficient_privilege then ok := true; end;
+  perform tests.assert(ok, 'T16b un cuidador no puede retirar accesos');
+
+  perform tests.as_anon();
+  begin perform app.invite_caregiver('X', 'x@example.test'); ok := false; exception when insufficient_privilege then ok := true; end;
+  perform tests.assert(ok, 'T16c anon no puede invitar');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  begin perform app.invite_caregiver('   ', 'x@example.test'); ok := false; exception when sqlstate '22023' then ok := true; end;
+  perform tests.assert(ok, 'T16d nombre vacío rechazado');
+  begin perform app.invite_caregiver('X', 'no-es-un-correo'); ok := false; exception when sqlstate '22023' then ok := true; end;
+  perform tests.assert(ok, 'T16e correo inválido rechazado');
+  begin perform app.invite_caregiver('X', 'x@example.test', 'admin'); ok := false; exception when sqlstate '22023' then ok := true; end;
+  perform tests.assert(ok, 'T16f no se puede invitar a otro administrador desde la app');
+  begin perform app.invite_caregiver('Otra', 'admin-a@example.test'); ok := false; exception when sqlstate 'P0001' then ok := true; end;
+  perform tests.assert(ok, 'T16g no se re-invita a quien ya es miembro activo');
+
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  v_code := app.invite_caregiver('Abuela', 'abuela@example.test', 'viewer');
+  perform tests.as_superuser();
+  select f.name into v_fam from app.caregiver c join app.family f on f.id = c.family_id where c.email_normalized = 'abuela@example.test';
+  perform tests.assert(v_fam = 'Familia B', 'T16h la invitación va a la familia de quien invita, nunca a otra');
+end $$;
+
+-- T17 · retirar acceso y re-invitar
+do $$
+declare v_id uuid; v_me uuid; v_code text; r jsonb; n int; ok boolean;
+begin
+  select id into v_id from app.caregiver where email_normalized = 'nuevo@example.test';
+  select id into v_me from app.caregiver where auth_user_id = 'a0000000-0000-4000-8000-000000000001';
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  begin perform app.disable_caregiver(v_me); ok := false; exception when sqlstate 'P0001' then ok := true; end;
+  perform tests.assert(ok, 'T17a un admin no puede retirarse el acceso a sí mismo');
+
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  begin perform app.disable_caregiver(v_id); ok := false; exception when sqlstate 'P0001' then ok := true; end;
+  perform tests.assert(ok, 'T17b el admin de otra familia no puede tocar a tus cuidadores');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform app.disable_caregiver(v_id);
+  perform tests.as_user('10000000-0000-4000-8000-000000000001', 'nuevo@example.test');
+  select count(*) into n from app.baby;
+  perform tests.assert(n = 0, 'T17c el cuidador desactivado pierde el acceso');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  v_code := app.invite_caregiver('Nuevo', 'nuevo@example.test');
+  perform tests.as_user('10000000-0000-4000-8000-000000000001', 'nuevo@example.test');
+  r := app.claim_membership(v_code);
+  select count(*) into n from app.baby;
+  perform tests.assert(r ->> 'status' = 'ok' and n = 1, 'T17d tras re-invitarlo y canjear el código recupera el acceso');
+
+  perform tests.as_superuser();
+  select count(*) into n from app.audit_log where event in ('caregiver_invited', 'caregiver_disabled');
+  perform tests.assert(n = 4, 'T17e las invitaciones y las bajas quedan en la auditoría');
+end $$;
+
 rollback;

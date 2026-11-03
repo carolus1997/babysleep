@@ -63,3 +63,51 @@ export async function claimMembership(client: AppClient, code: string): Promise<
 export async function signOut(client: AppClient): Promise<void> {
   await client.auth.signOut();
 }
+
+// ----------------------------------------------------------------- familia (solo administradores)
+
+export interface FamilyMember {
+  id: string;
+  display_name: string;
+  email_normalized: string;
+  role: 'admin' | 'caregiver' | 'viewer';
+  status: 'invited' | 'active' | 'disabled';
+}
+
+/** Mensajes de las excepciones de `invite_caregiver` / `disable_caregiver` (migración 0006). */
+const FAMILY_ERRORS: Array<[string, string]> = [
+  ['not_admin', 'Solo quien administra la familia puede hacer esto.'],
+  ['invalid_name', 'Escribe un nombre.'],
+  ['invalid_email', 'Ese correo no parece válido.'],
+  ['invalid_role', 'Permisos no válidos.'],
+  ['already_member', 'Esa persona ya forma parte de la familia.'],
+  ['cannot_disable_self', 'No puedes quitarte el acceso a ti mismo.'],
+  ['not_found', 'Esa persona no existe en tu familia.'],
+];
+
+function familyError(message: string): AuthError {
+  const hit = FAMILY_ERRORS.find(([k]) => message.includes(k));
+  return new AuthError(hit?.[1] ?? friendly(message), hit?.[0] ?? 'family');
+}
+
+export async function listFamily(client: AppClient): Promise<FamilyMember[]> {
+  const { data, error } = await client
+    .from('caregiver')
+    .select('id, display_name, email_normalized, role, status')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true });
+  if (error !== null) throw new Error(friendly(error.message));
+  return (data ?? []) as FamilyMember[];
+}
+
+/** Da de alta (o re-invita) a alguien y devuelve su código de alta: 30 minutos, un solo uso. */
+export async function inviteCaregiver(client: AppClient, name: string, email: string, role: 'caregiver' | 'viewer'): Promise<string> {
+  const { data, error } = await client.rpc('invite_caregiver', { p_display_name: name.trim(), p_email: email.trim(), p_role: role });
+  if (error !== null) throw familyError(error.message);
+  return String(data);
+}
+
+export async function disableCaregiver(client: AppClient, id: string): Promise<void> {
+  const { error } = await client.rpc('disable_caregiver', { p_caregiver_id: id });
+  if (error !== null) throw familyError(error.message);
+}
