@@ -53,6 +53,14 @@ jobs:
           sudo apt-get install -y postgresql-common age
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y postgresql-client-17
+          # Los servidores de GitHub traen otro PostgreSQL preinstalado: se fija el cliente 17 a propósito,
+          # porque pg_dump falla contra un servidor de versión mayor (Supabase usa 17).
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Versiones de las herramientas
+        run: |
+          pg_dump --version
+          age --version
 
       - name: Copia, restauración de prueba y cifrado
         env:
