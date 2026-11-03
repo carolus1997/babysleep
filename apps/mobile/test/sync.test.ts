@@ -2,7 +2,7 @@ import { mustResolveLocal } from '@babysleep/core';
 import { SleepSession } from '@babysleep/contract';
 import { describe, expect, it } from 'vitest';
 import { BabySleepDb } from '../src/db/schema';
-import { createBaby, ensureBootstrap, listBabies, renameBaby } from '../src/domain/bootstrap';
+import { createBaby, deleteBaby, ensureBootstrap, listBabies, renameBaby, restoreBaby } from '../src/domain/bootstrap';
 import { mergeBabies } from '../src/domain/merge';
 import type { Ctx } from '../src/domain/context';
 import { listTags, saveObservation } from '../src/domain/notes';
@@ -430,6 +430,36 @@ describe('operaciones rechazadas', () => {
     // No bloquea el resto ni se reintenta en bucle
     expect((await A.sync()).rejected).toBe(0);
     expect(await retryRejected(A.ctx.db)).toBe(1);
+  });
+});
+
+describe('eliminar perfiles entre dos móviles', () => {
+  it('eliminar un perfil en un móvil lo quita del otro, y recuperarlo lo devuelve (con sus sesiones)', async () => {
+    const { clock, server, A, B } = await pair();
+    const keep = await createBaby(A.ctx, { alias: 'Ginebra', birthDate: '2026-07-01' });
+    clock.tick(1);
+    const dup = await createBaby(A.ctx, { alias: 'Duplicado raro', birthDate: '2026-07-01' });
+    const s = await startSleep(A.ctx, dup.id);
+    clock.tick(HOUR);
+    await finishSleep(A.ctx, s.id);
+    await A.connect();
+    await B.connect();
+    await settle(A, B);
+    expect((await listBabies(B.ctx)).map((b) => b.id).sort()).toEqual([keep.id, dup.id].sort());
+
+    await deleteBaby(B.ctx, dup.id);
+    await settle(A, B);
+    for (const p of [A, B]) expect((await listBabies(p.ctx)).map((b) => b.id)).toEqual([keep.id]);
+    expect(server.get('baby', dup.id)?.deleted_at).not.toBeNull(); // en el servidor se conserva
+    expect(server.rows('sleep_session')).toHaveLength(1); // y también sus sesiones
+
+    await restoreBaby(A.ctx, dup.id);
+    await settle(A, B);
+    for (const p of [A, B]) {
+      expect((await listBabies(p.ctx)).map((b) => b.id).sort()).toEqual([keep.id, dup.id].sort());
+      expect(await listSessions(p.ctx, dup.id)).toHaveLength(1);
+    }
+    await expectConverged(server, A, B);
   });
 });
 

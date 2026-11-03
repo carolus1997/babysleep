@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mustResolveLocal, parseInstant, recordedDurationMs, settlingLatency } from '@babysleep/core';
-import { createBaby, ensureBootstrap, getActiveBabyId, listBabies, renameBaby } from '../src/domain/bootstrap';
+import { createBaby, deleteBaby, ensureBootstrap, getActiveBabyId, listBabies, listDeletedBabies, renameBaby, restoreBaby } from '../src/domain/bootstrap';
 import { DomainError } from '../src/domain/context';
 import { buildBackupJson } from '../src/domain/export';
 import { mergeBabies } from '../src/domain/merge';
@@ -517,5 +517,46 @@ describe('fusionar perfiles de bebé', () => {
     const a = await createBaby(h.ctx, { alias: 'A', birthDate: '2026-07-01' });
     expect(await code(mergeBabies(h.ctx, a.id, a.id))).toBe('invalid');
     expect(await code(mergeBabies(h.ctx, a.id, '00000000-0000-4000-8000-000000000000'))).toBe('not_found');
+  });
+});
+
+describe('eliminar y recuperar perfiles', () => {
+  it('el perfil eliminado deja de verse pero se conserva con todos sus registros, y se puede recuperar', async () => {
+    const h = await makeHarness('2027-01-15T14:00');
+    const a = await createBaby(h.ctx, { alias: 'Ginebra', birthDate: '2026-07-01' });
+    h.advance(1);
+    const dup = await createBaby(h.ctx, { alias: 'Ginebra (duplicado)', birthDate: '2026-07-01' });
+    const s = await startSleep(h.ctx, dup.id);
+    h.advance(HOUR);
+    await finishSleep(h.ctx, s.id);
+
+    await deleteBaby(h.ctx, dup.id);
+    expect((await listBabies(h.ctx)).map((b) => b.id)).toEqual([a.id]);
+    expect((await listDeletedBabies(h.ctx)).map((b) => b.id)).toEqual([dup.id]);
+    expect(await getActiveBabyId(h.ctx)).toBe(a.id); // el activo pasa al que queda
+    expect(await h.ctx.db.sleep_session.count()).toBe(1); // sus registros siguen ahí
+
+    await restoreBaby(h.ctx, dup.id);
+    expect((await listBabies(h.ctx)).map((b) => b.id).sort()).toEqual([a.id, dup.id].sort());
+    expect(await listSessions(h.ctx, dup.id)).toHaveLength(1);
+    expect(await listDeletedBabies(h.ctx)).toHaveLength(0);
+  });
+
+  it('no deja eliminar el único perfil ni uno que no existe', async () => {
+    const h = await makeHarness();
+    const a = await createBaby(h.ctx, { alias: 'Sola', birthDate: '2026-07-01' });
+    expect(await code(deleteBaby(h.ctx, a.id))).toBe('invalid');
+    expect(await code(deleteBaby(h.ctx, '00000000-0000-4000-8000-000000000000'))).toBe('not_found');
+    expect((await listBabies(h.ctx)).map((b) => b.id)).toEqual([a.id]);
+  });
+
+  it('eliminar dos veces el mismo perfil no hace nada raro', async () => {
+    const h = await makeHarness();
+    const a = await createBaby(h.ctx, { alias: 'A', birthDate: '2026-07-01' });
+    h.advance(1);
+    const b = await createBaby(h.ctx, { alias: 'B', birthDate: '2026-07-01' });
+    await deleteBaby(h.ctx, b.id);
+    expect(await code(deleteBaby(h.ctx, b.id))).toBe('not_found');
+    expect((await listBabies(h.ctx)).map((x) => x.id)).toEqual([a.id]);
   });
 });

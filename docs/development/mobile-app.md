@@ -28,6 +28,7 @@ Toda la estadística y el tiempo salen de `@babysleep/core`; la app no recalcula
 
 - **Perfiles** de varios bebés con cambio rápido (color en la cabecera para no registrar en el perfil equivocado).
 - **Perfil ampliado**, todo opcional (`null` = desconocido, nunca 0): sexo, semanas de gestación, peso y talla al nacer y notas. Se validan en la app, en el contrato y en la base de datos del servidor (migración 0004).
+- **Eliminar, fusionar y recuperar perfiles.** Ajustes → Editar → «Eliminar perfil» (pide escribir el nombre). El perfil y sus registros se **conservan** en «Perfiles eliminados» y se pueden recuperar; con la sincronización activada desaparece también en los demás móviles. No se puede eliminar el único perfil. «Fusionar perfiles» pasa los registros de uno a otro (útil con duplicados).
 - **Foto del bebé** desde la galería o la cámara. Se reduce a 1024 px y se recomprime en JPEG en el propio teléfono, lo que elimina los metadatos (incluida la ubicación GPS). Se guarda **solo en este dispositivo**, en una tabla aparte (`baby_photo`): no se sincroniza, no entra en las copias JSON/CSV y no existe en el servidor. Sirve de avatar y, **solo en el tema claro**, de fondo muy tenue (en oscuro y noche no se muestra).
 - **Iniciar sueño** = «hemos comprobado que está dormido», igual para siesta y noche. Se guardan instantes, no un contador: el cronómetro sobrevive a cerrar la app.
 - **Conciliación opcional**: «Empezar a dormirlo» y «Colocado en la cuna». Se enlaza sola al iniciar sueño. Sin ella, la latencia queda *desconocida* (nunca 0).

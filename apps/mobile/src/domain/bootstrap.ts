@@ -4,7 +4,7 @@ import type { BabySleepDb } from '../db/schema';
 import type { Ctx } from './context';
 import { DomainError } from './context';
 import { SEED_EVENT_CATEGORIES, SEED_TAGS } from './seed';
-import { insertRow, newRow, updateRow } from './write';
+import { insertRow, newRow, restoreRow, softDelete, updateRow } from './write';
 
 const PALETTE = ['#6366f1', '#14b8a6', '#f59e0b', '#ec4899', '#0ea5e9', '#84cc16'];
 
@@ -295,6 +295,37 @@ export async function renameBaby(
   if (birth_date !== undefined) changes['birth_date'] = birth_date;
   if (color !== undefined) changes['color'] = color;
   return updateRow(ctx, ctx.db.baby, Baby, id, changes);
+}
+
+/**
+ * Elimina un perfil: deja de verse, pero se CONSERVA (papelera de perfiles) con todos sus registros, de modo que
+ * puede recuperarse. Con la sincronización activada, desaparece también en los demás móviles. No se permite
+ * eliminar el único perfil: la app quedaría en el alta de un perfil nuevo sin forma de recuperar el anterior.
+ */
+export async function deleteBaby(ctx: Ctx, id: string): Promise<void> {
+  const baby = await ctx.db.baby.get(id);
+  if (baby === undefined || baby.deleted_at !== null) throw new DomainError('not_found', 'Ese perfil no existe');
+  const live = await listBabies(ctx);
+  if (live.length <= 1) throw new DomainError('invalid', 'No se puede eliminar el único perfil. Crea otro antes, o fusiónalos si es un duplicado.');
+  await ctx.db.transaction('rw', ctx.db.tables, async () => {
+    await softDelete(ctx, ctx.db.baby, Baby, id);
+    if ((await ctx.db.meta.get('active_baby_id'))?.value === id) {
+      const next = live.find((b) => b.id !== id);
+      if (next !== undefined) await setActiveBabyId(ctx, next.id);
+    }
+  });
+}
+
+export async function restoreBaby(ctx: Ctx, id: string) {
+  const baby = await ctx.db.baby.get(id);
+  if (baby === undefined) throw new DomainError('not_found', 'Ese perfil no existe');
+  return restoreRow(ctx, ctx.db.baby, Baby, id);
+}
+
+/** Perfiles eliminados (o archivados al fusionar), los más recientes primero. */
+export async function listDeletedBabies(ctx: Ctx) {
+  const all = await ctx.db.baby.where('family_id').equals(ctx.familyId).toArray();
+  return all.filter((b) => b.deleted_at !== null).sort((a, b) => (b.deleted_at ?? '').localeCompare(a.deleted_at ?? ''));
 }
 
 export async function getActiveBabyId(ctx: Ctx): Promise<string | null> {

@@ -1,7 +1,7 @@
 import type { BabyT, EventCategoryT, LifeEventT } from '@babysleep/contract';
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
-import { createBaby, renameBaby } from '../domain/bootstrap';
+import { createBaby, deleteBaby, listDeletedBabies, renameBaby, restoreBaby } from '../domain/bootstrap';
 import { buildBackupJson, buildSessionsCsv } from '../domain/export';
 import { applyImport, planImport, type ImportPlan } from '../domain/import';
 import { addLifeEvent, deleteLifeEvent, listLifeEvents } from '../domain/notes';
@@ -20,8 +20,40 @@ const THEMES: ThemePref[] = ['auto', 'light', 'dark', 'night'];
 /** Texto de un campo numérico → número, `null` si está vacío, NaN si no se entiende (lo rechaza el dominio). */
 const toNum = (s: string): number | null => (s.trim() === '' ? null : Number(s.trim().replace(',', '.')));
 
-function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void }) {
+function DeleteBabySheet({ baby, onClose, onDone }: { baby: BabyT; onClose: () => void; onDone: () => void }) {
   const { ctx, run, toast } = useApp();
+  const [typed, setTyped] = useState('');
+  const matches = typed.trim().toLowerCase() === baby.alias.trim().toLowerCase();
+  return (
+    <Sheet title={t('baby.deleteTitle', { alias: baby.alias })} onClose={onClose}>
+      <p className="mb-3 text-sm text-muted">{t('baby.deleteHelp')}</p>
+      <Field label={t('baby.deleteType', { alias: baby.alias })}>
+        <input className={inputCls} value={typed} autoComplete="off" onChange={(e) => setTyped(e.target.value)} />
+      </Field>
+      <Btn
+        variant="danger"
+        className="w-full"
+        disabled={!matches}
+        onClick={async () => {
+          const ok = await run(async () => {
+            await deleteBaby(ctx, baby.id);
+            return true;
+          });
+          if (ok) {
+            toast(t('baby.deleted'));
+            onDone();
+          }
+        }}
+      >
+        {t('baby.deleteDo')}
+      </Btn>
+    </Sheet>
+  );
+}
+
+function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void }) {
+  const { ctx, babies, run, toast } = useApp();
+  const [deleting, setDeleting] = useState(false);
   const [alias, setAlias] = useState(baby?.alias ?? '');
   const [birth, setBirth] = useState(baby?.birth_date ?? '');
   const [sex, setSex] = useState<'female' | 'male' | null>(baby?.sex ?? null);
@@ -45,6 +77,8 @@ function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void 
       toast(t('baby.photo.error'));
     }
   };
+
+  if (deleting && baby) return <DeleteBabySheet baby={baby} onClose={() => setDeleting(false)} onDone={onClose} />;
 
   return (
     <Sheet title={baby ? t('common.edit') : t('settings.addBaby')} onClose={onClose}>
@@ -156,6 +190,11 @@ function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void 
       >
         {t('common.save')}
       </Btn>
+      {baby && babies.length > 1 && (
+        <Btn variant="danger" className="mt-3 w-full" onClick={() => setDeleting(true)}>
+          {t('baby.delete')}
+        </Btn>
+      )}
     </Sheet>
   );
 }
@@ -315,10 +354,11 @@ function EventSheet({ onClose }: { onClose: () => void }) {
 }
 
 export function Settings() {
-  const { ctx, babies, baby, run } = useApp();
+  const { ctx, babies, baby, run, toast } = useApp();
   const [babySheet, setBabySheet] = useState<BabyT | null | 'new'>(null);
   const [eventSheet, setEventSheet] = useState(false);
   const [mergeSheet, setMergeSheet] = useState(false);
+  const deletedBabies = useLive(() => listDeletedBabies(ctx), [ctx], [] as BabyT[]);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [theme, setTheme] = useState<ThemePref>(getThemePref());
@@ -361,6 +401,28 @@ export function Settings() {
           </Btn>
         )}
       </Card>
+
+      {deletedBabies.length > 0 && (
+        <Card title={t('baby.trash')}>
+          <ul className="divide-y divide-line">
+            {deletedBabies.map((b) => (
+              <li key={b.id} className="flex min-h-12 items-center justify-between text-sm">
+                <span>
+                  <strong>{b.alias}</strong> · {b.birth_date}
+                </span>
+                <Btn
+                  variant="ghost"
+                  onClick={async () => {
+                    if (await run(() => restoreBaby(ctx, b.id))) toast(t('baby.restored'));
+                  }}
+                >
+                  {t('baby.restore')}
+                </Btn>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card title={t('settings.diary')}>
         <ul className="divide-y divide-line">
