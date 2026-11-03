@@ -80,6 +80,10 @@ En **Settings → API Keys**:
 
 Es seguro compartirlas: la clave pública no da acceso a nada sin una sesión válida y sin las políticas de seguridad. **Nunca** `service_role`, la contraseña de la base de datos ni la clave SMTP.
 
+## 9. Qué hace la app con esto
+
+La URL y la clave pública están en `apps/mobile/src/sync/config.ts` (públicas por diseño; el sitio publicado las lleva de todos modos). En Ajustes → «Cuenta y sincronización»: correo → código de 6 dígitos → código de alta (solo la primera vez) → «Conectar este móvil».
+
 ## Cosas que conviene saber
 
 - **Plan gratuito:** Supabase **pausa** el proyecto tras ~7 días sin actividad y **no hace copias automáticas**. Por eso las copias diarias propias (cifradas) son importantes y están en el plan.

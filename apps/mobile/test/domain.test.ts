@@ -3,6 +3,7 @@ import { mustResolveLocal, parseInstant, recordedDurationMs, settlingLatency } f
 import { createBaby, ensureBootstrap, getActiveBabyId, listBabies, renameBaby } from '../src/domain/bootstrap';
 import { DomainError } from '../src/domain/context';
 import { buildBackupJson } from '../src/domain/export';
+import { mergeBabies } from '../src/domain/merge';
 import { getBabyPhoto, removeBabyPhoto, setBabyPhoto } from '../src/domain/photo';
 import { SEED_EVENT_CATEGORIES, SEED_TAGS } from '../src/domain/seed';
 import {
@@ -469,5 +470,52 @@ describe('integridad de lo guardado', () => {
     expect(done.origin_device_id).toBe(h.ctx.deviceId);
     expect(done.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7/);
     expect(mustResolveLocal('2027-01-15T13:00', MADRID)).toBeGreaterThan(0);
+  });
+});
+
+describe('fusionar perfiles de bebé', () => {
+  it('pasa todos los registros al perfil que se conserva y archiva el otro (reversible)', async () => {
+    const h = await makeHarness('2027-01-15T14:00');
+    const a = await createBaby(h.ctx, { alias: 'Ginebra', birthDate: '2026-07-01' });
+    h.advance(1);
+    const b = await createBaby(h.ctx, { alias: 'Ginebra (otro móvil)', birthDate: '2026-07-01' });
+    const sA = await startSleep(h.ctx, a.id);
+    h.advance(HOUR);
+    await finishSleep(h.ctx, sA.id);
+    h.advance(HOUR);
+    const sB = await startSleep(h.ctx, b.id);
+    h.advance(30 * MIN);
+    await finishSleep(h.ctx, sB.id);
+    const trip = (await h.ctx.db.event_category.toArray())[0]!;
+    await addLifeEvent(h.ctx, { babyId: b.id, categoryId: trip.id, startDate: '2027-02-01', description: 'Viaje' });
+    await addLifeEvent(h.ctx, { babyId: null, categoryId: trip.id, startDate: '2027-02-02', description: 'De toda la familia' });
+
+    const r = await mergeBabies(h.ctx, b.id, a.id);
+    expect(r.moved).toBe(2); // la sesión y el acontecimiento del perfil archivado
+    expect(await listSessions(h.ctx, a.id)).toHaveLength(2);
+    expect(await listSessions(h.ctx, b.id)).toHaveLength(0);
+    expect((await listBabies(h.ctx)).map((x) => x.id)).toEqual([a.id]);
+    expect((await h.ctx.db.baby.get(b.id))?.deleted_at).not.toBeNull(); // archivado, no borrado
+    expect((await listLifeEvents(h.ctx, a.id)).map((e) => e.description).sort()).toEqual(['De toda la familia', 'Viaje']);
+    expect(await getActiveBabyId(h.ctx)).toBe(a.id);
+  });
+
+  it('el perfil activo pasa al que se conserva; la foto se conserva si el destino no tiene', async () => {
+    const h = await makeHarness();
+    const a = await createBaby(h.ctx, { alias: 'A', birthDate: '2026-07-01' });
+    h.advance(1);
+    const b = await createBaby(h.ctx, { alias: 'B', birthDate: '2026-07-01' }); // el activo ahora es B
+    await setBabyPhoto(h.ctx, b.id, new Blob([new Uint8Array([1])], { type: 'image/jpeg' }));
+    await mergeBabies(h.ctx, b.id, a.id);
+    expect(await getActiveBabyId(h.ctx)).toBe(a.id);
+    expect((await getBabyPhoto(h.ctx, a.id))?.type).toBe('image/jpeg');
+    expect(await getBabyPhoto(h.ctx, b.id)).toBeUndefined();
+  });
+
+  it('rechaza fusionar un perfil consigo mismo o con uno inexistente', async () => {
+    const h = await makeHarness();
+    const a = await createBaby(h.ctx, { alias: 'A', birthDate: '2026-07-01' });
+    expect(await code(mergeBabies(h.ctx, a.id, a.id))).toBe('invalid');
+    expect(await code(mergeBabies(h.ctx, a.id, '00000000-0000-4000-8000-000000000000'))).toBe('not_found');
   });
 });

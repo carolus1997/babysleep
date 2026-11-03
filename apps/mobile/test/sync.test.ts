@@ -3,6 +3,7 @@ import { SleepSession } from '@babysleep/contract';
 import { describe, expect, it } from 'vitest';
 import { BabySleepDb } from '../src/db/schema';
 import { createBaby, ensureBootstrap, listBabies, renameBaby } from '../src/domain/bootstrap';
+import { mergeBabies } from '../src/domain/merge';
 import type { Ctx } from '../src/domain/context';
 import { listTags, saveObservation } from '../src/domain/notes';
 import { SEED_EVENT_CATEGORIES, SEED_TAGS } from '../src/domain/seed';
@@ -429,6 +430,39 @@ describe('operaciones rechazadas', () => {
     // No bloquea el resto ni se reintenta en bucle
     expect((await A.sync()).rejected).toBe(0);
     expect(await retryRejected(A.ctx.db)).toBe(1);
+  });
+});
+
+describe('perfiles duplicados del mismo bebé', () => {
+  it('cada móvil creó el suyo: tras conectar los dos aparecen, se fusionan desde uno y los dos móviles convergen', async () => {
+    const { clock, server, A, B } = await pair();
+    const babyA = await createBaby(A.ctx, { alias: 'Ginebra', birthDate: '2026-07-01' });
+    const sA = await startSleep(A.ctx, babyA.id);
+    clock.tick(HOUR);
+    await finishSleep(A.ctx, sA.id);
+
+    const babyB = await createBaby(B.ctx, { alias: 'Ginebra', birthDate: '2026-07-01' });
+    clock.tick(HOUR);
+    const sB = await startSleep(B.ctx, babyB.id);
+    clock.tick(30 * MIN);
+    await finishSleep(B.ctx, sB.id);
+
+    expect((await A.connect()).ok).toBe(true);
+    expect((await B.connect()).ok).toBe(true);
+    await settle(A, B);
+    // al conectar, cada móvil ve los dos perfiles y los dos conjuntos de registros
+    for (const p of [A, B]) expect((await listBabies(p.ctx)).map((b) => b.id).sort()).toEqual([babyA.id, babyB.id].sort());
+
+    await mergeBabies(A.ctx, babyB.id, babyA.id);
+    await settle(A, B);
+
+    for (const p of [A, B]) {
+      expect((await listBabies(p.ctx)).map((b) => b.id)).toEqual([babyA.id]);
+      expect(await listSessions(p.ctx, babyA.id)).toHaveLength(2);
+      expect(await listSessions(p.ctx, babyB.id)).toHaveLength(0);
+    }
+    expect(server.get('baby', babyB.id)?.deleted_at).not.toBeNull(); // archivado, no borrado
+    await expectConverged(server, A, B);
   });
 });
 

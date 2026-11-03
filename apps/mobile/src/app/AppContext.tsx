@@ -5,6 +5,7 @@ import { ensureBootstrap, getActiveBabyId, listBabies, setActiveBabyId } from '.
 import type { Ctx } from '../domain/context';
 import { DomainError } from '../domain/context';
 import { t } from '../i18n/es';
+import { useAutoSync } from '../sync/useAutoSync';
 import { useLive } from '../ui/hooks';
 
 interface ToastState {
@@ -17,6 +18,8 @@ interface AppState {
   babies: BabyT[];
   baby: BabyT | null;
   selectBaby: (id: string) => void;
+  /** Sustituye el contexto (p. ej. al conectar la sincronización, que cambia la familia y el cuidador locales). */
+  replaceCtx: (ctx: Ctx) => void;
   toast: (msg: string, action?: ToastState['action']) => void;
   /** Ejecuta una acción de dominio mostrando los errores como aviso, sin romper la pantalla. */
   run: <T>(fn: () => Promise<T>) => Promise<T | undefined>;
@@ -51,10 +54,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }
   if (ctx === null) return <p className="p-6 text-muted">{t('common.loading')}</p>;
-  return <Ready ctx={ctx}>{children}</Ready>;
+  return (
+    <Ready ctx={ctx} replaceCtx={setCtx}>
+      {children}
+    </Ready>
+  );
 }
 
-function Ready({ ctx, children }: { ctx: Ctx; children: ReactNode }) {
+function Ready({ ctx, replaceCtx, children }: { ctx: Ctx; replaceCtx: (ctx: Ctx) => void; children: ReactNode }) {
+  useAutoSync(ctx);
   const babies = useLive(() => listBabies(ctx), [ctx], [] as BabyT[]);
   const activeId = useLive(() => getActiveBabyId(ctx), [ctx, babies.length], null as string | null);
   const [toastState, setToast] = useState<ToastState | null>(null);
@@ -85,10 +93,11 @@ function Ready({ ctx, children }: { ctx: Ctx; children: ReactNode }) {
       babies,
       baby: babies.find((b) => b.id === activeId) ?? null,
       selectBaby: (id) => void setActiveBabyId(ctx, id),
+      replaceCtx,
       toast,
       run,
     }),
-    [ctx, babies, activeId, toast, run],
+    [ctx, babies, activeId, toast, run, replaceCtx],
   );
 
   return (

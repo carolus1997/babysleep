@@ -1,6 +1,6 @@
 # Sincronización: cliente (Fase 2)
 
-Estado: **motor completo y probado contra un servidor simulado; sin conectar a ningún servicio real y sin activar en la app.** Hoy la app escribe exactamente igual que antes (`db.syncEnabled = false`).
+Estado: **motor completo, transporte real a Supabase y pantalla de conexión, probados contra un servidor simulado. Aún sin probar contra el Supabase real y sin activar en ningún móvil.** Mientras un móvil no se conecte, la app escribe exactamente igual que antes (`db.syncEnabled = false`).
 
 ## Piezas
 
@@ -10,6 +10,11 @@ Estado: **motor completo y probado contra un servidor simulado; sin conectar a n
 | `src/sync/outbox.ts` | Cola de operaciones pendientes (`outbox`) |
 | `src/sync/engine.ts` | `syncOnce`: envía y después recibe. Normaliza las filas del servidor |
 | `src/sync/identity.ts` | `connectDevice`: adopta la familia del servidor, reconcilia etiquetas y sube lo existente |
+| `src/sync/supabase.ts` | `Transport` real (RPC `apply_changes`, lecturas por `change_seq`, identidad). Carga `supabase-js` bajo demanda |
+| `src/sync/auth.ts` | Código de 6 dígitos por correo (`shouldCreateUser: false`), alta con `claim_membership`, mensajes en español |
+| `src/sync/useAutoSync.ts` | Sincroniza al abrir, al volver a primer plano, al recuperar la red, cada minuto y tras registrar |
+| `src/screens/SyncCard.tsx` | Ajustes → «Cuenta y sincronización»: correo → código → alta → conectar → estado |
+| `src/domain/merge.ts` | Fusionar perfiles del mismo bebé (se sincroniza como cualquier cambio) |
 | `src/sync/tables.ts`, `types.ts` | Tablas sincronizables, columnas gestionadas por el servidor, interfaz `Transport` |
 | `src/domain/write.ts` | Único punto de escritura: encola cada cambio **en la misma transacción** que la fila |
 | `test/sim-server.ts` | Servidor simulado con las reglas de `apply_changes` |
@@ -43,8 +48,9 @@ SYNC_TRACE=1 …                                                  # imprime las 
 
 ## Límites conocidos (pendientes)
 
-- **No hay transporte real.** Falta implementar `Transport` contra Supabase (RPC `apply_changes` y lecturas por `change_seq`) y decidir cuándo se sincroniza (al abrir, tras escribir, al recuperar la red).
-- **Perfiles de bebé duplicados.** Si cada móvil creó su propio perfil del mismo bebé, al conectar aparecerán dos. Hace falta una herramienta de «fusionar perfiles».
+- **El transporte real solo se ha probado contra un cliente de pruebas** que ejecuta el servidor simulado, no contra el Supabase real. La primera conexión real es la prueba de verdad.
+- **Perfiles de bebé duplicados.** Si cada móvil creó su propio perfil del mismo bebé, al conectar aparecen dos; se resuelven con Ajustes → Fusionar perfiles (probado con dos móviles).
+- **iOS no sincroniza con la app cerrada.** Se sincroniza al abrirla, al volver a primer plano y tras registrar.
 - **Sin bandeja de conflictos ni `resolve_conflict`.** El servidor guarda cada valor desplazado, pero aún no hay pantalla para elegir.
 - **El simulador copia las reglas del SQL, no las ejecuta.** Si divergen, las pruebas del simulador no lo detectarían. Pendiente: pasar los mismos escenarios contra PostgreSQL real.
 - **Metadatos locales.** Si una edición del móvil resulta ser un no-op para el servidor (p. ej. restaurar algo vivo), el móvil conserva su `rev`/`updated_*` propios. El **contenido** converge siempre; la prueba solo tolera esos campos.

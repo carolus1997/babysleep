@@ -5,6 +5,7 @@ import { createBaby, renameBaby } from '../domain/bootstrap';
 import { buildBackupJson, buildSessionsCsv } from '../domain/export';
 import { applyImport, planImport, type ImportPlan } from '../domain/import';
 import { addLifeEvent, deleteLifeEvent, listLifeEvents } from '../domain/notes';
+import { mergeBabies } from '../domain/merge';
 import { removeBabyPhoto, setBabyPhoto } from '../domain/photo';
 import { t } from '../i18n/es';
 import { download, fmtAge } from '../ui/format';
@@ -12,6 +13,7 @@ import { getThemePref, setThemePref, useLive, type ThemePref } from '../ui/hooks
 import { resizeImage } from '../ui/image';
 import { Avatar, useBabyPhotoUrl, useBlobUrl } from '../ui/photo';
 import { Btn, Card, Chip, Field, inputCls, Sheet } from '../ui/primitives';
+import { SyncCard } from './SyncCard';
 
 const THEMES: ThemePref[] = ['auto', 'light', 'dark', 'night'];
 
@@ -158,6 +160,46 @@ function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void 
   );
 }
 
+function MergeSheet({ onClose }: { onClose: () => void }) {
+  const { ctx, babies, run, toast } = useApp();
+  const [from, setFrom] = useState(babies[1]?.id ?? '');
+  const [into, setInto] = useState(babies[0]?.id ?? '');
+  const options = babies.map((b) => (
+    <option key={b.id} value={b.id}>
+      {b.alias} · {b.birth_date}
+    </option>
+  ));
+  return (
+    <Sheet title={t('baby.merge')} onClose={onClose}>
+      <p className="mb-3 text-sm text-muted">{t('baby.mergeHelp')}</p>
+      <Field label={t('baby.mergeFrom')}>
+        <select className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)}>
+          {options}
+        </select>
+      </Field>
+      <Field label={t('baby.mergeInto')}>
+        <select className={inputCls} value={into} onChange={(e) => setInto(e.target.value)}>
+          {options}
+        </select>
+      </Field>
+      <Btn
+        variant="primary"
+        className="w-full"
+        disabled={from === '' || into === '' || from === into}
+        onClick={async () => {
+          const r = await run(() => mergeBabies(ctx, from, into));
+          if (r) {
+            toast(t('baby.mergeDone', { n: r.moved }));
+            onClose();
+          }
+        }}
+      >
+        {t('baby.mergeDo')}
+      </Btn>
+    </Sheet>
+  );
+}
+
 function ImportSheet({ plan, onClose }: { plan: ImportPlan; onClose: () => void }) {
   const { ctx, run, toast } = useApp();
   const [overwrite, setOverwrite] = useState(false);
@@ -276,6 +318,7 @@ export function Settings() {
   const { ctx, babies, baby, run } = useApp();
   const [babySheet, setBabySheet] = useState<BabyT | null | 'new'>(null);
   const [eventSheet, setEventSheet] = useState(false);
+  const [mergeSheet, setMergeSheet] = useState(false);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [theme, setTheme] = useState<ThemePref>(getThemePref());
@@ -312,6 +355,11 @@ export function Settings() {
         <Btn className="mt-2 w-full" onClick={() => setBabySheet('new')}>
           + {t('settings.addBaby')}
         </Btn>
+        {babies.length > 1 && (
+          <Btn className="mt-2 w-full" onClick={() => setMergeSheet(true)}>
+            {t('baby.merge')}
+          </Btn>
+        )}
       </Card>
 
       <Card title={t('settings.diary')}>
@@ -333,6 +381,8 @@ export function Settings() {
           + {t('settings.addEvent')}
         </Btn>
       </Card>
+
+      <SyncCard />
 
       <Card title={t('settings.data')}>
         <div className="flex flex-col gap-2">
@@ -387,6 +437,7 @@ export function Settings() {
 
       {babySheet !== null && <BabySheet baby={babySheet === 'new' ? null : babySheet} onClose={() => setBabySheet(null)} />}
       {eventSheet && <EventSheet onClose={() => setEventSheet(false)} />}
+      {mergeSheet && <MergeSheet onClose={() => setMergeSheet(false)} />}
       {plan && <ImportSheet plan={plan} onClose={() => setPlan(null)} />}
     </div>
   );

@@ -35,7 +35,7 @@ const REFS: Record<string, SyncTable> = {
 };
 
 const eq = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-const toWire = (row: Row): Record<string, unknown> =>
+export const toWire = (row: Row): Record<string, unknown> =>
   Object.fromEntries(
     Object.entries(row).map(([k, v]) => [k, typeof v === 'string' && /^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(v) ? v.replace(/\.000Z$/, '+00:00').replace(/Z$/, '+00:00') : v]),
   );
