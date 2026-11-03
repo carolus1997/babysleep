@@ -132,6 +132,7 @@ export const es = {
   'settings.theme.dark': 'Oscuro',
   'settings.theme.night': 'Noche',
   'settings.about': 'Acerca de',
+  'settings.version': 'BabySleep · versión {build} · compilada el {when}',
   'settings.privacy':
     'Los datos viven solo en este dispositivo. Sin sincronización todavía: haz copias periódicas. No hay datos en servidores.',
   'settings.install': 'En iPhone: Compartir → «Añadir a pantalla de inicio». Instálala antes de empezar a registrar.',

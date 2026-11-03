@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -9,8 +10,24 @@ const p = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 // En GitHub Pages la app vive en /<repositorio>/. El workflow define BASE_PATH.
 const base = process.env.BASE_PATH ?? '/';
 
+// Identifica la versión publicada: en GitHub Actions, el commit; en local, el HEAD del repositorio.
+const buildId = (
+  process.env.GITHUB_SHA ??
+  (() => {
+    try {
+      return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    } catch {
+      return 'dev';
+    }
+  })()
+).slice(0, 7);
+
 export default defineConfig({
   base,
+  define: {
+    __BUILD_ID__: JSON.stringify(buildId),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   resolve: {
     alias: {
       '@babysleep/contract': p('../../packages/contract/src/index.ts'),

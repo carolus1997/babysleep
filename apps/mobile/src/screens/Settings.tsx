@@ -1,6 +1,7 @@
 import type { BabyT, EventCategoryT, LifeEventT } from '@babysleep/contract';
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
+import { BUILD_ID, BUILD_TIME } from '../build-info';
 import { createBaby, deleteBaby, listDeletedBabies, renameBaby, restoreBaby } from '../domain/bootstrap';
 import { buildBackupJson, buildSessionsCsv } from '../domain/export';
 import { applyImport, planImport, type ImportPlan } from '../domain/import';
@@ -494,7 +495,9 @@ export function Settings() {
       <Card title={t('settings.about')}>
         <p className="text-sm text-muted">{t('settings.privacy')}</p>
         <p className="mt-2 text-sm text-muted">{t('settings.install')}</p>
-        <p className="mt-2 text-xs text-muted">BabySleep 0.1 · {ctx.zone}</p>
+        <p className="mt-2 text-xs text-muted">
+          {t('settings.version', { build: BUILD_ID, when: BUILD_TIME ? new Date(BUILD_TIME).toLocaleString('es-ES', { timeZone: ctx.zone }) : '—' })} · {ctx.zone}
+        </p>
       </Card>
 
       {babySheet !== null && <BabySheet baby={babySheet === 'new' ? null : babySheet} onClose={() => setBabySheet(null)} />}
