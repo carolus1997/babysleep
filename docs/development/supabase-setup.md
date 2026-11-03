@@ -92,6 +92,7 @@ La URL y la clave pública están en `apps/mobile/src/sync/config.ts` (públicas
 |---|---|---|
 | 0001–0005 | Tablas, seguridad, sincronización, perfil, restaurar | Aplicadas |
 | `0006_family_admin.sql` | Invitar y retirar cuidadores desde la app | **Pendiente** |
+| `0007_resolve_conflict.sql` | Resolver conflictos desde la app | **Pendiente** |
 
 ## Cosas que conviene saber
 

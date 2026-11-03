@@ -450,4 +450,125 @@ begin
     'S17d no se borra y queda el conflicto');
 end $$;
 
+-- S18 · resolver un conflicto de fin de sueño: «el otro» aplica el valor desplazado y limpia la marca
+do $$
+declare r jsonb; v_end timestamptz; v_flag boolean; v_cid uuid; v_st text; v_seq0 bigint; v_seq1 bigint; v_fam uuid;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('sleep_session', 40, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'sleep_start_utc', '2027-01-14T20:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'sleep_type', 'night', 'type_source', 'manual', 'source', 'manual')));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  perform tests.go(tests.op('sleep_session', 40, 1, '{"sleep_end_utc":"2027-01-15T05:00:00.000Z","end_tz":"Europe/Madrid","end_quality":"exact"}'));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('sleep_session', 40, 1, '{"sleep_end_utc":"2027-01-15T05:10:00.000Z","end_tz":"Europe/Madrid","end_quality":"exact"}'));
+
+  perform tests.as_superuser();
+  select id into v_cid from app.sync_conflict where row_id = tests.u(40) and kind = 'end_time';
+  select conflict_open into v_flag from app.sleep_session where id = tests.u(40);
+  perform tests.assert(v_cid is not null and v_flag, 'S18a hay un conflicto abierto y la sesión está marcada');
+  select id into v_fam from app.family where name = 'Familia A';
+  select change_seq into v_seq0 from app.family_counter where family_id = v_fam;
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := app.resolve_conflict(v_cid, 'other');
+  perform tests.assert(r ->> 'status' = 'resolved' and (r ->> 'applied')::boolean, 'S18b se resuelve aplicando el otro valor');
+
+  perform tests.as_superuser();
+  select sleep_end_utc, conflict_open into v_end, v_flag from app.sleep_session where id = tests.u(40);
+  select status into v_st from app.sync_conflict where id = v_cid;
+  select change_seq into v_seq1 from app.family_counter where family_id = v_fam;
+  perform tests.assert(v_end = '2027-01-15T05:10:00Z' and v_flag = false and v_st = 'resolved', 'S18c el fin toma el valor alternativo, se limpia la marca y el conflicto queda resuelto');
+  perform tests.assert(v_seq1 > v_seq0, 'S18d el cambio recibe change_seq (llega a los móviles)');
+  perform tests.assert(exists (select 1 from app.revision where row_id = tests.u(40) and (patch ->> 'conflict_open') = 'false'), 'S18e queda en el historial de revisiones');
+end $$;
+
+-- S19 · «dejar el actual»: no cambia el valor, pero resuelve y limpia la marca
+do $$
+declare r jsonb; v_end timestamptz; v_flag boolean; v_cid uuid;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('sleep_session', 41, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'sleep_start_utc', '2027-01-14T20:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'sleep_type', 'night', 'type_source', 'manual', 'source', 'manual')));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  perform tests.go(tests.op('sleep_session', 41, 1, '{"sleep_end_utc":"2027-01-15T05:00:00.000Z","end_tz":"Europe/Madrid","end_quality":"exact"}'));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('sleep_session', 41, 1, '{"sleep_end_utc":"2027-01-15T05:20:00.000Z","end_tz":"Europe/Madrid","end_quality":"exact"}'));
+  perform tests.as_superuser();
+  select id into v_cid from app.sync_conflict where row_id = tests.u(41) and kind = 'end_time';
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');      -- también puede el otro cuidador
+  r := app.resolve_conflict(v_cid, 'current');
+  perform tests.assert(r ->> 'status' = 'resolved' and not (r ->> 'applied')::boolean, 'S19a se resuelve sin aplicar nada');
+  perform tests.as_superuser();
+  select sleep_end_utc, conflict_open into v_end, v_flag from app.sleep_session where id = tests.u(41);
+  perform tests.assert(v_end = '2027-01-15T05:00:00Z' and v_flag = false, 'S19b el valor se mantiene y se limpia la marca');
+end $$;
+
+-- S20 · borrar vs editar: «el otro» deja la fila en la papelera
+do $$
+declare r jsonb; v_del timestamptz; v_cid uuid;
+begin
+  -- a) delete_vs_edit: la fila se conservó; «el otro» la borra
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('sleep_session', 42, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'sleep_start_utc', '2027-01-14T20:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'sleep_type', 'night', 'type_source', 'manual', 'source', 'manual')));
+  perform tests.go(tests.op('sleep_session', 42, 1, '{"sleep_type":"nap"}'));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  perform tests.go(tests.op('sleep_session', 42, 1, null, true));
+  perform tests.as_superuser();
+  select id into v_cid from app.sync_conflict where row_id = tests.u(42) and kind = 'delete_vs_edit';
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := app.resolve_conflict(v_cid, 'other');
+  perform tests.as_superuser();
+  select deleted_at into v_del from app.sleep_session where id = tests.u(42);
+  perform tests.assert(v_del is not null and (r ->> 'applied')::boolean, 'S20a delete_vs_edit con «el otro»: la fila se borra');
+
+  -- b) edit_after_delete: la fila se restauró; «el otro» la vuelve a borrar
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('sleep_session', 43, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'sleep_start_utc', '2027-01-14T20:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'sleep_type', 'night', 'type_source', 'manual', 'source', 'manual')));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  perform tests.go(tests.op('sleep_session', 43, 1, null, true));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform tests.go(tests.op('sleep_session', 43, 1, '{"sleep_type":"nap"}'));
+  perform tests.as_superuser();
+  select id into v_cid from app.sync_conflict where row_id = tests.u(43) and kind = 'edit_after_delete';
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform app.resolve_conflict(v_cid, 'other');
+  perform tests.as_superuser();
+  select deleted_at into v_del from app.sleep_session where id = tests.u(43);
+  perform tests.assert(v_del is not null, 'S20b edit_after_delete con «el otro»: la fila vuelve a la papelera');
+end $$;
+
+-- S21 · permisos y errores
+do $$
+declare v_cid uuid; ok boolean;
+begin
+  perform tests.as_superuser();
+  select id into v_cid from app.sync_conflict where row_id = tests.u(40) and kind = 'end_time';     -- ya resuelto en S18
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000003', 'lector@example.test');             -- lector
+  begin perform app.resolve_conflict(v_cid, 'current'); ok := false; exception when insufficient_privilege then ok := true; end;
+  perform tests.assert(ok, 'S21a un lector no resuelve conflictos');
+
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');            -- otra familia
+  begin perform app.resolve_conflict(v_cid, 'current'); ok := false; exception when sqlstate 'P0001' then ok := true; end;
+  perform tests.assert(ok, 'S21b otra familia no ve ni resuelve tus conflictos');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  begin perform app.resolve_conflict(v_cid, 'current'); ok := false; exception when sqlstate 'P0001' then ok := true; end;
+  perform tests.assert(ok, 'S21c un conflicto ya resuelto no se resuelve dos veces');
+  begin perform app.resolve_conflict(v_cid, 'quizas'); ok := false; exception when sqlstate '22023' then ok := true; end;
+  perform tests.assert(ok, 'S21d una opción desconocida se rechaza');
+
+  perform tests.as_anon();
+  begin perform app.resolve_conflict(v_cid, 'current'); ok := false; exception when insufficient_privilege then ok := true; end;
+  perform tests.assert(ok, 'S21e anon no puede');
+  perform tests.as_superuser();
+end $$;
+
 rollback;

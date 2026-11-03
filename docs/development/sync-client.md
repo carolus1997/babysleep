@@ -51,7 +51,7 @@ SYNC_TRACE=1 …                                                  # imprime las 
 - **El transporte real solo se ha probado contra un cliente de pruebas** que ejecuta el servidor simulado, no contra el Supabase real. La primera conexión real es la prueba de verdad.
 - **Perfiles de bebé duplicados.** Si cada móvil creó su propio perfil del mismo bebé, al conectar aparecen dos; se resuelven con Ajustes → Fusionar perfiles (probado con dos móviles).
 - **iOS no sincroniza con la app cerrada.** Se sincroniza al abrirla, al volver a primer plano y tras registrar.
-- **Sin bandeja de conflictos ni `resolve_conflict`.** El servidor guarda cada valor desplazado, pero aún no hay pantalla para elegir.
+- **Conflictos:** el servidor guarda cada valor desplazado y la app los muestra en Ajustes → Cuenta y sincronización (migración 0007, `resolve_conflict`). El simulador de pruebas no implementa la resolución: la cubren las pruebas SQL (S18–S21).
 - **El simulador copia las reglas del SQL, no las ejecuta.** Si divergen, las pruebas del simulador no lo detectarían. Pendiente: pasar los mismos escenarios contra PostgreSQL real.
 - **Metadatos locales.** Si una edición del móvil resulta ser un no-op para el servidor (p. ej. restaurar algo vivo), el móvil conserva su `rev`/`updated_*` propios. El **contenido** converge siempre; la prueba solo tolera esos campos.
 - **Campos relacionados se fusionan uno a uno** (p. ej. fin de sueño y su zona). Una combinación imposible se rechazaría (y se conservaría en la cola). La prueba aleatoria no ha producido ninguna.

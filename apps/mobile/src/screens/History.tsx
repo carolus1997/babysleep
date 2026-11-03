@@ -91,6 +91,11 @@ export function History() {
                         <span className="ml-2 rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">
                           {t(s.sleep_type === 'nap' ? 'home.type.nap' : 'home.type.night')}
                         </span>
+                        {s.conflict_open && (
+                          <span className="ml-1 rounded-full bg-surface2 px-2 py-0.5 text-xs font-semibold text-danger" title={t('history.conflictHint')}>
+                            {t('history.conflict')}
+                          </span>
+                        )}
                         {overlapIds.has(s.id) && (
                           <span role="img" aria-label={t('history.overlap')} title={t('history.overlap')} className="ml-1 text-danger">
                             ⚠
