@@ -24,3 +24,6 @@ __pycache__/
 
 # Herramientas locales
 .claude/
+
+# Archivos temporales de la CLI de Supabase
+supabase/.temp/
