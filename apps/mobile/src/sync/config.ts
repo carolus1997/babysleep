@@ -11,3 +11,9 @@ export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_1M4HbSt1AMN4nF7Af45oyg_B
 export const SUPABASE_SCHEMA = 'app';
 
 export const isSyncConfigured = (): boolean => SUPABASE_URL.startsWith('https://') && SUPABASE_PUBLISHABLE_KEY.length > 20;
+
+/**
+ * Clave PÚBLICA para los avisos (web push, VAPID). Es pública por diseño (el navegador la necesita para suscribirse);
+ * la clave PRIVADA vive solo en los secretos de Supabase. Vacía = los avisos no están configurados.
+ */
+export const VAPID_PUBLIC_KEY = '';

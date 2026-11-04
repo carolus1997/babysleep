@@ -1,6 +1,8 @@
 import type { BabyT } from '@babysleep/contract';
 import { useEffect, useState } from 'react';
 import { useApp } from './app/AppContext';
+import { applyFeedIntent, parseFeedIntent, type FeedIntent } from './domain/feedIntent';
+import { cancelFeeding, restoreFeeding } from './domain/feeding';
 import { t, type I18nKey } from './i18n/es';
 import { History } from './screens/History';
 import { Feeds } from './screens/Feeds';
@@ -37,6 +39,41 @@ export function App() {
   const [tab, setTab] = useState<Tab>('home');
   const [switching, setSwitching] = useState(false);
   const photo = useBabyPhotoUrl(baby?.id ?? '');
+  const { ctx, run, toast } = useApp();
+  const babyId = baby?.id ?? null;
+
+  // «Toca toma»: al tocar el aviso (o sus botones) la app se abre con `?feed=breast|bottle|ask`, o, si ya estaba
+  // abierta, el service worker avisa con un mensaje. La dirección se limpia para que recargar no repita nada.
+  useEffect(() => {
+    if (babyId === null) return;
+    const handle = async (intent: FeedIntent) => {
+      setTab('home');
+      const r = await run(() => applyFeedIntent(ctx, babyId, intent));
+      if (r === undefined || r.kind === 'ask') return;
+      if (r.kind === 'already_running') return toast(t('feed.intentRunning'));
+      const id = r.feeding.id;
+      toast(t('feed.intentStarted'), {
+        label: t('home.undo'),
+        run: async () => {
+          await run(() => cancelFeeding(ctx, id));
+          toast(t('feed.cancelDone'), { label: t('home.undo'), run: () => void run(() => restoreFeeding(ctx, id)) });
+        },
+      });
+    };
+    const fromUrl = parseFeedIntent(window.location.search);
+    if (fromUrl !== null) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+      void handle(fromUrl);
+    }
+    const onMessage = (e: MessageEvent) => {
+      const d = e.data as { type?: string; feed?: string } | null;
+      if (d?.type !== 'feed-intent') return;
+      const intent = parseFeedIntent(`?feed=${d.feed ?? ''}`);
+      if (intent !== null) void handle(intent);
+    };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+  }, [ctx, babyId, run, toast]);
 
   // La hoja de estilos sabe si hay foto para volver translúcidas las tarjetas (solo tema claro).
   useEffect(() => {

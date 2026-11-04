@@ -57,7 +57,12 @@ export default defineConfig({
           { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: { navigateFallback: `${base}index.html`, globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'] },
+      workbox: {
+        navigateFallback: `${base}index.html`,
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        // Avisos de «toca toma» (web push): el manejador de `push` y de clic en el aviso vive en public/push-sw.js.
+        importScripts: ['push-sw.js'],
+      },
     }),
   ],
   server: { host: true },

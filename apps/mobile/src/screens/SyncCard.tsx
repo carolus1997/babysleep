@@ -13,6 +13,7 @@ import { getSupabaseClient, hasStoredSession, supabaseTransport } from '../sync/
 import type { SyncStatus } from '../sync/useAutoSync';
 import { BackupSection } from './BackupSection';
 import { ConflictsSection } from './ConflictsSection';
+import { ReminderSection } from './ReminderSection';
 import { useLive } from '../ui/hooks';
 import { Btn, Card, Chip, Field, inputCls, Sheet } from '../ui/primitives';
 
@@ -430,6 +431,7 @@ export function SyncCard({ fresh = false }: { fresh?: boolean }) {
           </div>
           {!status?.sessionExpired && <ConflictsSection />}
           {!status?.sessionExpired && <BackupSection />}
+          {!status?.sessionExpired && <ReminderSection />}
           {!status?.sessionExpired && <FamilySection />}
         </>
       )}
