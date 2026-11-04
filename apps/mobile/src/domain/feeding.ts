@@ -16,9 +16,16 @@ export async function listFeedings(ctx: Ctx, babyId: string, opts: { includeDele
   return rows.filter((f) => opts.includeDeleted === true || f.deleted_at === null).sort((a, b) => a.start_utc.localeCompare(b.start_utc));
 }
 
+/**
+ * ¿Es una toma EN CURSO (cronómetro)? Solo lo es la que se inició con el cronómetro y aún no tiene fin. Una toma
+ * anotada a mano o importada sin fin es una toma con duración DESCONOCIDA (no en curso, y nunca 0 minutos).
+ */
+export const isRunning = (f: Pick<FeedingT, 'end_utc' | 'source' | 'deleted_at'>): boolean =>
+  f.end_utc === null && f.source === 'timer' && f.deleted_at === null;
+
 export async function getOpenFeeding(ctx: Ctx, babyId: string): Promise<FeedingT | undefined> {
   const rows = await ctx.db.feeding.where('baby_id').equals(babyId).toArray();
-  return rows.filter((f) => f.end_utc === null && f.deleted_at === null).sort((a, b) => b.start_utc.localeCompare(a.start_utc))[0];
+  return rows.filter(isRunning).sort((a, b) => b.start_utc.localeCompare(a.start_utc))[0];
 }
 
 // --------------------------------------------------------- validaciones
@@ -67,7 +74,7 @@ export async function finishFeeding(
 ): Promise<FeedingT> {
   const f = await ctx.db.feeding.get(id);
   if (f === undefined) throw new DomainError('not_found', 'Toma inexistente');
-  if (f.end_utc !== null) return f;
+  if (!isRunning(f)) return f;
   const endMs = ctx.now();
   if (endMs <= parseInstant(f.start_utc)) throw new DomainError('invalid_range', 'El fin debe ser posterior al inicio');
   const side = details.side === undefined ? f.breast_side : details.side;
@@ -86,7 +93,7 @@ export async function finishFeeding(
 export async function cancelFeeding(ctx: Ctx, id: string): Promise<FeedingT> {
   const f = await ctx.db.feeding.get(id);
   if (f === undefined) throw new DomainError('not_found', 'Toma inexistente');
-  if (f.end_utc !== null) throw new DomainError('invalid', 'Solo se cancela una toma en curso');
+  if (!isRunning(f)) throw new DomainError('invalid', 'Solo se cancela una toma en curso');
   return softDelete(ctx, ctx.db.feeding, Feeding, id);
 }
 
@@ -97,15 +104,16 @@ export interface ManualFeedingInput {
   type: FeedTypeT;
   /** Hora local de pared `YYYY-MM-DDTHH:mm` en la zona de referencia. */
   startLocal: string;
-  /** Duración en minutos (1–240). No se inventa un fin: una toma sin duración conocida no se puede guardar como cerrada. */
-  durationMin: number;
+  /** Duración en minutos (1–240). Opcional: si no se sabe queda VACÍA (sin fin, nunca 0 ni un fin inventado). */
+  durationMin?: number | null;
   startChoice?: 0 | 1;
   side?: BreastSideT | null;
   amountMl?: number | null;
 }
 
 export async function addManualFeeding(ctx: Ctx, input: ManualFeedingInput): Promise<FeedingT> {
-  if (!Number.isInteger(input.durationMin) || input.durationMin < 1 || input.durationMin > MAX_MANUAL_MINUTES) {
+  const dur = input.durationMin ?? null;
+  if (dur !== null && (!Number.isInteger(dur) || dur < 1 || dur > MAX_MANUAL_MINUTES)) {
     throw new DomainError('invalid_range', `La duración debe estar entre 1 y ${MAX_MANUAL_MINUTES} minutos`);
   }
   checkDetails(input.type, input.side, input.amountMl);
@@ -120,9 +128,9 @@ export async function addManualFeeding(ctx: Ctx, input: ManualFeedingInput): Pro
       start_utc: toIso(start),
       start_tz: ctx.zone,
       start_quality: 'approx',
-      end_utc: toIso(start + input.durationMin * MS_PER_MIN),
-      end_tz: ctx.zone,
-      end_quality: 'approx',
+      end_utc: dur === null ? null : toIso(start + dur * MS_PER_MIN),
+      end_tz: dur === null ? null : ctx.zone,
+      end_quality: dur === null ? null : 'approx',
       breast_side: input.side ?? null,
       amount_ml: input.amountMl ?? null,
       source: 'manual',

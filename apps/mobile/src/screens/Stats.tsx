@@ -57,6 +57,8 @@ export function Stats() {
       <Card>
         <div className="grid grid-cols-2 gap-4">
           <Stat label={t('stats.meanDaily')} value={o.meanDailyTotalMs === null ? '—' : fmtDur(o.meanDailyTotalMs)} />
+          <Stat label={t('stats.meanNaps', { n: o.napDays })} value={o.meanNapTotalMs === null ? '—' : fmtDur(o.meanNapTotalMs)} />
+          <Stat label={t('stats.meanNight', { n: o.nightDays })} value={o.meanNightTotalMs === null ? '—' : fmtDur(o.meanNightTotalMs)} />
           <Stat label={t('stats.napsPerDay')} value={o.meanNapsPerDay === null ? '—' : o.meanNapsPerDay.toFixed(1)} />
           <Stat label={t('stats.napMedian')} value={o.medianNapMs === null ? '—' : fmtDur(o.medianNapMs)} />
           <Stat label={t('stats.nightMedian')} value={o.medianNightMs === null ? '—' : fmtDur(o.medianNightMs)} />

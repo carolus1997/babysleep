@@ -7,11 +7,11 @@ import {
   localDate,
   median,
   mean,
-  naturalDayTotals,
   naturalDayWindow,
   parseInstant,
   recordedDurationMs,
   settlingLatency,
+  sleepDayTotals,
   summarizeLatency,
   type LatencySummary,
   type LatencyResult,
@@ -24,7 +24,10 @@ export interface DayRow {
   napMs: number;
   nightMs: number;
   napCount: number;
+  nightCount: number;
   hasData: boolean;
+  /** `false` si queda una sesión abierta del día: aún puede crecer y no entra en los promedios. */
+  complete: boolean;
 }
 
 export interface Overview {
@@ -34,6 +37,12 @@ export interface Overview {
   today: DayRow;
   daysWithData: number;
   meanDailyTotalMs: number | null;
+  /** Promedio de horas de siesta por día (solo días completos con alguna siesta registrada). */
+  meanNapTotalMs: number | null;
+  /** Promedio de horas de noche (solo días completos con noche registrada). */
+  meanNightTotalMs: number | null;
+  napDays: number;
+  nightDays: number;
   meanNapsPerDay: number | null;
   medianNapMs: number | null;
   medianNightMs: number | null;
@@ -59,25 +68,24 @@ export interface OverviewInput {
 }
 
 function dayRow(sessions: readonly SleepSessionT[], date: string, zone: string, nowMs: number | undefined): DayRow {
-  const t = naturalDayTotals(sessions, date, zone, nowMs === undefined ? {} : { nowMs });
-  const napCount = activeSessions(sessions).filter(
-    (s) => s.sleep_type === 'nap' && s.sleep_end_utc !== null && localDate(parseInstant(s.sleep_start_utc), zone) === date,
-  ).length;
+  const t = sleepDayTotals(sessions, date, zone, nowMs === undefined ? {} : { nowMs });
   return {
     date,
-    lengthHours: t.lengthHours,
+    lengthHours: 24,
     totalMs: t.totalMs,
     napMs: t.napMs,
     nightMs: t.nightMs,
-    napCount,
+    napCount: t.napCount,
+    nightCount: t.nightCount,
     hasData: t.totalMs > 0,
+    complete: t.complete,
   };
 }
 
 /**
  * Resumen para la pestaña Estadísticas. Los promedios usan SOLO días completos con
  * datos (no se rellenan los vacíos con ceros) y declaran cuántos días hay. Los
- * totales son «día natural» (puede medir 23/25 h), y así se etiqueta en la interfaz.
+ * totales son por «día de sueño»: de la primera siesta al despertar de la noche siguiente.
  */
 export function buildOverview(input: OverviewInput): Overview {
   const { sessions, attempts, zone, nowMs, days } = input;
@@ -90,7 +98,9 @@ export function buildOverview(input: OverviewInput): Overview {
     dates.unshift(cursor);
   }
   const series = dates.map((d) => dayRow(sessions, d, zone, undefined));
-  const withData = series.filter((d) => d.hasData);
+  const withData = series.filter((d) => d.hasData && d.complete);
+  const napDays = withData.filter((d) => d.napCount > 0);
+  const nightDays = withData.filter((d) => d.nightCount > 0);
   const today = dayRow(sessions, todayDate, zone, nowMs);
 
   const rangeStart = naturalDayWindow(dates[0] ?? todayDate, zone).startMs;
@@ -116,6 +126,10 @@ export function buildOverview(input: OverviewInput): Overview {
     today,
     daysWithData: withData.length,
     meanDailyTotalMs: mean(withData.map((d) => d.totalMs)),
+    meanNapTotalMs: mean(napDays.map((d) => d.napMs)),
+    meanNightTotalMs: mean(nightDays.map((d) => d.nightMs)),
+    napDays: napDays.length,
+    nightDays: nightDays.length,
     meanNapsPerDay: mean(withData.map((d) => d.napCount)),
     medianNapMs: median(closed.filter((s) => s.sleep_type === 'nap').map(dur)),
     medianNightMs: median(closed.filter((s) => s.sleep_type === 'night').map(dur)),

@@ -10,6 +10,7 @@ import {
   resolveLocal,
   rolling24hTotals,
   rolling24hWindow,
+  sleepDayTotals,
   toIso,
 } from '../src';
 import { HOUR, iso, MADRID, session } from './helpers';
@@ -56,13 +57,66 @@ describe('día natural frente a ventana móvil de 24 h', () => {
   });
 
   it('las etiquetas distinguen las tres vistas', () => {
-    expect(Object.keys(METRIC_KIND_LABELS_ES)).toEqual(['natural_day', 'rolling_24h', 'attributed_by_wake_date']);
+    expect(Object.keys(METRIC_KIND_LABELS_ES)).toEqual(['natural_day', 'rolling_24h', 'attributed_by_wake_date', 'sleep_day']);
     const day = naturalDayTotals([], '2027-03-28', MADRID);
     const roll = rolling24hTotals([], mustResolveLocal('2027-03-28T12:00', MADRID));
     expect(day.kind).toBe('natural_day');
     expect(day.lengthHours).toBe(23);
     expect(roll.kind).toBe('rolling_24h');
     expect(roll.lengthHours).toBe(24);
+  });
+});
+
+describe('día de sueño (primera siesta → despertar de la noche siguiente)', () => {
+  const lastNight = session('n0', '2027-01-14T21:00', '2027-01-15T07:00', 'night');
+  const nap1 = session('p1', '2027-01-15T09:30', '2027-01-15T10:30');
+  const nap2 = session('p2', '2027-01-15T13:00', '2027-01-15T14:30');
+  const night = session('n1', '2027-01-15T21:00', '2027-01-16T07:30', 'night');
+  const all = [lastNight, nap1, nap2, night];
+
+  it('no cuenta la cola de la noche anterior: empieza en la primera siesta', () => {
+    const d = sleepDayTotals(all, '2027-01-15', MADRID);
+    expect(d.napMs).toBe(2.5 * HOUR);
+    expect(d.napCount).toBe(2);
+    expect(d.nightMs).toBe(10.5 * HOUR); // la noche entera, también lo que cae tras la medianoche
+    expect(d.totalMs).toBe(13 * HOUR);
+    expect(d.complete).toBe(true);
+    // el día natural, en cambio, sí mezclaba la noche anterior
+    expect(naturalDayTotals(all, '2027-01-15', MADRID).nightMs).toBe(7 * HOUR + 3 * HOUR);
+  });
+
+  it('la noche de ayer pertenece al día de ayer, con su despertar de hoy', () => {
+    const d = sleepDayTotals(all, '2027-01-14', MADRID);
+    expect(d.nightMs).toBe(10 * HOUR);
+    expect(d.napCount).toBe(0);
+  });
+
+  it('una noche que empieza de madrugada (antes de las 5) cuenta en el día anterior', () => {
+    const late = session('n2', '2027-01-16T00:30', '2027-01-16T07:00', 'night');
+    expect(sleepDayTotals([late], '2027-01-15', MADRID).nightMs).toBe(6.5 * HOUR);
+    expect(sleepDayTotals([late], '2027-01-16', MADRID).nightMs).toBe(0);
+  });
+
+  it('con la noche en curso suma hasta ahora y el día se marca incompleto; sin «ahora» no suma y sigue incompleto', () => {
+    const open = session('n3', '2027-01-15T21:00', null, 'night');
+    const now = mustResolveLocal('2027-01-15T23:00', MADRID);
+    const a = sleepDayTotals([nap1, open], '2027-01-15', MADRID, { nowMs: now });
+    expect(a.nightMs).toBe(2 * HOUR);
+    expect(a.complete).toBe(false);
+    const b = sleepDayTotals([nap1, open], '2027-01-15', MADRID);
+    expect(b.nightMs).toBe(0);
+    expect(b.openIds).toEqual(['n3']);
+    expect(b.complete).toBe(false);
+  });
+
+  it('dos cuidadores que anotan lo mismo no duplican el total (unión)', () => {
+    const dup = session('p1b', '2027-01-15T09:30', '2027-01-15T10:30');
+    expect(sleepDayTotals([nap1, dup], '2027-01-15', MADRID).napMs).toBe(HOUR);
+  });
+
+  it('ignora sesiones eliminadas', () => {
+    const del = { ...nap2, deleted_at: '2027-01-15T15:00:00.000Z' };
+    expect(sleepDayTotals([nap1, del], '2027-01-15', MADRID).napCount).toBe(1);
   });
 });
 

@@ -35,6 +35,24 @@ describe('resumen de estadísticas', () => {
     expect(o.quality.awakeningsUnknown).toBe(4);
   });
 
+  it('promedia por separado las horas de siesta y de noche por día de sueño; la noche entera cuenta en el día en que empezó', async () => {
+    const h = await makeHarness('2027-01-20T12:00');
+    const baby = (await createBaby(h.ctx, { alias: 'B', birthDate: '2026-07-01' })).id;
+    const night = (day: string, from: string, nextDay: string, to: string) =>
+      addManualSession(h.ctx, { babyId: baby, startLocal: `${day}T${from}`, endLocal: `${nextDay}T${to}`, type: 'night' });
+    await manualNap(h, baby, '2027-01-17', '10:00', '11:00'); // 60
+    await manualNap(h, baby, '2027-01-17', '14:00', '15:00'); // +60 = 120
+    await night('2027-01-17', '21:00', '2027-01-18', '07:00'); // 600
+    await manualNap(h, baby, '2027-01-18', '10:00', '11:00'); // 60
+    await night('2027-01-18', '20:00', '2027-01-19', '06:00'); // 600
+    const o = buildOverview({ sessions: await listSessions(h.ctx, baby), attempts: [], zone: h.ctx.zone, nowMs: h.nowMs(), days: 7 });
+    expect(o.napDays).toBe(2);
+    expect(o.nightDays).toBe(2);
+    expect(o.meanNapTotalMs).toBe(90 * MIN); // (120 + 60) / 2
+    expect(o.meanNightTotalMs).toBe(600 * MIN);
+    expect(o.meanDailyTotalMs).toBe(690 * MIN); // (720 + 660) / 2
+  });
+
   it('hoy aparece aparte y una sesión abierta se cuenta hasta ahora', async () => {
     const h = await makeHarness('2027-01-20T12:00');
     const baby = (await createBaby(h.ctx, { alias: 'B', birthDate: '2026-07-01' })).id;

@@ -1,5 +1,5 @@
 import type { SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
-import { localDate, naturalDayTotals, parseInstant } from '@babysleep/core';
+import { localDate, parseInstant, sleepDayTotals } from '@babysleep/core';
 import { useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { backupReminderDue } from '../domain/export';
@@ -41,8 +41,9 @@ export function Home({ goSettings }: { goSettings: () => void }) {
   if (baby === null) return null;
 
   const todayDate = localDate(now, ctx.zone);
-  const today = naturalDayTotals(sessions, todayDate, ctx.zone, { nowMs: now });
-  const napsToday = sessions.filter((s) => s.sleep_type === 'nap' && localDate(parseInstant(s.sleep_start_utc), ctx.zone) === todayDate).length;
+  const today = sleepDayTotals(sessions, todayDate, ctx.zone, { nowMs: now });
+  // Por la mañana, antes de la primera siesta, el día aún está vacío: se enseña la noche que acaba de terminar.
+  const lastNight = today.totalMs === 0 ? [...sessions].reverse().find((s) => s.sleep_type === 'night' && s.sleep_end_utc !== null) : undefined;
   const lastClosed = [...sessions].reverse().find((s) => s.sleep_end_utc !== null);
   const awakeMs = !open && lastClosed?.sleep_end_utc ? now - parseInstant(lastClosed.sleep_end_utc) : null;
 
@@ -153,16 +154,27 @@ export function Home({ goSettings }: { goSettings: () => void }) {
       <FeedingCard />
 
       <Card title={t('home.today')}>
-        <div className="grid grid-cols-2 gap-3 text-center">
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div>
+            <p className="text-2xl font-bold">{fmtDur(today.napMs)}</p>
+            <p className="text-sm text-muted">{t('home.todayNaps')}</p>
+            <p className="text-xs text-muted">{t('home.todayNapsSub', { n: today.napCount })}</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold">{fmtDur(today.nightMs)}</p>
+            <p className="text-sm text-muted">{t('home.todayNight')}</p>
+          </div>
           <div>
             <p className="text-2xl font-bold">{fmtDur(today.totalMs)}</p>
             <p className="text-sm text-muted">{t('home.todaySleep')}</p>
           </div>
-          <div>
-            <p className="text-2xl font-bold">{napsToday}</p>
-            <p className="text-sm text-muted">{t('home.naps')}</p>
-          </div>
         </div>
+        {lastNight?.sleep_end_utc && (
+          <p className="mt-3 text-center text-sm text-muted">
+            {t('home.lastNight', { dur: fmtDur(parseInstant(lastNight.sleep_end_utc) - parseInstant(lastNight.sleep_start_utc)) })}
+          </p>
+        )}
+        <p className="mt-2 text-center text-xs text-muted">{t('home.todayHint')}</p>
         {awakeMs !== null && <p className="mt-3 text-center text-sm text-muted">{t('home.awakeFor', { dur: fmtDur(awakeMs) })}</p>}
       </Card>
 

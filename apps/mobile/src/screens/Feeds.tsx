@@ -71,7 +71,7 @@ export function Feeds() {
                       </span>
                       {detail.length > 0 && <span className="ml-2 text-sm text-muted">{detail.join(' · ')}</span>}
                     </span>
-                    <span className="font-semibold">{endMs ? fmtDur(endMs - startMs) : t('history.open')}</span>
+                    <span className="font-semibold">{endMs ? fmtDur(endMs - startMs) : f.source === 'timer' ? t('history.open') : <span className="text-sm font-normal text-muted">{t('feed.durationUnknown')}</span>}</span>
                   </button>
                 </li>
               );

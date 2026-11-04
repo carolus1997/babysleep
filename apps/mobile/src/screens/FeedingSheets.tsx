@@ -108,16 +108,16 @@ export function ManualFeedingSheet({ babyId, onClose }: { babyId: string; onClos
   const [type, setType] = useState<FeedTypeT>('breast');
   const [start, setStart] = useState(toLocalInput(Date.now() - 20 * 60_000, ctx.zone));
   const [sc, setSc] = useState<Choice>(undefined);
-  const [minutes, setMinutes] = useState('15');
+  const [minutes, setMinutes] = useState('');
   const [side, setSide] = useState<BreastSideT | null>(null);
   const [ml, setMl] = useState('');
-  const ready = timeReady(start, ctx.zone, sc) && minutes.trim() !== '';
+  const ready = timeReady(start, ctx.zone, sc);
   return (
     <Sheet title={t('feed.add')} onClose={onClose}>
       <TypeChips value={type} onChange={setType} />
       <TimeField label={t('session.start')} value={start} onChange={setStart} choice={sc} onChoice={setSc} zone={ctx.zone} />
-      <Field label={t('feed.duration')}>
-        <input className={inputCls} inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+      <Field label={`${t('feed.duration')} · ${t('feed.optional')}`}>
+        <input className={inputCls} inputMode="numeric" placeholder={t('feed.durationUnknown')} value={minutes} onChange={(e) => setMinutes(e.target.value)} />
       </Field>
       {type === 'breast' && <SideChips value={side} onChange={setSide} />}
       {type === 'bottle' && <MlField value={ml} onChange={setMl} />}
@@ -127,7 +127,7 @@ export function ManualFeedingSheet({ babyId, onClose }: { babyId: string; onClos
         disabled={!ready}
         onClick={async () => {
           const input: Parameters<typeof addManualFeeding>[1] = {
-            babyId, type, startLocal: start, durationMin: Number(minutes.trim().replace(',', '.')),
+            babyId, type, startLocal: start, durationMin: minutes.trim() === '' ? null : Number(minutes.trim().replace(',', '.')),
             side: type === 'breast' ? side : null, amountMl: type === 'bottle' ? toMl(ml) : null,
           };
           if (sc !== undefined) input.startChoice = sc;

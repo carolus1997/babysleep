@@ -89,6 +89,23 @@ describe('cronómetro de tomas', () => {
 });
 
 describe('registro manual de tomas', () => {
+  it('los minutos son opcionales: sin ellos la toma queda sin fin (duración desconocida), no «en curso» ni 0', async () => {
+    const h = await makeHarness();
+    const baby = await babyOf(h);
+    const f = await addManualFeeding(h.ctx, { babyId: baby, type: 'breast', startLocal: '2027-01-15T07:30' });
+    expect(f).toMatchObject({ source: 'manual', end_utc: null, end_tz: null, end_quality: null });
+    expect(await getOpenFeeding(h.ctx, baby)).toBeUndefined(); // no es una toma en curso
+    expect(await code(finishFeeding(h.ctx, f.id))).toBeNull(); // terminar no la toca
+    expect((await h.ctx.db.feeding.get(f.id))?.end_utc).toBeNull();
+    expect(await code(cancelFeeding(h.ctx, f.id))).toBe('invalid');
+    // cuenta como toma, pero no suma tiempo al pecho
+    const day = summarizeFeedings(await listFeedings(h.ctx, baby), '2027-01-15', h.ctx.zone);
+    expect(day).toMatchObject({ count: 1, breastMs: 0 });
+    // un cronómetro real sigue en curso
+    const t = await startFeeding(h.ctx, baby, 'bottle');
+    expect((await getOpenFeeding(h.ctx, baby))?.id).toBe(t.id);
+  });
+
   it('guarda la hora local y la duración como aproximadas', async () => {
     const h = await makeHarness();
     const baby = await babyOf(h);

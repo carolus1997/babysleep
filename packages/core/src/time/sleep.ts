@@ -1,4 +1,5 @@
 import type { SleepSessionT } from '@babysleep/contract';
+import { localHour } from './classify';
 import { clip, intersect, intervalLength, mergeIntervals, unionLength, type Interval } from './interval';
 import {
   localDate,
@@ -236,6 +237,72 @@ export function attributedTotals(
   return { days, unattributed, anomalies };
 }
 
+/** Una noche que empieza antes de esta hora local (de madrugada) pertenece al día anterior. */
+export const DEFAULT_SLEEP_DAY_CUTOFF_HOUR = 5;
+
+export interface SleepDay {
+  kind: 'sleep_day';
+  date: string;
+  /** Duraciones COMPLETAS (no se parten por medianoche): la noche entera cuenta en el día en que empezó. */
+  totalMs: number;
+  napMs: number;
+  nightMs: number;
+  napCount: number;
+  nightCount: number;
+  sessionIds: string[];
+  /** Sesiones abiertas del día. Si no se indicó `nowMs` no suman, y el día NO está completo. */
+  openIds: string[];
+  /** `false` si queda alguna sesión abierta: aún puede crecer. */
+  complete: boolean;
+}
+
+/**
+ * (4) «Día de sueño»: empieza con la primera siesta del día y termina con el despertar de la noche siguiente.
+ * Cada sesión se atribuye a la fecha local de su INICIO (las noches que empiezan de madrugada, antes de
+ * `cutoffHour`, al día anterior) y se cuenta entera: la parte de la noche que cae después de medianoche
+ * sigue siendo de ese día. Es una etiqueta de agrupación; no recorta duraciones.
+ */
+export function sleepDayTotals(
+  sessions: readonly SessionInput[],
+  date: string,
+  zone: string,
+  opts: SpanOptions & { cutoffHour?: number } = {},
+): SleepDay {
+  const cutoff = opts.cutoffHour ?? DEFAULT_SLEEP_DAY_CUTOFF_HOUR;
+  assertSingleBaby(sessions);
+  const { spans } = buildSpans(sessions, opts);
+  const belongs = (s: SessionSpan): boolean => {
+    const start = s.interval.start;
+    let d = localDate(start, zone);
+    if (s.type === 'night' && localHour(start, zone) < cutoff) d = localDate(naturalDayWindow(d, zone).startMs - 1, zone);
+    return d === date;
+  };
+  const mine = spans.filter(belongs);
+  const openIds = activeSessions(sessions)
+    .filter((s) => s.sleep_end_utc === null)
+    .filter((s) => {
+      const start = parseInstant(s.sleep_start_utc);
+      let d = localDate(start, zone);
+      if (s.sleep_type === 'night' && localHour(start, zone) < cutoff) d = localDate(naturalDayWindow(d, zone).startMs - 1, zone);
+      return d === date;
+    })
+    .map((s) => s.id);
+  const naps = mine.filter((s) => s.type === 'nap');
+  const nights = mine.filter((s) => s.type === 'night');
+  return {
+    kind: 'sleep_day',
+    date,
+    totalMs: unionLength(mine.map((s) => s.interval)),
+    napMs: unionLength(naps.map((s) => s.interval)),
+    nightMs: unionLength(nights.map((s) => s.interval)),
+    napCount: naps.length,
+    nightCount: nights.length,
+    sessionIds: mine.map((s) => s.id),
+    openIds,
+    complete: openIds.length === 0,
+  };
+}
+
 /** Intervalos disjuntos de sueño (unión) de un conjunto de sesiones; útil para ventanas de vigilia. */
 export function sleepUnion(sessions: readonly SessionInput[], opts: SpanOptions = {}): Interval[] {
   return mergeIntervals(buildSpans(sessions, opts).spans.map((s) => s.interval));
@@ -246,4 +313,5 @@ export const METRIC_KIND_LABELS_ES = {
   natural_day: 'Día natural',
   rolling_24h: 'Ventana móvil de 24 h',
   attributed_by_wake_date: 'Noche atribuida a la fecha de despertar',
+  sleep_day: 'Día de sueño (primera siesta → despertar siguiente)',
 } as const;
