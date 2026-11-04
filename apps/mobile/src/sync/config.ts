@@ -16,4 +16,4 @@ export const isSyncConfigured = (): boolean => SUPABASE_URL.startsWith('https://
  * Clave PÚBLICA para los avisos (web push, VAPID). Es pública por diseño (el navegador la necesita para suscribirse);
  * la clave PRIVADA vive solo en los secretos de Supabase. Vacía = los avisos no están configurados.
  */
-export const VAPID_PUBLIC_KEY = '';
+export const VAPID_PUBLIC_KEY = 'BE2oLFstO5G7QQ0ycXlMJd-KxLLJvIXGNgDsqnEUQqQ_u2bEQMbZKLloXVkgeFhLHIbIIYl9wKraWtYgiHd_2U4';
