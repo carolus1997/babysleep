@@ -6,6 +6,7 @@ export * from './time/latency';
 export * from './time/awake';
 export * from './time/rhythm';
 export * from './time/timeline';
+export * from './time/feedAnalysis';
 export * from './time/classify';
 export * from './time/age';
 export * from './stats/descriptive';

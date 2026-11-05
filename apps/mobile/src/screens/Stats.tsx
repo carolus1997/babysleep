@@ -8,6 +8,7 @@ import { t } from '../i18n/es';
 import { fmtDayShort, fmtDur } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
 import { Card, Chip } from '../ui/primitives';
+import { FeedStats } from './FeedStats';
 import { Rhythm } from './Rhythm';
 import { Timeline } from './Timeline';
 
@@ -25,7 +26,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 /** Estadísticas con dos vistas: el resumen de siempre y el análisis de ritmo. */
 export function Stats() {
-  const [view, setView] = useState<'summary' | 'rhythm' | 'timeline'>('summary');
+  const [view, setView] = useState<'summary' | 'rhythm' | 'timeline' | 'feeds'>('summary');
   return (
     <div className="space-y-4">
       <div className="flex gap-1" role="group" aria-label={t('stats.title')}>
@@ -38,8 +39,11 @@ export function Stats() {
         <Chip active={view === 'timeline'} onClick={() => setView('timeline')}>
           {t('stats.view.timeline')}
         </Chip>
+        <Chip active={view === 'feeds'} onClick={() => setView('feeds')}>
+          {t('stats.view.feeds')}
+        </Chip>
       </div>
-      {view === 'summary' ? <Summary /> : view === 'rhythm' ? <Rhythm /> : <Timeline />}
+      {view === 'summary' ? <Summary /> : view === 'rhythm' ? <Rhythm /> : view === 'timeline' ? <Timeline /> : <FeedStats />}
     </div>
   );
 }

@@ -12,7 +12,7 @@ import { Card, Chip } from '../ui/primitives';
 const RANGES = [7, 14, 28] as const;
 
 /** «+12 min» / «−8 min» frente al periodo anterior; nada si alguno de los dos tiene pocos datos. */
-function delta(cur: WindowStats, prev: WindowStats): string | null {
+export function delta(cur: WindowStats, prev: WindowStats): string | null {
   if (cur.n < MIN_N_TO_COMPARE || prev.n < MIN_N_TO_COMPARE || cur.meanMs === null || prev.meanMs === null) return null;
   const min = Math.round((cur.meanMs - prev.meanMs) / 60_000);
   if (min === 0) return t('rhythm.same');
