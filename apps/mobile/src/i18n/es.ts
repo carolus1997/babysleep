@@ -146,6 +146,23 @@ export const es = {
   'stats.view.rhythm': 'Ritmo',
   'stats.view.timeline': 'Días',
   'stats.view.feeds': 'Tomas',
+  'stats.view.trends': 'Semanas',
+
+  'trends.title': 'Evolución semanal',
+  'trends.weeksShort': 'sem',
+  'trends.intro':
+    'Cómo cambia tu bebé semana a semana (7 días cada una, la última a la derecha). No se compara con otros bebés ni con tablas. Una semana con menos de {min} días con datos queda en blanco.',
+  'trends.notEnough': 'Aún no hay semanas con datos suficientes para ver una evolución.',
+  'trends.noData': 'sin datos suficientes',
+  'trends.axis': 'Debajo de cada barra: edad en semanas al final de la semana (c. = corregida, en prematuros).',
+  'trends.total': 'Sueño medio por día',
+  'trends.totalHint': 'Solo días completos con datos. Una semana puede subir o bajar por un solo día atípico.',
+  'trends.night': 'Noche, media',
+  'trends.nap': 'Siestas, media al día',
+  'trends.napsPerDay': 'Número de siestas por día',
+  'trends.window': 'Ventana de vigilia entre siestas',
+  'trends.windowHint': 'Necesita {min} o más ventanas medidas en la semana.',
+  'trends.feeds': 'Tomas por día',
 
   'fstats.title': 'Tomas',
   'fstats.empty': 'Aún no hay tomas en este periodo.',

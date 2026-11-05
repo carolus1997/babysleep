@@ -11,6 +11,7 @@ import { Card, Chip } from '../ui/primitives';
 import { FeedStats } from './FeedStats';
 import { Rhythm } from './Rhythm';
 import { Timeline } from './Timeline';
+import { Trends } from './Trends';
 
 const RANGES = [7, 14, 28] as const;
 const MIN_DAYS_FOR_CONFIDENCE = 3;
@@ -26,10 +27,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 /** Estadísticas con dos vistas: el resumen de siempre y el análisis de ritmo. */
 export function Stats() {
-  const [view, setView] = useState<'summary' | 'rhythm' | 'timeline' | 'feeds'>('summary');
+  const [view, setView] = useState<'summary' | 'rhythm' | 'timeline' | 'feeds' | 'trends'>('summary');
   return (
     <div className="space-y-4">
-      <div className="flex gap-1" role="group" aria-label={t('stats.title')}>
+      <div className="flex flex-wrap gap-1" role="group" aria-label={t('stats.title')}>
         <Chip active={view === 'summary'} onClick={() => setView('summary')}>
           {t('stats.view.summary')}
         </Chip>
@@ -42,8 +43,21 @@ export function Stats() {
         <Chip active={view === 'feeds'} onClick={() => setView('feeds')}>
           {t('stats.view.feeds')}
         </Chip>
+        <Chip active={view === 'trends'} onClick={() => setView('trends')}>
+          {t('stats.view.trends')}
+        </Chip>
       </div>
-      {view === 'summary' ? <Summary /> : view === 'rhythm' ? <Rhythm /> : view === 'timeline' ? <Timeline /> : <FeedStats />}
+      {view === 'summary' ? (
+        <Summary />
+      ) : view === 'rhythm' ? (
+        <Rhythm />
+      ) : view === 'timeline' ? (
+        <Timeline />
+      ) : view === 'feeds' ? (
+        <FeedStats />
+      ) : (
+        <Trends />
+      )}
     </div>
   );
 }
