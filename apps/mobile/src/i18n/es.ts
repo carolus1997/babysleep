@@ -149,6 +149,35 @@ export const es = {
   'stats.view.trends': 'Semanas',
   'stats.view.report': 'Informe',
   'stats.view.forecast': 'Previsión',
+  'stats.view.context': 'Contexto',
+
+  'context.intro':
+    'Qué cambió en los días de después de un hito del diario (guardería, dientes, enfermedad, cambio de rutina…) frente a los de antes. Se anotan en Ajustes → Diario de acontecimientos.',
+  'context.noEvents': 'Aún no hay acontecimientos en el diario. Anota uno en Ajustes → Diario de acontecimientos y aquí verás qué cambió a su alrededor.',
+  'context.pick': 'Elige un hito',
+  'context.range': 'Días a cada lado',
+  'context.daysEachSide': 'días a cada lado',
+  'context.periods': 'Antes: {b} ({db} de {days} días con datos)',
+  'context.periodsAfter': 'Después: {a} ({da} de {days})',
+  'context.wait': 'Todavía no han pasado los {n} días que faltan después del hito para poder comparar.',
+  'context.before': 'Antes',
+  'context.after': 'Después',
+  'context.change': 'Cambio',
+  'context.base': 'las 2 semanas previas ya variaron {d}',
+  'context.noBase': 'sin referencia previa',
+  'context.hint':
+    'El día del hito no cuenta en ningún lado. Solo se muestra el cambio si ambos lados tienen {min} o más datos. Debajo del cambio, «las 2 semanas previas ya variaron…» da una idea de cuánto cambia este bebé por sí solo: si el cambio no supera esa variación normal, no destaca.',
+  'context.noCause':
+    'Que algo cambie después de un hito no significa que el hito lo causara: pueden coincidir el crecimiento, otros cambios o simple azar. Esto describe, no explica.',
+  'context.m.total': 'Sueño medio por día',
+  'context.m.night': 'Noche, media',
+  'context.m.nap': 'Siestas, total al día',
+  'context.m.naps': 'Siestas por día',
+  'context.m.awake': 'Despertares por noche (confirmadas)',
+  'context.m.window': 'Ventana de vigilia entre siestas',
+  'context.m.bedtime': 'Hora de acostarse',
+  'context.m.feeds': 'Tomas por día',
+  'context.m.latency': 'Tiempo hasta dormirse (mediana)',
 
   'forecast.intro':
     'Lo que ha sido habitual en los últimos días, proyectado hacia delante. Es orientativo: tu bebé no tiene por qué seguirlo, y si no hay datos suficientes, aquí se dice «no lo sé».',
