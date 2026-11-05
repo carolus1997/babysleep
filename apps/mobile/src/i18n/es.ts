@@ -144,6 +144,14 @@ export const es = {
   'stats.notEnough': 'Aún hay pocos datos: los promedios pueden cambiar mucho.',
   'stats.view.summary': 'Resumen',
   'stats.view.rhythm': 'Ritmo',
+  'stats.view.timeline': 'Días',
+
+  'timeline.title': 'Línea de tiempo (24 h)',
+  'timeline.empty': 'Aún no hay descansos ni tomas en estos días.',
+  'timeline.feed': 'Toma',
+  'timeline.awakening': 'Despertar',
+  'timeline.hint':
+    'Cada fila es un día natural, de 0 a 24 h (hora local). Una noche que cruza la medianoche aparece en los dos días. Una toma o despertar sin duración se dibuja como una marca fina, nunca como duración cero.',
 
   'rhythm.title': 'Ritmo y ventanas de vigilia',
   'rhythm.windows': 'Ventanas de vigilia',

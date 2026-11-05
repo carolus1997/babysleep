@@ -9,6 +9,7 @@ import { fmtDayShort, fmtDur } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
 import { Card, Chip } from '../ui/primitives';
 import { Rhythm } from './Rhythm';
+import { Timeline } from './Timeline';
 
 const RANGES = [7, 14, 28] as const;
 const MIN_DAYS_FOR_CONFIDENCE = 3;
@@ -24,7 +25,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 /** Estadísticas con dos vistas: el resumen de siempre y el análisis de ritmo. */
 export function Stats() {
-  const [view, setView] = useState<'summary' | 'rhythm'>('summary');
+  const [view, setView] = useState<'summary' | 'rhythm' | 'timeline'>('summary');
   return (
     <div className="space-y-4">
       <div className="flex gap-1" role="group" aria-label={t('stats.title')}>
@@ -34,8 +35,11 @@ export function Stats() {
         <Chip active={view === 'rhythm'} onClick={() => setView('rhythm')}>
           {t('stats.view.rhythm')}
         </Chip>
+        <Chip active={view === 'timeline'} onClick={() => setView('timeline')}>
+          {t('stats.view.timeline')}
+        </Chip>
       </div>
-      {view === 'summary' ? <Summary /> : <Rhythm />}
+      {view === 'summary' ? <Summary /> : view === 'rhythm' ? <Rhythm /> : <Timeline />}
     </div>
   );
 }
