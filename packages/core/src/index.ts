@@ -10,4 +10,5 @@ export * from './time/feedAnalysis';
 export * from './time/classify';
 export * from './time/age';
 export * from './stats/descriptive';
+export * from './stats/forecast';
 export * from './aggregate';

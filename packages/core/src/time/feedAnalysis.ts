@@ -47,6 +47,29 @@ export interface FeedAnalysis {
 
 const isMilk = (t: FeedTypeT): boolean => t !== 'solids';
 
+export interface FeedInterval {
+  /** Inicio de la toma que abre el intervalo y de la que lo cierra. */
+  startMs: EpochMs;
+  endMs: EpochMs;
+  gapMs: number;
+}
+
+/** Intervalos entre tomas de leche consecutivas (inicio a inicio), cronológicos; sin los de más de `maxMs` ni los de gap ≤ 0. */
+export function feedIntervals(feedings: readonly FeedInput[], maxMs: number = DEFAULT_MAX_FEED_INTERVAL_MS): FeedInterval[] {
+  const milk = feedings
+    .filter((f) => (f.deleted_at ?? null) === null && isMilk(f.feed_type))
+    .map((f) => parseInstant(f.start_utc))
+    .sort((a, b) => a - b);
+  const out: FeedInterval[] = [];
+  for (let i = 1; i < milk.length; i++) {
+    const startMs = milk[i - 1] as number;
+    const endMs = milk[i] as number;
+    const gapMs = endMs - startMs;
+    if (gapMs > 0 && gapMs <= maxMs) out.push({ startMs, endMs, gapMs });
+  }
+  return out;
+}
+
 /**
  * Análisis descriptivo de tomas en `[fromMs, toMs)`. Los intervalos se miden sobre toda la historia y se asignan al
  * periodo en el que TERMINAN (inicio de la toma siguiente), igual que las ventanas de vigilia.
