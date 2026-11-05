@@ -701,4 +701,93 @@ begin
   perform tests.assert(n = 1, 'S25e los ml quedan como conflicto abierto (alternativo 90), nada se pierde en silencio');
 end $$;
 
+-- S26 · despertares nocturnos (0010): alta, validaciones y aislamiento entre familias
+do $$
+declare r jsonb; n int; ok boolean;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('sleep_session', 90, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'sleep_start_utc', '2027-02-01T21:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'sleep_end_utc', '2027-02-02T06:00:00.000Z', 'end_tz', 'Europe/Madrid', 'end_quality', 'exact',
+    'sleep_type', 'night', 'type_source', 'manual', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S26a fixture: noche');
+
+  r := tests.go(tests.op('awakening', 91, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'session_id', tests.u(90), 'start_utc', '2027-02-02T01:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'end_utc', '2027-02-02T01:40:00.000Z', 'end_tz', 'Europe/Madrid', 'end_quality', 'approx', 'reason', 'feeding', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 1, 'S26b despertar con fin y motivo');
+  r := tests.go(tests.op('awakening', 92, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'session_id', tests.u(90), 'start_utc', '2027-02-02T03:00:00.000Z', 'start_tz', 'Europe/Madrid', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S26c sin fin: en curso o duración desconocida, nunca 0');
+
+  r := tests.go(tests.op('awakening', 93, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'session_id', tests.u(90), 'start_utc', '2027-02-02T03:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'end_utc', '2027-02-02T02:00:00.000Z', 'end_tz', 'Europe/Madrid', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S26d fin anterior al inicio: rechazado');
+  r := tests.go(tests.op('awakening', 94, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'session_id', tests.u(90), 'start_utc', '2027-02-02T03:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'end_utc', '2027-02-02T03:10:00.000Z', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S26e el fin y su zona van juntos');
+  r := tests.go(tests.op('awakening', 95, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'session_id', tests.u(90), 'start_utc', '2027-02-02T03:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'reason', 'hambre', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S26f motivo desconocido: rechazado');
+
+  -- la sesión y el bebé deben ser de la propia familia
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  r := tests.go(tests.op('awakening', 96, null, jsonb_build_object(
+    'baby_id', tests.u(2), 'session_id', tests.u(90), 'start_utc', '2027-02-02T03:00:00.000Z', 'start_tz', 'Europe/Madrid', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S26g la sesión de otra familia no se puede usar');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000003', 'lector@example.test');
+  begin
+    r := tests.go(tests.op('awakening', 97, null, jsonb_build_object(
+      'baby_id', tests.u(1), 'session_id', tests.u(90), 'start_utc', '2027-02-02T03:00:00.000Z', 'start_tz', 'Europe/Madrid', 'source', 'manual')));
+    ok := false;
+  exception when others then ok := sqlerrm like '%not_allowed%'; end;
+  perform tests.assert(ok, 'S26h un lector no puede registrar despertares');
+
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  select count(*) into n from app.awakening;
+  perform tests.assert(n = 0, 'S26i otra familia no ve los despertares');
+  perform tests.as_user('a0000000-0000-4000-8000-000000000003', 'lector@example.test');
+  select count(*) into n from app.awakening;
+  perform tests.assert(n = 2, 'S26j un lector sí los ve');
+  perform tests.as_superuser();
+end $$;
+
+-- S27 · umbral de despertares en el perfil del bebé
+do $$
+declare r jsonb; v int;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('baby', 1, (select rev from app.baby where id = tests.u(1)), '{"awakening_threshold_min":45}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S27a el umbral se guarda en el perfil');
+  r := tests.go(tests.op('baby', 1, (select rev from app.baby where id = tests.u(1)), '{"awakening_threshold_min":3}'));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S27b menos de 5 min: rechazado');
+  r := tests.go(tests.op('baby', 1, (select rev from app.baby where id = tests.u(1)), '{"awakening_threshold_min":200}'));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S27c más de 180 min: rechazado');
+  perform tests.as_superuser();
+  select awakening_threshold_min into v from app.baby where id = tests.u(1);
+  perform tests.assert(v = 45, 'S27d queda el último valor válido');
+end $$;
+
+-- S28 · dos cuidadores cierran el mismo despertar con horas distintas: conflicto, no rechazo
+do $$
+declare r jsonb; n int;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('awakening', 92, 1,
+    '{"end_utc":"2027-02-02T03:20:00.000Z","end_tz":"Europe/Madrid","end_quality":"exact"}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S28a el primero cierra el despertar');
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  r := tests.go(tests.op('awakening', 92, 1,
+    '{"end_utc":"2027-02-02T04:10:00.000Z","end_tz":"Europe/Madrid","end_quality":"approx"}'));
+  perform tests.assert(r ->> 'status' in ('merged', 'conflict'), 'S28b el segundo no se rechaza: queda como conflicto');
+  perform tests.as_superuser();
+  select count(*) into n from app.sync_conflict where row_id = tests.u(92) and status = 'open';
+  perform tests.assert(n = 2, 'S28c el fin y su calidad (los campos que difieren) quedan como conflicto abierto');
+  perform tests.assert((select end_utc from app.awakening where id = tests.u(92)) = '2027-02-02T03:20:00Z', 'S28d el valor del primero se conserva');
+end $$;
+
 rollback;

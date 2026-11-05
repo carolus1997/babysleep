@@ -1,6 +1,7 @@
-import type { SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
+import type { AwakeningT, SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
 import { useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
+import { listAwakenings, thresholdMs } from '../domain/awakening';
 import { buildOverview } from '../domain/overview';
 import { listSessions } from '../domain/sleep';
 import { t } from '../i18n/es';
@@ -26,10 +27,12 @@ export function Stats() {
   const [days, setDays] = useState<(typeof RANGES)[number]>(7);
   const sessions = useLive(() => listSessions(ctx, babyId), [ctx, babyId], [] as SleepSessionT[]);
   const attempts = useLive(() => ctx.db.settling_attempt.where('baby_id').equals(babyId).toArray(), [ctx, babyId], [] as SettlingAttemptT[]);
+  const awakenings = useLive(() => listAwakenings(ctx, babyId), [ctx, babyId], [] as AwakeningT[]);
   const now = useNow(60_000);
+  const thr = thresholdMs(baby ?? undefined);
   const o = useMemo(
-    () => buildOverview({ sessions, attempts, zone: ctx.zone, nowMs: now, days }),
-    [sessions, attempts, ctx.zone, now, days],
+    () => buildOverview({ sessions, awakenings, awakeningThresholdMs: thr, attempts, zone: ctx.zone, nowMs: now, days }),
+    [sessions, awakenings, thr, attempts, ctx.zone, now, days],
   );
   if (baby === null) return null;
 
@@ -63,6 +66,19 @@ export function Stats() {
           <Stat label={t('stats.napMedian')} value={o.medianNapMs === null ? '—' : fmtDur(o.medianNapMs)} />
           <Stat label={t('stats.nightMedian')} value={o.medianNightMs === null ? '—' : fmtDur(o.medianNightMs)} />
         </div>
+      </Card>
+
+      <Card title={t('stats.awake.title')}>
+        {o.awakeningNights === 0 ? (
+          <p className="text-sm text-muted">{t('stats.awake.empty')}</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <Stat label={t('stats.awake.perNight')} value={(o.meanAwakeningsPerNight ?? 0).toFixed(1)} />
+            <Stat label={t('stats.awake.longPerNight')} value={(o.meanLongAwakeningsPerNight ?? 0).toFixed(1)} />
+            <Stat label={t('stats.awake.meanAwake')} value={fmtDur(o.meanAwakeMs ?? 0)} />
+          </div>
+        )}
+        <p className="mt-2 text-xs text-muted">{t('stats.awake.basis', { n: o.awakeningNights })}</p>
       </Card>
 
       <Card title={t('stats.chart')}>

@@ -227,19 +227,22 @@ export interface BabyProfileFields {
   birth_weight_g?: number | null;
   birth_length_cm?: number | null;
   notes?: string | null;
+  /** Desde cuántos minutos un despertar nocturno se descuenta del sueño; `null` = por defecto (30). */
+  awakening_threshold_min?: number | null;
 }
 
 const RANGES = {
   gestational_weeks: { min: 22, max: 44, int: true, label: 'Las semanas de gestación' },
   birth_weight_g: { min: 300, max: 7000, int: true, label: 'El peso al nacer (g)' },
   birth_length_cm: { min: 20, max: 70, int: false, label: 'La talla al nacer (cm)' },
+  awakening_threshold_min: { min: 5, max: 180, int: true, label: 'El umbral de despertares (min)' },
 } as const;
 
 /** Valida y normaliza el perfil con mensajes en español (el contrato también valida, pero con errores técnicos). */
 function cleanProfile(p: BabyProfileFields): BabyProfileFields {
   const out: BabyProfileFields = {};
   if (p.sex !== undefined) out.sex = p.sex;
-  for (const key of ['gestational_weeks', 'birth_weight_g', 'birth_length_cm'] as const) {
+  for (const key of ['gestational_weeks', 'birth_weight_g', 'birth_length_cm', 'awakening_threshold_min'] as const) {
     const v = p[key];
     if (v === undefined) continue;
     if (v !== null) {

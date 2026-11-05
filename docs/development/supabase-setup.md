@@ -93,7 +93,9 @@ La URL y la clave pública están en `apps/mobile/src/sync/config.ts` (públicas
 | 0001–0005 | Tablas, seguridad, sincronización, perfil, restaurar | Aplicadas |
 | `0006_family_admin.sql` | Invitar y retirar cuidadores desde la app | **Pendiente** |
 | `0007_resolve_conflict.sql` | Resolver conflictos desde la app | **Pendiente** |
-| `0008_feeding.sql` | Tomas de comida (y campos acoplados en `apply_changes`) | **Pendiente** |
+| `0008_feeding.sql` | Tomas de comida (y campos acoplados en `apply_changes`) | Aplicada |
+| `0009_feed_reminders.sql` | Aviso de próxima toma (web push) | Aplicada |
+| `0010_awakenings.sql` | Despertares nocturnos y umbral por bebé (contrato 0.4.0). **Aplícala ANTES de publicar la web que la usa** | **Pendiente** |
 
 ## Cosas que conviene saber
 

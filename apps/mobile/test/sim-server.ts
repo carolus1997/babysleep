@@ -39,6 +39,7 @@ const REFS: Record<string, SyncTable> = {
 const GROUPS: Partial<Record<SyncTable, string[][]>> = {
   sleep_session: [['sleep_end_utc', 'end_tz', 'end_quality']],
   feeding: [['feed_type', 'breast_side', 'amount_ml'], ['end_utc', 'end_tz', 'end_quality']],
+  awakening: [['end_utc', 'end_tz', 'end_quality']],
 };
 
 const eq = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

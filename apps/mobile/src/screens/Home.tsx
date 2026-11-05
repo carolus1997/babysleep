@@ -1,7 +1,8 @@
-import type { SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
-import { localDate, parseInstant, sleepDayTotals } from '@babysleep/core';
+import type { AwakeningT, SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
+import { buildSpans, localDate, parseInstant, sleepDayTotals, summarizeAwakenings } from '@babysleep/core';
 import { useState } from 'react';
 import { useApp } from '../app/AppContext';
+import { finishAwakening, getOpenAwakening, listAwakenings, startAwakening, thresholdMs } from '../domain/awakening';
 import { backupReminderDue } from '../domain/export';
 import type { ObservationTarget } from '../domain/notes';
 import {
@@ -24,6 +25,7 @@ import { fmtClock, fmtDur, fmtElapsed } from '../ui/format';
 import type { SyncStatus } from '../sync/useAutoSync';
 import { useLive, useNow } from '../ui/hooks';
 import { Btn, Card, Chip } from '../ui/primitives';
+import { AwakeningsSheet } from './AwakeningsSheet';
 import { FeedingCard } from './FeedingCard';
 import { NotesSheet } from './NotesSheet';
 
@@ -35,15 +37,27 @@ export function Home({ goSettings }: { goSettings: () => void }) {
   const sessions = useLive(() => listSessions(ctx, babyId), [ctx, babyId], [] as SleepSessionT[]);
   const reminder = useLive(() => backupReminderDue(ctx), [ctx, sessions.length], false);
   const expired = useLive(async () => ((await ctx.db.meta.get('sync_status'))?.value as SyncStatus | undefined)?.sessionExpired === true, [ctx], false);
+  const awakenings = useLive(() => listAwakenings(ctx, babyId), [ctx, babyId], [] as AwakeningT[]);
+  const openAwake = useLive(() => (open ? getOpenAwakening(ctx, open.id) : Promise.resolve(undefined)), [ctx, open?.id, awakenings.length], undefined as AwakeningT | undefined);
   const now = useNow(open || attempt ? 1000 : 30_000);
+  const [awakeSheet, setAwakeSheet] = useState<string | null>(null);
   const [notes, setNotes] = useState<ObservationTarget | null>(null);
 
   if (baby === null) return null;
 
   const todayDate = localDate(now, ctx.zone);
-  const today = sleepDayTotals(sessions, todayDate, ctx.zone, { nowMs: now });
+  const thr = thresholdMs(baby);
+  const today = sleepDayTotals(sessions, todayDate, ctx.zone, { nowMs: now, awakenings, awakeningThresholdMs: thr });
   // Por la mañana, antes de la primera siesta, el día aún está vacío: se enseña la noche que acaba de terminar.
   const lastNight = today.totalMs === 0 ? [...sessions].reverse().find((s) => s.sleep_type === 'night' && s.sleep_end_utc !== null) : undefined;
+  const lastNightSum = lastNight ? summarizeAwakenings(buildSpans([lastNight]).spans, awakenings, thr) : undefined;
+  const lastClosedNight = [...sessions].reverse().find((s) => s.sleep_type === 'night' && s.sleep_end_utc !== null);
+  const wakeUp = async () => {
+    if (!open) return;
+    const id = open.id;
+    if (openAwake) await run(() => finishAwakening(ctx, openAwake.id));
+    else await run(() => startAwakening(ctx, id));
+  };
   const lastClosed = [...sessions].reverse().find((s) => s.sleep_end_utc !== null);
   const awakeMs = !open && lastClosed?.sleep_end_utc ? now - parseInstant(lastClosed.sleep_end_utc) : null;
 
@@ -104,6 +118,21 @@ export function Home({ goSettings }: { goSettings: () => void }) {
           <Btn variant="primary" className="h-28 w-full text-2xl" onClick={finish}>
             {t('home.finishSleep')}
           </Btn>
+          {open.sleep_type === 'night' && (
+            <div className="mt-3 rounded-2xl bg-surface2 p-3">
+              {openAwake && (
+                <p className="mb-2 text-sm font-semibold">
+                  {t('awake.awakeSince', { time: fmtClock(parseInstant(openAwake.start_utc), openAwake.start_tz), dur: fmtElapsed(now - parseInstant(openAwake.start_utc)) })}
+                </p>
+              )}
+              <Btn variant={openAwake ? 'primary' : 'secondary'} className="w-full" onClick={wakeUp}>
+                {openAwake ? t('awake.backToSleep') : t('awake.wokeUp')}
+              </Btn>
+              <Btn variant="ghost" className="mt-1 w-full text-muted" onClick={() => setAwakeSheet(open.id)}>
+                {t('awake.openN', { n: awakenings.filter((a) => a.session_id === open.id).length })}
+              </Btn>
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <span className="text-sm text-muted">{t('home.fixStart')}</span>
             {[5, 10, 15].map((m) => (
@@ -169,14 +198,28 @@ export function Home({ goSettings }: { goSettings: () => void }) {
             <p className="text-sm text-muted">{t('home.todaySleep')}</p>
           </div>
         </div>
-        {lastNight?.sleep_end_utc && (
+        {today.nightCount > 0 && today.awakeningCount > 0 && (
           <p className="mt-3 text-center text-sm text-muted">
-            {t('home.lastNight', { dur: fmtDur(parseInstant(lastNight.sleep_end_utc) - parseInstant(lastNight.sleep_start_utc)) })}
+            {t('home.nightLine', { bed: fmtDur(today.nightBedMs), sleep: fmtDur(today.nightMs), n: today.awakeningCount, long: today.longAwakeningCount })}
+          </p>
+        )}
+        {lastNight?.sleep_end_utc && lastNightSum && (
+          <p className="mt-3 text-center text-sm text-muted">
+            {t('home.lastNightReal', {
+              dur: fmtDur(parseInstant(lastNight.sleep_end_utc) - parseInstant(lastNight.sleep_start_utc) - lastNightSum.awakeMs),
+              n: lastNightSum.count,
+            })}
           </p>
         )}
         <p className="mt-2 text-center text-xs text-muted">{t('home.todayHint')}</p>
         {awakeMs !== null && <p className="mt-3 text-center text-sm text-muted">{t('home.awakeFor', { dur: fmtDur(awakeMs) })}</p>}
       </Card>
+
+      {lastClosedNight && !open && (
+        <Btn className="w-full" onClick={() => setAwakeSheet(lastClosedNight.id)}>
+          {t('awake.openN', { n: awakenings.filter((a) => a.session_id === lastClosedNight.id).length })} · {fmtClock(parseInstant(lastClosedNight.sleep_start_utc), lastClosedNight.start_tz)}
+        </Btn>
+      )}
 
       {lastClosed && !open && (
         <Btn className="w-full" onClick={() => setNotes({ sessionId: lastClosed.id })}>
@@ -185,6 +228,9 @@ export function Home({ goSettings }: { goSettings: () => void }) {
       )}
 
       {notes && <NotesSheet target={notes} onClose={() => setNotes(null)} />}
+      {awakeSheet && sessions.find((x) => x.id === awakeSheet) && (
+        <AwakeningsSheet session={sessions.find((x) => x.id === awakeSheet) as SleepSessionT} onClose={() => setAwakeSheet(null)} />
+      )}
     </div>
   );
 }

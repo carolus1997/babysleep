@@ -1,10 +1,11 @@
-import { mustResolveLocal } from '@babysleep/core';
+import { formatLocal, mustResolveLocal, parseInstant } from '@babysleep/core';
 import { SleepSession } from '@babysleep/contract';
 import { describe, expect, it } from 'vitest';
 import { BabySleepDb } from '../src/db/schema';
 import { createBaby, deleteBaby, ensureBootstrap, listBabies, renameBaby, restoreBaby } from '../src/domain/bootstrap';
 import { mergeBabies } from '../src/domain/merge';
 import type { Ctx } from '../src/domain/context';
+import { addManualAwakening, deleteAwakening, editAwakening, finishAwakening, getOpenAwakening, startAwakening } from '../src/domain/awakening';
 import { deleteFeeding, editFeeding, finishFeeding as finishFeed, getOpenFeeding, listFeedings, nudgeFeedingStart, restoreFeeding, startFeeding as startFeed } from '../src/domain/feeding';
 import { listTags, saveObservation } from '../src/domain/notes';
 import { SEED_EVENT_CATEGORIES, SEED_TAGS } from '../src/domain/seed';
@@ -638,9 +639,11 @@ describe('convergencia (prueba aleatoria)', () => {
       const open = await getOpenSession(p.ctx, baby);
       const openFeed = await getOpenFeeding(p.ctx, baby);
       const feeds = (await p.ctx.db.feeding.toArray()).filter((x) => x.baby_id === baby && x.deleted_at === null);
+      const awakes = (await p.ctx.db.awakening.toArray()).filter((x) => x.baby_id === baby && x.deleted_at === null);
+      const nights = live.filter((x) => x.sleep_type === 'night');
       clock.tick((1 + Math.floor(rand() * 25)) * MIN);
 
-      const action = pick(['start', 'finish', 'cancel', 'edit', 'delete', 'restore', 'manual', 'note', 'profile', 'feedStart', 'feedFinish', 'feedEdit', 'feedNote', 'feedDelete', 'sync', 'sync', 'sync', 'fail']);
+      const action = pick(['start', 'finish', 'cancel', 'edit', 'delete', 'restore', 'manual', 'note', 'profile', 'feedStart', 'feedFinish', 'feedEdit', 'feedNote', 'feedDelete', 'awStart', 'awManual', 'awFinish', 'awEdit', 'awDelete', 'sync', 'sync', 'sync', 'fail']);
       trace.push(`${step} ${p.name} ${action} open=${open?.id.slice(-6) ?? '-'} live=[${live.map((x) => x.id.slice(-6))}] trash=[${trashed.map((x) => x.id.slice(-6))}]`);
       try {
         if (action === 'start' && !open) await startSleep(p.ctx, baby);
@@ -668,6 +671,19 @@ describe('convergencia (prueba aleatoria)', () => {
           const ft = (await listTags(p.ctx)).filter((t) => t.category === 'feeding');
           await saveObservation(p.ctx, { target: { feedingId: pick(feeds).id }, moment: 'feeding', text: `toma ${step}`, tagIds: [pick(ft).id] });
         } else if (action === 'feedDelete' && feeds.length > 0) await deleteFeeding(p.ctx, pick(feeds).id);
+        else if (action === 'awStart' && open?.sleep_type === 'night') await startAwakening(p.ctx, open.id, pick(['feeding', 'diaper', null] as const));
+        else if (action === 'awFinish' && awakes.length > 0) {
+          const a = pick(awakes);
+          await finishAwakening(p.ctx, a.id);
+        } else if (action === 'awManual' && nights.length > 0) {
+          const night = pick(nights);
+          const at = parseInstant(night.sleep_start_utc) + 20 * MIN;
+          await addManualAwakening(p.ctx, { sessionId: night.id, startLocal: formatLocal(at, 'Europe/Madrid').slice(0, 16).replace(' ', 'T'), durationMin: rand() < 0.5 ? null : 5 + Math.floor(rand() * 60) });
+        } else if (action === 'awEdit' && awakes.length > 0) {
+          const a = pick(awakes);
+          if (rand() < 0.5) await editAwakening(p.ctx, a.id, { reason: pick(['crying', 'other', null] as const) });
+          else await editAwakening(p.ctx, a.id, { endMs: parseInstant(a.start_utc) + (10 + Math.floor(rand() * 50)) * MIN });
+        } else if (action === 'awDelete' && awakes.length > 0) await deleteAwakening(p.ctx, pick(awakes).id);
         else if (action === 'sync') await p.sync();
         else if (action === 'fail') {
           p.transport[rand() < 0.5 ? 'dropNextResponse' : 'offline'] = true;

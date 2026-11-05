@@ -7,7 +7,7 @@ import { z } from 'zod';
  * de PostgreSQL (database/migrations). Los instantes son siempre UTC ISO-8601
  * con sufijo `Z`; la zona IANA y el offset viajan aparte en cada evento.
  */
-export const CONTRACT_VERSION = '0.3.0';
+export const CONTRACT_VERSION = '0.4.0';
 
 // ---------------------------------------------------------------- primitivos
 
@@ -91,6 +91,8 @@ export const Baby = SyncedRow.extend({
   birth_weight_g: z.number().int().min(300).max(7000).nullable().default(null),
   birth_length_cm: z.number().min(20).max(70).nullable().default(null),
   notes: z.string().max(1000).nullable().default(null),
+  /** Desde qué duración (min) un despertar nocturno se descuenta del sueño. `null` = el valor por defecto (30). Desde 0.4.0. */
+  awakening_threshold_min: z.number().int().min(5).max(180).nullable().default(null),
 });
 
 // ---------------------------------------------------------------------- tomas
@@ -123,6 +125,32 @@ export const Feeding = SyncedRow.extend({
   .refine((f) => f.breast_side === null || f.feed_type === 'breast', { message: 'El pecho solo se indica en una toma de pecho' })
   .refine((f) => f.amount_ml === null || f.feed_type === 'bottle', { message: 'Los ml solo se indican en un biberón' });
 
+
+// ------------------------------------------------------------------ despertares
+
+export const AwakeningReason = z.enum(['feeding', 'diaper', 'crying', 'other']);
+
+/**
+ * Despertar dentro de un sueño NOCTURNO (desde contrato 0.4.0). `end_*` es `null` si el niño sigue despierto
+ * (cronómetro, `source = 'timer'`) o si no se sabe cuánto duró (`source = 'manual'`): un despertar sin duración
+ * cuenta como despertar y NO descuenta tiempo (desconocido ≠ 0). Que la sesión sea nocturna lo comprueba la app.
+ */
+export const Awakening = SyncedRow.extend({
+  baby_id: Uuid,
+  session_id: Uuid,
+  start_utc: InstantUtc,
+  start_tz: IanaZone,
+  start_quality: TimeQuality.default('exact'),
+  end_utc: InstantUtc.nullable(),
+  end_tz: IanaZone.nullable(),
+  end_quality: TimeQuality.nullable(),
+  reason: AwakeningReason.nullable().default(null),
+  source: z.enum(['timer', 'manual', 'import']),
+})
+  .refine((a) => a.end_utc === null || Date.parse(a.end_utc) > Date.parse(a.start_utc), {
+    message: 'El fin del despertar debe ser posterior al inicio',
+  })
+  .refine((a) => (a.end_utc === null) === (a.end_tz === null), { message: 'end_utc y end_tz van juntos' });
 
 export const SleepSession = SyncedRow.extend({
   baby_id: Uuid,
@@ -247,6 +275,8 @@ export type SettlingAttemptT = z.infer<typeof SettlingAttempt>;
 export type WakeEpisodeT = z.infer<typeof WakeEpisode>;
 export type ObservationT = z.infer<typeof Observation>;
 export type FeedingT = z.infer<typeof Feeding>;
+export type AwakeningT = z.infer<typeof Awakening>;
+export type AwakeningReasonT = z.infer<typeof AwakeningReason>;
 export type FeedTypeT = z.infer<typeof FeedType>;
 export type BreastSideT = z.infer<typeof BreastSide>;
 export type BabyT = z.infer<typeof Baby>;

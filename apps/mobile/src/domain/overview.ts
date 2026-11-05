@@ -1,4 +1,4 @@
-import type { SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
+import type { AwakeningT, SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
 import {
   activeSessions,
   buildSpans,
@@ -25,6 +25,13 @@ export interface DayRow {
   nightMs: number;
   napCount: number;
   nightCount: number;
+  /** Tiempo en cama de la noche, sin descontar despertares (`nightMs` ya es el sueño real). */
+  nightBedMs: number;
+  awakeningCount: number;
+  longAwakeningCount: number;
+  awakeMs: number;
+  /** Todas las noches del día están confirmadas con «estos son todos»: solo entonces el recuento vale como dato (0 incluido). */
+  awakeningsConfirmed: boolean;
   hasData: boolean;
   /** `false` si queda una sesión abierta del día: aún puede crecer y no entra en los promedios. */
   complete: boolean;
@@ -43,6 +50,12 @@ export interface Overview {
   meanNightTotalMs: number | null;
   napDays: number;
   nightDays: number;
+  /** Noches confirmadas («estos son todos») de las que salen los promedios de despertares. */
+  awakeningNights: number;
+  meanAwakeningsPerNight: number | null;
+  meanLongAwakeningsPerNight: number | null;
+  /** Tiempo medio al día que se descuenta de la noche por despertares largos (noches confirmadas). */
+  meanAwakeMs: number | null;
   meanNapsPerDay: number | null;
   medianNapMs: number | null;
   medianNightMs: number | null;
@@ -61,14 +74,30 @@ export interface Overview {
 export interface OverviewInput {
   sessions: readonly SleepSessionT[];
   attempts: readonly SettlingAttemptT[];
+  /** Despertares nocturnos (opcional). Sin ellos, las noches cuentan enteras. */
+  awakenings?: readonly AwakeningT[];
+  /** Umbral (ms) desde el que un despertar se descuenta; por defecto 30 min. */
+  awakeningThresholdMs?: number;
   zone: string;
   nowMs: number;
   days: number;
   latencyReviewThresholdMs?: number;
 }
 
-function dayRow(sessions: readonly SleepSessionT[], date: string, zone: string, nowMs: number | undefined): DayRow {
-  const t = sleepDayTotals(sessions, date, zone, nowMs === undefined ? {} : { nowMs });
+function dayRow(
+  sessions: readonly SleepSessionT[],
+  date: string,
+  zone: string,
+  nowMs: number | undefined,
+  aw: { awakenings: readonly AwakeningT[]; thresholdMs?: number },
+): DayRow {
+  const t = sleepDayTotals(sessions, date, zone, {
+    ...(nowMs === undefined ? {} : { nowMs }),
+    awakenings: aw.awakenings,
+    ...(aw.thresholdMs === undefined ? {} : { awakeningThresholdMs: aw.thresholdMs }),
+  });
+  const ids = new Set(t.sessionIds);
+  const nightsOfDay = activeSessions(sessions).filter((s) => ids.has(s.id) && s.sleep_type === 'night');
   return {
     date,
     lengthHours: 24,
@@ -77,6 +106,11 @@ function dayRow(sessions: readonly SleepSessionT[], date: string, zone: string, 
     nightMs: t.nightMs,
     napCount: t.napCount,
     nightCount: t.nightCount,
+    nightBedMs: t.nightBedMs,
+    awakeningCount: t.awakeningCount,
+    longAwakeningCount: t.longAwakeningCount,
+    awakeMs: t.awakeMs,
+    awakeningsConfirmed: nightsOfDay.length > 0 && nightsOfDay.every((s) => s.awakenings_completeness === 'complete'),
     hasData: t.totalMs > 0,
     complete: t.complete,
   };
@@ -97,11 +131,13 @@ export function buildOverview(input: OverviewInput): Overview {
     cursor = localDate(naturalDayWindow(cursor, zone).startMs - 1, zone);
     dates.unshift(cursor);
   }
-  const series = dates.map((d) => dayRow(sessions, d, zone, undefined));
+  const aw = { awakenings: input.awakenings ?? [], ...(input.awakeningThresholdMs === undefined ? {} : { thresholdMs: input.awakeningThresholdMs }) };
+  const series = dates.map((d) => dayRow(sessions, d, zone, undefined, aw));
   const withData = series.filter((d) => d.hasData && d.complete);
   const napDays = withData.filter((d) => d.napCount > 0);
   const nightDays = withData.filter((d) => d.nightCount > 0);
-  const today = dayRow(sessions, todayDate, zone, nowMs);
+  const today = dayRow(sessions, todayDate, zone, nowMs, aw);
+  const confirmed = withData.filter((d) => d.awakeningsConfirmed);
 
   const rangeStart = naturalDayWindow(dates[0] ?? todayDate, zone).startMs;
   const active = activeSessions(sessions);
@@ -130,6 +166,10 @@ export function buildOverview(input: OverviewInput): Overview {
     meanNightTotalMs: mean(nightDays.map((d) => d.nightMs)),
     napDays: napDays.length,
     nightDays: nightDays.length,
+    awakeningNights: confirmed.length,
+    meanAwakeningsPerNight: mean(confirmed.map((d) => d.awakeningCount)),
+    meanLongAwakeningsPerNight: mean(confirmed.map((d) => d.longAwakeningCount)),
+    meanAwakeMs: mean(confirmed.map((d) => d.awakeMs)),
     meanNapsPerDay: mean(withData.map((d) => d.napCount)),
     medianNapMs: median(closed.filter((s) => s.sleep_type === 'nap').map(dur)),
     medianNightMs: median(closed.filter((s) => s.sleep_type === 'night').map(dur)),

@@ -8,6 +8,7 @@ import { t } from '../i18n/es';
 import { fmtClock, fmtDayLabel, fmtDur } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
 import { Btn, Card } from '../ui/primitives';
+import { AwakeningsSheet } from './AwakeningsSheet';
 import { NotesSheet } from './NotesSheet';
 import { ManualSheet, SessionSheet } from './SessionSheets';
 
@@ -20,6 +21,7 @@ export function History() {
   const now = useNow(30_000);
   const [edit, setEdit] = useState<SleepSessionT | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
+  const [awake, setAwake] = useState<string | null>(null);
   const [manual, setManual] = useState(false);
 
   const sessions = useMemo(() => all.filter((s) => s.deleted_at === null), [all]);
@@ -141,9 +143,14 @@ export function History() {
             setNotes(edit.id);
             setEdit(null);
           }}
+          onAwakenings={() => {
+            setAwake(edit.id);
+            setEdit(null);
+          }}
         />
       )}
       {notes && <NotesSheet target={{ sessionId: notes }} onClose={() => setNotes(null)} />}
+      {awake && sessions.find((s) => s.id === awake) && <AwakeningsSheet session={sessions.find((s) => s.id === awake) as SleepSessionT} onClose={() => setAwake(null)} />}
       {manual && <ManualSheet babyId={baby.id} onClose={() => setManual(false)} />}
     </div>
   );

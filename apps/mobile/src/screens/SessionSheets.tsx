@@ -10,7 +10,18 @@ import { TimeField, timeReady, type Choice } from './TimeField';
 
 const TYPES = ['nap', 'night'] as const;
 
-export function SessionSheet({ session, onClose, onNotes }: { session: SleepSessionT; onClose: () => void; onNotes: () => void }) {
+export function SessionSheet({
+  session,
+  onClose,
+  onNotes,
+  onAwakenings,
+}: {
+  session: SleepSessionT;
+  onClose: () => void;
+  onNotes: () => void;
+  /** Solo en noches: abre los despertares de esa noche. */
+  onAwakenings?: () => void;
+}) {
   const { ctx, run, toast } = useApp();
   const initialStart = toLocalInput(parseInstant(session.sleep_start_utc), session.start_tz);
   const initialEnd = session.sleep_end_utc ? toLocalInput(parseInstant(session.sleep_end_utc), session.end_tz ?? ctx.zone) : '';
@@ -55,6 +66,7 @@ export function SessionSheet({ session, onClose, onNotes }: { session: SleepSess
           {t('session.save')}
         </Btn>
         <Btn onClick={onNotes}>{t('home.notes')}</Btn>
+        {onAwakenings && session.sleep_type === 'night' && <Btn onClick={onAwakenings}>{t('awake.open')}</Btn>}
         <Btn
           variant="danger"
           onClick={async () => {

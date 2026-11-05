@@ -62,6 +62,7 @@ function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void 
   const [weight, setWeight] = useState(baby?.birth_weight_g?.toString() ?? '');
   const [length, setLength] = useState(baby?.birth_length_cm?.toString() ?? '');
   const [notes, setNotes] = useState(baby?.notes ?? '');
+  const [awakeThr, setAwakeThr] = useState(baby?.awakening_threshold_min?.toString() ?? '');
   // undefined = sin cambios · Blob = foto nueva (aún sin guardar) · null = quitar la foto
   const [photo, setPhoto] = useState<Blob | null | undefined>(undefined);
   const saved = useBabyPhotoUrl(baby?.id ?? '');
@@ -162,6 +163,10 @@ function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void 
           <input className={inputCls} inputMode="decimal" value={length} onChange={(e) => setLength(e.target.value)} />
         </Field>
       </div>
+      <Field label={t('baby.awakeThreshold')}>
+        <input className={inputCls} inputMode="numeric" value={awakeThr} onChange={(e) => setAwakeThr(e.target.value)} placeholder="30" />
+        <span className="mt-1 block text-xs text-muted">{t('baby.awakeThresholdHint')}</span>
+      </Field>
       <Field label={t('baby.notes')}>
         <textarea className={`${inputCls} py-2`} rows={3} maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
@@ -176,6 +181,7 @@ function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void 
             gestational_weeks: toNum(gest),
             birth_weight_g: toNum(weight),
             birth_length_cm: toNum(length),
+            awakening_threshold_min: toNum(awakeThr),
             notes,
           };
           const result = await run(async () => {

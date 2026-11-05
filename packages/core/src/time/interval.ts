@@ -41,6 +41,24 @@ export function mergeIntervals(list: readonly Interval[]): Interval[] {
   return out;
 }
 
+/** `base` menos `cut`: lo que queda de la unión de `base` al quitarle la unión de `cut` (lista ordenada y disjunta). */
+export function subtractIntervals(base: readonly Interval[], cut: readonly Interval[]): Interval[] {
+  const cuts = mergeIntervals(cut);
+  const out: Interval[] = [];
+  for (const b of mergeIntervals(base)) {
+    let from = b.start;
+    for (const c of cuts) {
+      if (c.end <= from) continue;
+      if (c.start >= b.end) break;
+      if (c.start > from) out.push({ start: from, end: c.start });
+      from = Math.max(from, c.end);
+      if (from >= b.end) break;
+    }
+    if (from < b.end) out.push({ start: from, end: b.end });
+  }
+  return out;
+}
+
 /** Duración total de la unión: cada instante cuenta una sola vez. */
 export function unionLength(list: readonly Interval[]): number {
   return mergeIntervals(list).reduce((acc, i) => acc + intervalLength(i), 0);

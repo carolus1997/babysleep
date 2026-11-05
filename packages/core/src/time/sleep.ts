@@ -1,6 +1,6 @@
 import type { SleepSessionT } from '@babysleep/contract';
 import { localHour } from './classify';
-import { clip, intersect, intervalLength, mergeIntervals, unionLength, type Interval } from './interval';
+import { clip, intersect, intervalLength, mergeIntervals, subtractIntervals, unionLength, type Interval } from './interval';
 import {
   localDate,
   naturalDayWindow,
@@ -240,15 +240,88 @@ export function attributedTotals(
 /** Una noche que empieza antes de esta hora local (de madrugada) pertenece al día anterior. */
 export const DEFAULT_SLEEP_DAY_CUTOFF_HOUR = 5;
 
+/** Subconjunto de `Awakening` que necesita el núcleo. */
+export interface AwakeningInput {
+  id: string;
+  session_id: string;
+  start_utc: string;
+  /** `null`: en curso (si `source` es `timer`) o duración desconocida (cualquier otro origen). */
+  end_utc: string | null;
+  source?: string;
+  deleted_at?: string | null;
+}
+
+/** Desde esta duración un despertar nocturno se descuenta del sueño (configurable por bebé). */
+export const DEFAULT_AWAKENING_THRESHOLD_MS = 30 * MS_PER_MIN;
+
+export interface AwakeningSummary {
+  /** Todos los despertares de las noches indicadas (incluidos los de duración desconocida). */
+  count: number;
+  /** Los de duración conocida igual o superior al umbral. */
+  longCount: number;
+  /** Sin duración conocida: cuentan como despertar, NO descuentan tiempo (desconocido ≠ 0). */
+  unknownCount: number;
+  /** Tramos despiertos largos, recortados a su noche y sin solapes. */
+  longIntervals: Interval[];
+  /** Tiempo total descontado. */
+  awakeMs: number;
+}
+
+/**
+ * Resume los despertares de un conjunto de noches. Solo cuentan los de sesiones NOCTURNAS indicadas (`nights`);
+ * los de otra sesión, o eliminados, se ignoran. Un despertar en curso (cronómetro) se mide hasta `nowMs`.
+ */
+export function summarizeAwakenings(
+  nights: readonly SessionSpan[],
+  awakenings: readonly AwakeningInput[],
+  thresholdMs: number = DEFAULT_AWAKENING_THRESHOLD_MS,
+  nowMs?: EpochMs,
+): AwakeningSummary {
+  const bySession = new Map(nights.filter((n) => n.type === 'night').map((n) => [n.id, n]));
+  let count = 0;
+  let longCount = 0;
+  let unknownCount = 0;
+  const longIntervals: Interval[] = [];
+  for (const a of awakenings) {
+    if ((a.deleted_at ?? null) !== null) continue;
+    const span = bySession.get(a.session_id);
+    if (span === undefined) continue;
+    count++;
+    const start = parseInstant(a.start_utc);
+    let end: EpochMs | null = null;
+    if (a.end_utc !== null) end = parseInstant(a.end_utc);
+    else if (a.source === 'timer' && nowMs !== undefined) end = nowMs;
+    if (end === null) {
+      unknownCount++;
+      continue;
+    }
+    if (end <= start || end - start < thresholdMs) continue;
+    longCount++;
+    const c = clip({ start, end }, span.interval);
+    if (c !== null) longIntervals.push(c);
+  }
+  const merged = mergeIntervals(longIntervals);
+  return { count, longCount, unknownCount, longIntervals: merged, awakeMs: unionLength(merged) };
+}
+
 export interface SleepDay {
   kind: 'sleep_day';
   date: string;
   /** Duraciones COMPLETAS (no se parten por medianoche): la noche entera cuenta en el día en que empezó. */
+  /** Sueño real: ya sin los despertares largos de la noche. */
   totalMs: number;
   napMs: number;
+  /** Sueño real de la noche: tiempo en cama menos los despertares largos. */
   nightMs: number;
+  /** Tiempo en cama de la noche (de dormirse a despertar), sin descontar nada. */
+  nightBedMs: number;
   napCount: number;
   nightCount: number;
+  /** Despertares de la noche, cuántos son largos (≥ umbral), cuántos sin duración conocida y cuánto tiempo se descuenta. */
+  awakeningCount: number;
+  longAwakeningCount: number;
+  unknownAwakeningCount: number;
+  awakeMs: number;
   sessionIds: string[];
   /** Sesiones abiertas del día. Si no se indicó `nowMs` no suman, y el día NO está completo. */
   openIds: string[];
@@ -266,7 +339,7 @@ export function sleepDayTotals(
   sessions: readonly SessionInput[],
   date: string,
   zone: string,
-  opts: SpanOptions & { cutoffHour?: number } = {},
+  opts: SpanOptions & { cutoffHour?: number; awakenings?: readonly AwakeningInput[]; awakeningThresholdMs?: number } = {},
 ): SleepDay {
   const cutoff = opts.cutoffHour ?? DEFAULT_SLEEP_DAY_CUTOFF_HOUR;
   assertSingleBaby(sessions);
@@ -289,14 +362,21 @@ export function sleepDayTotals(
     .map((s) => s.id);
   const naps = mine.filter((s) => s.type === 'nap');
   const nights = mine.filter((s) => s.type === 'night');
+  const aw = summarizeAwakenings(nights, opts.awakenings ?? [], opts.awakeningThresholdMs, opts.nowMs);
+  const nightNet = subtractIntervals(nights.map((s) => s.interval), aw.longIntervals);
   return {
     kind: 'sleep_day',
     date,
-    totalMs: unionLength(mine.map((s) => s.interval)),
+    totalMs: unionLength([...naps.map((s) => s.interval), ...nightNet]),
     napMs: unionLength(naps.map((s) => s.interval)),
-    nightMs: unionLength(nights.map((s) => s.interval)),
+    nightMs: unionLength(nightNet),
+    nightBedMs: unionLength(nights.map((s) => s.interval)),
     napCount: naps.length,
     nightCount: nights.length,
+    awakeningCount: aw.count,
+    longAwakeningCount: aw.longCount,
+    unknownAwakeningCount: aw.unknownCount,
+    awakeMs: aw.awakeMs,
     sessionIds: mine.map((s) => s.id),
     openIds,
     complete: openIds.length === 0,

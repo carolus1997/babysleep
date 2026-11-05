@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type {
   AggregateItemT,
   AggregatePeriodT,
+  AwakeningT,
   BabyT,
   CaregiverT,
   EventCategoryT,
@@ -74,6 +75,7 @@ export class BabySleepDb extends Dexie {
   baby!: Table<BabyT, string>;
   feeding!: Table<FeedingT, string>;
   sleep_session!: Table<SleepSessionT, string>;
+  awakening!: Table<AwakeningT, string>;
   settling_attempt!: Table<SettlingAttemptT, string>;
   wake_episode!: Table<WakeEpisodeT, string>;
   observation!: Table<ObservationT, string>;
@@ -109,6 +111,8 @@ export class BabySleepDb extends Dexie {
     this.version(3).stores({ outbox: '++seq, [table+row_id]', sync_row: 'key' });
     // v4: tomas de comida y su índice en las notas. Solo añade; no toca datos existentes.
     this.version(4).stores({ feeding: 'id, baby_id, start_utc', observation: 'id, session_id, settling_attempt_id, feeding_id' });
+    // v5: despertares nocturnos. Solo añade una tabla; no toca datos existentes.
+    this.version(5).stores({ awakening: 'id, baby_id, session_id, start_utc' });
   }
 }
 
@@ -118,6 +122,7 @@ export const TABLES_FOR_EXPORT = [
   'baby',
   'feeding',
   'sleep_session',
+  'awakening',
   'settling_attempt',
   'wake_episode',
   'observation',
