@@ -18,6 +18,12 @@ export function fmtElapsed(ms: number): string {
   return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
 
+/** Minutos desde la medianoche (0–1439) → «21:05». */
+export function fmtMinuteOfDay(minute: number): string {
+  const m = Math.round(minute) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
 export function fmtClock(ms: number, zone: string): string {
   return new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: zone }).format(ms);
 }

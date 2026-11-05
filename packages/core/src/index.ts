@@ -4,6 +4,7 @@ export * from './time/interval';
 export * from './time/sleep';
 export * from './time/latency';
 export * from './time/awake';
+export * from './time/rhythm';
 export * from './time/classify';
 export * from './time/age';
 export * from './stats/descriptive';

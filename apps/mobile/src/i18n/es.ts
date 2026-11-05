@@ -142,6 +142,32 @@ export const es = {
   'stats.disclaimer':
     'Información orientativa. BabySleep no es un producto sanitario ni diagnostica. Las diferencias entre bebés o días son normales.',
   'stats.notEnough': 'Aún hay pocos datos: los promedios pueden cambiar mucho.',
+  'stats.view.summary': 'Resumen',
+  'stats.view.rhythm': 'Ritmo',
+
+  'rhythm.title': 'Ritmo y ventanas de vigilia',
+  'rhythm.windows': 'Ventanas de vigilia',
+  'rhythm.windowsEmpty': 'Aún no hay dos sueños seguidos en este periodo para medir una ventana.',
+  'rhythm.win.first': 'Tras la noche (hasta la 1.ª siesta)',
+  'rhythm.win.between': 'Entre siestas',
+  'rhythm.win.bedtime': 'Última, antes de acostarse',
+  'rhythm.byIndex': 'Según el orden en el día',
+  'rhythm.nth': 'Ventana {n}',
+  'rhythm.winDetail': 'n={n} · mediana {med} · de {min} a {max}',
+  'rhythm.fewData': 'pocos datos, sin comparar',
+  'rhythm.noData': 'Sin datos en este periodo.',
+  'rhythm.same': 'igual',
+  'rhythm.windowsHint':
+    'Tiempo despierto entre el fin de un sueño y el inicio del siguiente. El cambio (+/− min) compara con el periodo anterior del mismo tamaño y solo aparece con 3 o más ventanas en ambos periodos.',
+  'rhythm.excluded': 'No se cuentan: {long} huecos de más de 8 h (probable sueño sin registrar) y {over} solapes.',
+  'rhythm.daily': 'Ritmo diario',
+  'rhythm.bedtime': 'Hora de acostarse',
+  'rhythm.wakeUp': 'Hora de despertar',
+  'rhythm.firstNap': 'Primera siesta',
+  'rhythm.napsPerDay': 'Siestas por día',
+  'rhythm.dailyHint':
+    'Hora media y desviación (± cuanto menor, más regular). Solo cuentan descansos cerrados y días completos entre dos noches registradas.',
+  'rhythm.open': 'Descansos en curso sin contar: {n}.',
 
   'settings.title': 'Ajustes',
   'settings.babies': 'Bebés',

@@ -8,6 +8,7 @@ import { t } from '../i18n/es';
 import { fmtDayShort, fmtDur } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
 import { Card, Chip } from '../ui/primitives';
+import { Rhythm } from './Rhythm';
 
 const RANGES = [7, 14, 28] as const;
 const MIN_DAYS_FOR_CONFIDENCE = 3;
@@ -21,7 +22,25 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Estadísticas con dos vistas: el resumen de siempre y el análisis de ritmo. */
 export function Stats() {
+  const [view, setView] = useState<'summary' | 'rhythm'>('summary');
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1" role="group" aria-label={t('stats.title')}>
+        <Chip active={view === 'summary'} onClick={() => setView('summary')}>
+          {t('stats.view.summary')}
+        </Chip>
+        <Chip active={view === 'rhythm'} onClick={() => setView('rhythm')}>
+          {t('stats.view.rhythm')}
+        </Chip>
+      </div>
+      {view === 'summary' ? <Summary /> : <Rhythm />}
+    </div>
+  );
+}
+
+function Summary() {
   const { ctx, baby } = useApp();
   const babyId = baby?.id ?? '';
   const [days, setDays] = useState<(typeof RANGES)[number]>(7);
