@@ -1,4 +1,4 @@
-import type { EventCategoryT, LifeEventT, SleepSessionT } from '@babysleep/contract';
+import type { AwakeningT, EventCategoryT, LifeEventT, SleepSessionT } from '@babysleep/contract';
 import { buildSpans, findOverlaps, localDate, naturalDayTotals, parseInstant } from '@babysleep/core';
 import { useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
@@ -8,6 +8,7 @@ import { t } from '../i18n/es';
 import { fmtClock, fmtDayLabel, fmtDur } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
 import { Btn, Card } from '../ui/primitives';
+import { listAwakenings } from '../domain/awakening';
 import { AwakeningsSheet } from './AwakeningsSheet';
 import { NotesSheet } from './NotesSheet';
 import { ManualSheet, SessionSheet } from './SessionSheets';
@@ -16,6 +17,7 @@ export function History() {
   const { ctx, baby, run } = useApp();
   const babyId = baby?.id ?? '';
   const all = useLive(() => listSessions(ctx, babyId, { includeDeleted: true }), [ctx, babyId], [] as SleepSessionT[]);
+  const awakenings = useLive(() => listAwakenings(ctx, babyId), [ctx, babyId], [] as AwakeningT[]);
   const events = useLive(() => listLifeEvents(ctx, babyId), [ctx, babyId], [] as LifeEventT[]);
   const cats = useLive(() => ctx.db.event_category.toArray(), [ctx], [] as EventCategoryT[]);
   const now = useNow(30_000);
@@ -106,6 +108,14 @@ export function History() {
                       </span>
                       <span className="font-semibold">{endMs ? fmtDur(endMs - startMs) : fmtDur(now - startMs)}</span>
                     </button>
+                    {s.sleep_type === 'night' && (
+                      <button
+                        className="mb-2 ml-1 min-h-10 rounded-full border border-line bg-surface2 px-3 text-sm font-medium"
+                        onClick={() => setAwake(s.id)}
+                      >
+                        {t('awake.openN', { n: awakenings.filter((a) => a.session_id === s.id).length })}
+                      </button>
+                    )}
                   </li>
                 );
               })}

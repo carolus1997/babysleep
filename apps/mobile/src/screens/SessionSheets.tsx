@@ -62,11 +62,11 @@ export function SessionSheet({
       <TimeField label={t('session.start')} value={start} onChange={setStart} choice={sc} onChoice={setSc} zone={ctx.zone} />
       <TimeField label={t('session.end')} value={end} onChange={setEnd} choice={ec} onChoice={setEc} zone={ctx.zone} />
       <div className="flex flex-col gap-2">
+        {onAwakenings && session.sleep_type === 'night' && <Btn variant="secondary" onClick={onAwakenings}>{t('awake.open')}</Btn>}
         <Btn variant="primary" disabled={!ready} onClick={save}>
           {t('session.save')}
         </Btn>
         <Btn onClick={onNotes}>{t('home.notes')}</Btn>
-        {onAwakenings && session.sleep_type === 'night' && <Btn onClick={onAwakenings}>{t('awake.open')}</Btn>}
         <Btn
           variant="danger"
           onClick={async () => {
