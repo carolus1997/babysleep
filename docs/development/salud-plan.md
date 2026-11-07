@@ -133,9 +133,9 @@ Cada fase es publicable por sí sola, lleva sus tests y, si toca la base de dato
 - **Sin avisos ni función programada:** es solo registro (no hay aviso de «toma la temperatura»: sería proponer una pauta).
 - **Sincronización verificada** como pide la sección siguiente: escenarios de dos móviles (anotaciones a la vez en el mismo episodio, campos distintos de una anotación, la misma temperatura cambiada a la vez, episodio borrado mientras el otro anota), filas reales de PostgreSQL, operaciones reales del móvil reproducidas en PostgreSQL, pruebas SQL (S35) y acciones de enfermedad en la prueba aleatoria.
 
-### Fase 7: cierre
-- Bloqueo con PIN o biometría (ahora hay datos de salud, deja de ser opcional).
-- Copias cifradas con las tablas nuevas; CSV; revisión de privacidad; pruebas de seguridad (RLS) de todas las tablas de salud; documentación para la familia.
+### Fase 7: cierre — pasa a `seguridad-plan.md`
+
+El bloqueo con PIN o biometría, las copias cifradas con las tablas nuevas, el CSV, la revisión de privacidad y las pruebas de seguridad (RLS) de todas las tablas de salud se planifican ahora en [`seguridad-plan.md`](seguridad-plan.md), con fases propias (S0–S5).
 
 ## Orden recomendado y por qué
 
