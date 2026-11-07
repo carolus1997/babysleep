@@ -229,7 +229,31 @@ export interface BabyProfileFields {
   notes?: string | null;
   /** Desde cuántos minutos un despertar nocturno se descuenta del sueño; `null` = por defecto (30). */
   awakening_threshold_min?: number | null;
+  // Ficha de salud (texto libre; vacío = no consta).
+  pediatrician?: string | null;
+  nurse?: string | null;
+  health_center_name?: string | null;
+  health_center_address?: string | null;
+  health_center_phone?: string | null;
+  birth_hospital?: string | null;
+  allergies?: string | null;
+  health_notes?: string | null;
+  /** Código de identificación personal autonómico (tarjeta sanitaria). */
+  cipa?: string | null;
 }
+
+/** Campos de texto de la ficha de salud y su longitud máxima (la misma que el contrato). */
+export const HEALTH_TEXT_FIELDS = {
+  pediatrician: { max: 120, label: 'El nombre del pediatra' },
+  nurse: { max: 120, label: 'El nombre de la enfermera' },
+  health_center_name: { max: 160, label: 'El centro de salud' },
+  health_center_address: { max: 240, label: 'La dirección del centro' },
+  health_center_phone: { max: 40, label: 'El teléfono del centro' },
+  birth_hospital: { max: 160, label: 'El hospital de nacimiento' },
+  allergies: { max: 500, label: 'Las alergias' },
+  health_notes: { max: 2000, label: 'Las notas de salud' },
+  cipa: { max: 40, label: 'El CIPA' },
+} as const;
 
 const RANGES = {
   gestational_weeks: { min: 22, max: 44, int: true, label: 'Las semanas de gestación' },
@@ -257,6 +281,14 @@ function cleanProfile(p: BabyProfileFields): BabyProfileFields {
     const n = p.notes === null ? '' : p.notes.trim();
     if (n.length > 1000) throw new DomainError('invalid', 'Las notas admiten 1000 caracteres como máximo');
     out.notes = n === '' ? null : n;
+  }
+  for (const key of Object.keys(HEALTH_TEXT_FIELDS) as Array<keyof typeof HEALTH_TEXT_FIELDS>) {
+    const v = p[key];
+    if (v === undefined) continue;
+    const text = v === null ? '' : v.trim();
+    const r = HEALTH_TEXT_FIELDS[key];
+    if (text.length > r.max) throw new DomainError('invalid', `${r.label} admite ${r.max} caracteres como máximo`);
+    out[key] = text === '' ? null : text;
   }
   return out;
 }

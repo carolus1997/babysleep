@@ -11,6 +11,7 @@ import {
   SettlingAttempt,
   SleepSession,
   Tag,
+  Vaccination,
   WakeEpisode,
 } from '@babysleep/contract';
 import { toIso } from '@babysleep/core';
@@ -33,6 +34,7 @@ const IMPORT_TABLES = [
   ['settling_attempt', SettlingAttempt],
   ['sleep_session', SleepSession],
   ['awakening', Awakening],
+  ['vaccination', Vaccination],
   ['wake_episode', WakeEpisode],
   ['observation', Observation],
   ['observation_tag', ObservationTag],
@@ -207,6 +209,7 @@ export async function planImport(ctx: Ctx, text: string): Promise<ImportPlan> {
   need('sleep_session', 'settling_attempt_id', 'settling_attempt', true);
   need('awakening', 'baby_id', 'baby');
   need('awakening', 'session_id', 'sleep_session');
+  need('vaccination', 'baby_id', 'baby');
   need('wake_episode', 'session_id', 'sleep_session');
   need('observation', 'session_id', 'sleep_session', true);
   need('observation', 'settling_attempt_id', 'settling_attempt', true);

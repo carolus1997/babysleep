@@ -14,6 +14,7 @@ import type {
   SettlingAttemptT,
   SleepSessionT,
   TagT,
+  VaccinationT,
   WakeEpisodeT,
 } from '@babysleep/contract';
 
@@ -76,6 +77,7 @@ export class BabySleepDb extends Dexie {
   feeding!: Table<FeedingT, string>;
   sleep_session!: Table<SleepSessionT, string>;
   awakening!: Table<AwakeningT, string>;
+  vaccination!: Table<VaccinationT, string>;
   settling_attempt!: Table<SettlingAttemptT, string>;
   wake_episode!: Table<WakeEpisodeT, string>;
   observation!: Table<ObservationT, string>;
@@ -113,6 +115,8 @@ export class BabySleepDb extends Dexie {
     this.version(4).stores({ feeding: 'id, baby_id, start_utc', observation: 'id, session_id, settling_attempt_id, feeding_id' });
     // v5: despertares nocturnos. Solo añade una tabla; no toca datos existentes.
     this.version(5).stores({ awakening: 'id, baby_id, session_id, start_utc' });
+    // v6: vacunas. Solo añade una tabla; la ficha de salud son columnas del perfil y no necesita migración.
+    this.version(6).stores({ vaccination: 'id, baby_id, dose_key' });
   }
 }
 
@@ -123,6 +127,7 @@ export const TABLES_FOR_EXPORT = [
   'feeding',
   'sleep_session',
   'awakening',
+  'vaccination',
   'settling_attempt',
   'wake_episode',
   'observation',

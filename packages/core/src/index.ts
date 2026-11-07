@@ -12,3 +12,4 @@ export * from './time/age';
 export * from './stats/descriptive';
 export * from './stats/forecast';
 export * from './aggregate';
+export * from './health/vaccines';

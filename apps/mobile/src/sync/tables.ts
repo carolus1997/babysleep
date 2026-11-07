@@ -11,6 +11,7 @@ import {
   SettlingAttempt,
   SleepSession,
   Tag,
+  Vaccination,
   WakeEpisode,
 } from '@babysleep/contract';
 
@@ -26,6 +27,7 @@ export const SYNC_TABLES = [
   'settling_attempt',
   'sleep_session',
   'awakening',
+  'vaccination',
   'wake_episode',
   'observation',
   'observation_tag',
@@ -46,6 +48,7 @@ export const SYNC_SCHEMAS = {
   settling_attempt: SettlingAttempt,
   sleep_session: SleepSession,
   awakening: Awakening,
+  vaccination: Vaccination,
   wake_episode: WakeEpisode,
   observation: Observation,
   observation_tag: ObservationTag,

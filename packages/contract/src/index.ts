@@ -7,7 +7,7 @@ import { z } from 'zod';
  * de PostgreSQL (database/migrations). Los instantes son siempre UTC ISO-8601
  * con sufijo `Z`; la zona IANA y el offset viajan aparte en cada evento.
  */
-export const CONTRACT_VERSION = '0.4.0';
+export const CONTRACT_VERSION = '0.5.0';
 
 // ---------------------------------------------------------------- primitivos
 
@@ -93,7 +93,38 @@ export const Baby = SyncedRow.extend({
   notes: z.string().max(1000).nullable().default(null),
   /** Desde qué duración (min) un despertar nocturno se descuenta del sueño. `null` = el valor por defecto (30). Desde 0.4.0. */
   awakening_threshold_min: z.number().int().min(5).max(180).nullable().default(null),
+  // ---- Ficha de salud (desde 0.5.0). Todo opcional; `null` = no consta. Viaja como el resto del perfil.
+  pediatrician: z.string().max(120).nullable().default(null),
+  nurse: z.string().max(120).nullable().default(null),
+  health_center_name: z.string().max(160).nullable().default(null),
+  health_center_address: z.string().max(240).nullable().default(null),
+  health_center_phone: z.string().max(40).nullable().default(null),
+  birth_hospital: z.string().max(160).nullable().default(null),
+  allergies: z.string().max(500).nullable().default(null),
+  health_notes: z.string().max(2000).nullable().default(null),
+  /** Código de identificación personal autonómico (tarjeta sanitaria). Sensible: la app lo oculta y no lo comparte. */
+  cipa: z.string().max(40).nullable().default(null),
 });
+
+// --------------------------------------------------------------------- vacunas
+
+/**
+ * Vacunas puestas (o marcadas «no procede»). Solo se guardan hechos: lo previsto se calcula del calendario y de la
+ * fecha de nacimiento. `dose_key` identifica la dosis del calendario (p. ej. `DTPa@2m`); es `null` en una vacuna
+ * fuera de calendario (campañas, viajes…), que lleva su nombre en `vaccine`. Desde 0.5.0.
+ */
+export const VaccinationStatus = z.enum(['given', 'not_applicable']);
+export const Vaccination = SyncedRow.extend({
+  baby_id: Uuid,
+  dose_key: z.string().min(1).max(60).nullable().default(null),
+  vaccine: z.string().min(1).max(120),
+  status: VaccinationStatus,
+  /** Fecha civil en que se puso. Obligatoria si `status = given`. */
+  given_on: LocalDate.nullable().default(null),
+  center: z.string().max(160).nullable().default(null),
+  lot: z.string().max(60).nullable().default(null),
+  notes: z.string().max(500).nullable().default(null),
+}).refine((v) => v.status !== 'given' || v.given_on !== null, { message: 'Una vacuna puesta necesita su fecha' });
 
 // ---------------------------------------------------------------------- tomas
 
@@ -276,6 +307,8 @@ export type WakeEpisodeT = z.infer<typeof WakeEpisode>;
 export type ObservationT = z.infer<typeof Observation>;
 export type FeedingT = z.infer<typeof Feeding>;
 export type AwakeningT = z.infer<typeof Awakening>;
+export type VaccinationT = z.infer<typeof Vaccination>;
+export type VaccinationStatusT = z.infer<typeof VaccinationStatus>;
 export type AwakeningReasonT = z.infer<typeof AwakeningReason>;
 export type FeedTypeT = z.infer<typeof FeedType>;
 export type BreastSideT = z.infer<typeof BreastSide>;

@@ -1,6 +1,6 @@
 # Módulo de Salud: plan por fases
 
-Estado (7 nov 2026): **fase 0 hecha**; el resto es propuesta.
+Estado (7 nov 2026): **fases 0, 1 y 2 hechas** (la migración 0011 debe aplicarse en Supabase antes de publicar); el resto es propuesta.
 
 ## Qué se quiere
 
@@ -65,12 +65,12 @@ Cada fase es publicable por sí sola, lleva sus tests y, si toca la base de dato
 - Tarjeta fija arriba en Inicio: **«Despierta desde hace 1 h 25 min»** (desde el fin del último descanso; si duerme, «Durmiendo desde las…»). Si hay previsión fiable, añade la ventana habitual de la fase de análisis.
 - Riesgo: bajo. Es solo interfaz y reutiliza lo existente.
 
-### Fase 1: ficha de salud y contactos
+### Fase 1: ficha de salud y contactos — HECHA
 - Datos: pediatra, enfermera, centro de salud (nombre, dirección, teléfono, horario), hospital de nacimiento, alergias y notas médicas, contactos de urgencia.
 - Migración 0011 (tablas con las mismas reglas de seguridad que el resto), contrato 0.5.0, entrada en copia JSON y sincronización.
 - **CIPA** (opcional): oculto por defecto, con botón de mostrar/copiar. Se sincroniza como el resto de datos de la ficha y se cifra en las copias de seguridad. No aparece en informes ni en el texto compartido salvo que se marque expresamente.
 
-### Fase 2: calendario de vacunación
+### Fase 2: calendario de vacunación — HECHA
 - Cálculo de las fechas previstas a partir de la fecha de nacimiento (y de la edad corregida si es prematura, solo como aviso, porque las vacunas se cuentan por edad cronológica).
 - Registro por dosis: vacuna, fecha administrada, centro, lote (opcional), nota. Estados: **Pendiente, Próxima (30 días), Puesta, Fuera de plazo, Sin confirmar**.
 - Vista de lista por edad y «lo siguiente».

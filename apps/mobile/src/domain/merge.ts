@@ -1,4 +1,4 @@
-import { AggregatePeriod, Baby, LifeEvent, SettlingAttempt, SleepSession } from '@babysleep/contract';
+import { AggregatePeriod, Awakening, Baby, Feeding, LifeEvent, SettlingAttempt, SleepSession, Vaccination } from '@babysleep/contract';
 import type { Table } from 'dexie';
 import { getActiveBabyId, setActiveBabyId } from './bootstrap';
 import type { Ctx } from './context';
@@ -14,8 +14,8 @@ async function moveAll<T extends { id: string; rev: number }>(ctx: Ctx, table: T
 }
 
 /**
- * Fusiona dos perfiles del mismo bebé: pasa TODOS los registros de `fromId` a `intoId` (sesiones, intentos
- * de conciliación, acontecimientos e históricos) y archiva el perfil de origen (papelera, reversible). Sirve
+ * Fusiona dos perfiles del mismo bebé: pasa TODOS los registros de `fromId` a `intoId` (sesiones, despertares, tomas, vacunas,
+ * intentos de conciliación, acontecimientos e históricos) y archiva el perfil de origen (papelera, reversible). Sirve
  * cuando dos móviles crearon cada uno su perfil. El perfil que se conserva no cambia; si no tiene foto y el
  * otro sí, se queda con esa. Con la sincronización activada, el cambio viaja a todos los móviles.
  */
@@ -30,6 +30,9 @@ export async function mergeBabies(ctx: Ctx, fromId: string, intoId: string): Pro
     let moved = 0;
     moved += await moveAll(ctx, db.sleep_session, SleepSession, fromId, intoId);
     moved += await moveAll(ctx, db.settling_attempt, SettlingAttempt, fromId, intoId);
+    moved += await moveAll(ctx, db.feeding, Feeding, fromId, intoId);
+    moved += await moveAll(ctx, db.awakening, Awakening, fromId, intoId);
+    moved += await moveAll(ctx, db.vaccination, Vaccination, fromId, intoId);
     moved += await moveAll(ctx, db.aggregate_period, AggregatePeriod, fromId, intoId);
     // Los acontecimientos de la familia entera (baby_id nulo) no se tocan
     for (const e of await db.life_event.where('baby_id').equals(fromId).toArray()) {

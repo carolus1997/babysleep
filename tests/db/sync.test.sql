@@ -790,4 +790,70 @@ begin
   perform tests.assert((select end_utc from app.awakening where id = tests.u(92)) = '2027-02-02T03:20:00Z', 'S28d el valor del primero se conserva');
 end $$;
 
+-- S29 · ficha de salud en el perfil (0011): se guarda como el resto del perfil y respeta sus límites
+do $$
+declare r jsonb; v text;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('baby', 1, (select rev from app.baby where id = tests.u(1)),
+    '{"pediatrician":"Dra. Prueba","health_center_name":"Centro de Salud de Prueba","allergies":"ninguna conocida","cipa":"TEST0000000000"}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S29a la ficha de salud se guarda en el perfil');
+  r := tests.go(tests.op('baby', 1, (select rev from app.baby where id = tests.u(1)), jsonb_build_object('nurse', repeat('x', 121))));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S29b un texto demasiado largo: rechazado');
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  select cipa into v from app.baby where id = tests.u(1);
+  perform tests.assert(v is null, 'S29c otra familia no ve el CIPA');
+  perform tests.as_superuser();
+  select pediatrician into v from app.baby where id = tests.u(1);
+  perform tests.assert(v = 'Dra. Prueba', 'S29d el dato queda guardado');
+end $$;
+
+-- S30 · vacunas (0011): alta, validaciones, aislamiento y permisos
+do $$
+declare r jsonb; n int; ok boolean;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('vaccination', 100, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'dose_key', 'DTPa@2m', 'vaccine', 'DTPa', 'status', 'given', 'given_on', '2027-01-05', 'center', 'Centro de prueba')));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 1, 'S30a vacuna puesta con su fecha');
+  r := tests.go(tests.op('vaccination', 101, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'dose_key', 'RV@2m', 'vaccine', 'Rotavirus', 'status', 'not_applicable')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S30b «no procede» no necesita fecha');
+  r := tests.go(tests.op('vaccination', 102, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'vaccine', 'Gripe 2026-27', 'status', 'given', 'given_on', '2027-01-20')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S30c una vacuna fuera de calendario no lleva dose_key');
+
+  r := tests.go(tests.op('vaccination', 103, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'dose_key', 'VPI@2m', 'vaccine', 'VPI', 'status', 'given')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S30d una vacuna puesta sin fecha: rechazada');
+  r := tests.go(tests.op('vaccination', 104, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'dose_key', 'VPI@2m', 'vaccine', 'VPI', 'status', 'quizas', 'given_on', '2027-01-05')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S30e estado desconocido: rechazado');
+  r := tests.go(tests.op('vaccination', 105, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'dose_key', 'VPI@2m', 'vaccine', '', 'status', 'given', 'given_on', '2027-01-05')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S30f el nombre de la vacuna es obligatorio');
+
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  r := tests.go(tests.op('vaccination', 106, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'dose_key', 'VPI@2m', 'vaccine', 'VPI', 'status', 'given', 'given_on', '2027-01-05')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S30g el bebé de otra familia no se puede usar');
+  select count(*) into n from app.vaccination;
+  perform tests.assert(n = 0, 'S30h otra familia no ve las vacunas');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000003', 'lector@example.test');
+  begin
+    r := tests.go(tests.op('vaccination', 107, null, jsonb_build_object(
+      'baby_id', tests.u(1), 'dose_key', 'VPI@2m', 'vaccine', 'VPI', 'status', 'given', 'given_on', '2027-01-05')));
+    ok := false;
+  exception when others then ok := sqlerrm like '%not_allowed%'; end;
+  perform tests.assert(ok, 'S30i un lector no puede registrar vacunas');
+  select count(*) into n from app.vaccination;
+  perform tests.assert(n = 3, 'S30j un lector sí las ve');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('vaccination', 100, 1, '{"lot":"LOTE-PRUEBA"}'));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 2, 'S30k editar un dato de una vacuna ya registrada');
+  perform tests.as_superuser();
+end $$;
+
 rollback;
