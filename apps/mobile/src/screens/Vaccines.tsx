@@ -211,7 +211,7 @@ function ExtraSheet({ babyId, onClose }: { babyId: string; onClose: () => void }
 // ------------------------------------------------------------------ pantalla
 
 /** Calendario de vacunación de la Comunidad de Madrid: lo previsto, lo registrado y lo que falta por confirmar. */
-export function Vaccines() {
+export function Vaccines({ onSchedule }: { onSchedule?: (m: PlannedMilestone) => void }) {
   const { ctx, baby } = useApp();
   const babyId = baby?.id ?? '';
   const records = useLive(() => listVaccinations(ctx, babyId), [ctx, babyId], [] as VaccinationT[]);
@@ -241,6 +241,11 @@ export function Vaccines() {
             <Btn variant="primary" className="mt-3 w-full" onClick={() => setRecord({ milestone: next })}>
               {t('vac.record')}
             </Btn>
+            {onSchedule && (
+              <Btn className="mt-2 w-full" onClick={() => onSchedule(next)}>
+                {t('vac.schedule')}
+              </Btn>
+            )}
           </>
         )}
       </Card>

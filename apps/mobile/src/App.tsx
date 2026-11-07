@@ -60,13 +60,20 @@ export function App() {
         },
       });
     };
+    // Los avisos de cita abren la app con `?go=health` (o, si ya estaba abierta, un mensaje del service worker).
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('go') === 'health') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+      setTab('health');
+    }
     const fromUrl = parseFeedIntent(window.location.search);
     if (fromUrl !== null) {
       window.history.replaceState(null, '', window.location.pathname + window.location.hash);
       void handle(fromUrl);
     }
     const onMessage = (e: MessageEvent) => {
-      const d = e.data as { type?: string; feed?: string } | null;
+      const d = e.data as { type?: string; feed?: string; go?: string } | null;
+      if (d?.type === 'go' && d.go === 'health') return setTab('health');
       if (d?.type !== 'feed-intent') return;
       const intent = parseFeedIntent(`?feed=${d.feed ?? ''}`);
       if (intent !== null) void handle(intent);

@@ -96,7 +96,8 @@ La URL y la clave pública están en `apps/mobile/src/sync/config.ts` (públicas
 | `0008_feeding.sql` | Tomas de comida (y campos acoplados en `apply_changes`) | Aplicada |
 | `0009_feed_reminders.sql` | Aviso de próxima toma (web push) | Aplicada |
 | `0010_awakenings.sql` | Despertares nocturnos y umbral por bebé (contrato 0.4.0) | Aplicada |
-| `0011_health_vaccines.sql` | Ficha de salud (columnas del perfil) y vacunas (contrato 0.5.0). **Aplícala ANTES de publicar la web que la usa** | **Pendiente** |
+| `0011_health_vaccines.sql` | Ficha de salud (columnas del perfil) y vacunas (contrato 0.5.0) | Aplicada |
+| `0012_appointments.sql` | Citas médicas y avisos de cita (contrato 0.6.0). **Aplícala ANTES de publicar la web que la usa** y vuelve a desplegar la función `feed-reminders` | **Pendiente** |
 
 ## Cosas que conviene saber
 

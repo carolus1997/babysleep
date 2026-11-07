@@ -246,4 +246,66 @@ begin
   perform tests.assert((select count(*) from app.push_subscription where id = v_sub) = 0, 'P04f una dirección que ya no existe se borra');
 end $$;
 
+-- P05 · avisos de citas (0012): una sola vez por aviso, solo citas pendientes, ventana de 2 h
+do $$
+declare n int; r record; t0 timestamptz := '2027-03-10 09:00:00+00'; v_fam uuid; v_cg uuid;
+begin
+  perform tests.as_superuser();
+  select id into v_fam from app.family where name = 'Familia A';
+  select id into v_cg from app.caregiver where email_normalized = 'admin-a@example.test';
+  delete from app.push_subscription;
+  insert into app.push_subscription (family_id, caregiver_id, endpoint, p256dh, auth)
+  values (v_fam, v_cg, 'https://push.example.test/appt', 'k', 'a');
+
+  insert into app.appointment (id, family_id, baby_id, kind, title, start_utc, start_tz, place, remind_before_min)
+  values (tests.u(300), v_fam, tests.u(1), 'pediatrician', 'Revisión de los 4 meses', t0, 'Europe/Madrid', 'Centro de prueba', '{1440,60}');
+
+  select count(*) into n from app.claim_due_appointment_reminders(t0 - interval '1441 minutes');
+  perform tests.assert(n = 0, 'P05a antes de su hora no se avisa');
+  select * into r from app.claim_due_appointment_reminders(t0 - interval '1439 minutes') limit 1;
+  perform tests.assert(r.minutes_before = 1440 and r.title = 'Revisión de los 4 meses' and r.baby_alias = 'Bebé A' and r.place = 'Centro de prueba',
+    'P05b a la hora del primer aviso llega, con título, lugar y bebé');
+  select count(*) into n from app.claim_due_appointment_reminders(t0 - interval '1435 minutes');
+  perform tests.assert(n = 0, 'P05c nunca se avisa dos veces por el mismo aviso');
+  select * into r from app.claim_due_appointment_reminders(t0 - interval '59 minutes') limit 1;
+  perform tests.assert(r.minutes_before = 60, 'P05d el segundo aviso sale por separado');
+
+  insert into app.appointment (id, family_id, baby_id, kind, title, start_utc, start_tz, status, remind_before_min)
+  values (tests.u(301), v_fam, tests.u(1), 'other', 'Cancelada', t0 + interval '1 day', 'Europe/Madrid', 'cancelled', '{60}'),
+         (tests.u(302), v_fam, tests.u(1), 'other', 'Hecha', t0 + interval '1 day', 'Europe/Madrid', 'done', '{60}');
+  insert into app.appointment (id, family_id, baby_id, kind, title, start_utc, start_tz, remind_before_min, deleted_at)
+  values (tests.u(303), v_fam, tests.u(1), 'other', 'Eliminada', t0 + interval '1 day', 'Europe/Madrid', '{60}', now());
+  select count(*) into n from app.claim_due_appointment_reminders(t0 + interval '1 day' - interval '50 minutes');
+  perform tests.assert(n = 0, 'P05e las citas canceladas, hechas o eliminadas no avisan');
+
+  insert into app.appointment (id, family_id, baby_id, kind, title, start_utc, start_tz, remind_before_min)
+  values (tests.u(304), v_fam, tests.u(1), 'test', 'A la hora', t0 + interval '2 days', 'Europe/Madrid', '{0}');
+  select count(*) into n from app.claim_due_appointment_reminders(t0 + interval '2 days' + interval '10 minutes');
+  perform tests.assert(n = 1, 'P05f un aviso «a la hora» sale al empezar');
+  insert into app.appointment (id, family_id, baby_id, kind, title, start_utc, start_tz, remind_before_min)
+  values (tests.u(305), v_fam, tests.u(1), 'test', 'Vieja', t0 + interval '3 days', 'Europe/Madrid', '{1440}');
+  select count(*) into n from app.claim_due_appointment_reminders(t0 + interval '2 days' + interval '3 hours');
+  perform tests.assert(n = 0, 'P05g si la hora del aviso pasó hace más de 2 h no llega uno viejo');
+  select count(*) into n from app.claim_due_appointment_reminders(t0 + interval '2 days' + interval '1 hour');
+  perform tests.assert(n = 1, 'P05h el mismo aviso sí sale mientras está dentro de la ventana');
+  insert into app.appointment (id, family_id, baby_id, kind, title, start_utc, start_tz, remind_before_min)
+  values (tests.u(307), v_fam, tests.u(1), 'test', 'Empezó hace rato', t0 + interval '5 days', 'Europe/Madrid', '{0}');
+  select count(*) into n from app.claim_due_appointment_reminders(t0 + interval '5 days' + interval '90 minutes');
+  perform tests.assert(n = 0, 'P05h2 una cita que empezó hace más de 1 h ya no avisa');
+
+  insert into app.appointment (id, family_id, baby_id, kind, title, start_utc, start_tz, remind_before_min)
+  values (tests.u(306), (select id from app.family where name = 'Familia B'), tests.u(2), 'other', 'De B', t0 + interval '4 days', 'Europe/Madrid', '{60}');
+  select count(*) into n from app.claim_due_appointment_reminders(t0 + interval '4 days' - interval '30 minutes');
+  perform tests.assert(n = 0, 'P05i una familia sin móviles registrados no recibe avisos');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  begin
+    perform * from app.claim_due_appointment_reminders(now());
+    perform tests.assert(false, 'P05j un cliente no puede reclamar avisos');
+  exception when insufficient_privilege then
+    perform tests.assert(true, 'P05j un cliente no puede reclamar avisos');
+  end;
+  perform tests.as_superuser();
+end $$;
+
 rollback;

@@ -7,7 +7,7 @@ import { z } from 'zod';
  * de PostgreSQL (database/migrations). Los instantes son siempre UTC ISO-8601
  * con sufijo `Z`; la zona IANA y el offset viajan aparte en cada evento.
  */
-export const CONTRACT_VERSION = '0.5.0';
+export const CONTRACT_VERSION = '0.6.0';
 
 // ---------------------------------------------------------------- primitivos
 
@@ -125,6 +125,31 @@ export const Vaccination = SyncedRow.extend({
   lot: z.string().max(60).nullable().default(null),
   notes: z.string().max(500).nullable().default(null),
 }).refine((v) => v.status !== 'given' || v.given_on !== null, { message: 'Una vacuna puesta necesita su fecha' });
+
+// ---------------------------------------------------------------------- citas
+
+export const AppointmentKind = z.enum(['pediatrician', 'nurse', 'vaccination', 'specialist', 'test', 'other']);
+export const AppointmentStatus = z.enum(['scheduled', 'done', 'cancelled']);
+/** Máximo de avisos por cita y antelación máxima (4 semanas, el mismo tope que Google Calendar). Desde 0.6.0. */
+export const APPOINTMENT_MAX_REMINDERS = 5;
+export const APPOINTMENT_MAX_REMIND_MIN = 40320;
+
+/**
+ * Cita médica (o de vacunación). `remind_before_min` son los avisos por notificación, en minutos antes del inicio
+ * (0 = a la hora). La hora se guarda en UTC con la zona en que se anotó, como los descansos.
+ */
+export const Appointment = SyncedRow.extend({
+  baby_id: Uuid,
+  kind: AppointmentKind,
+  title: z.string().min(1).max(160),
+  start_utc: InstantUtc,
+  start_tz: IanaZone,
+  duration_min: z.number().int().min(5).max(720).nullable().default(null),
+  place: z.string().max(240).nullable().default(null),
+  notes: z.string().max(1000).nullable().default(null),
+  status: AppointmentStatus.default('scheduled'),
+  remind_before_min: z.array(z.number().int().min(0).max(APPOINTMENT_MAX_REMIND_MIN)).max(APPOINTMENT_MAX_REMINDERS).default([]),
+});
 
 // ---------------------------------------------------------------------- tomas
 
@@ -308,6 +333,9 @@ export type ObservationT = z.infer<typeof Observation>;
 export type FeedingT = z.infer<typeof Feeding>;
 export type AwakeningT = z.infer<typeof Awakening>;
 export type VaccinationT = z.infer<typeof Vaccination>;
+export type AppointmentT = z.infer<typeof Appointment>;
+export type AppointmentKindT = z.infer<typeof AppointmentKind>;
+export type AppointmentStatusT = z.infer<typeof AppointmentStatus>;
 export type VaccinationStatusT = z.infer<typeof VaccinationStatus>;
 export type AwakeningReasonT = z.infer<typeof AwakeningReason>;
 export type FeedTypeT = z.infer<typeof FeedType>;

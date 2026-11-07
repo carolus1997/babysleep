@@ -1,6 +1,7 @@
 import {
   AggregateItem,
   AggregatePeriod,
+  Appointment,
   Awakening,
   Baby,
   EventCategory,
@@ -35,6 +36,7 @@ const IMPORT_TABLES = [
   ['sleep_session', SleepSession],
   ['awakening', Awakening],
   ['vaccination', Vaccination],
+  ['appointment', Appointment],
   ['wake_episode', WakeEpisode],
   ['observation', Observation],
   ['observation_tag', ObservationTag],
@@ -210,6 +212,7 @@ export async function planImport(ctx: Ctx, text: string): Promise<ImportPlan> {
   need('awakening', 'baby_id', 'baby');
   need('awakening', 'session_id', 'sleep_session');
   need('vaccination', 'baby_id', 'baby');
+  need('appointment', 'baby_id', 'baby');
   need('wake_episode', 'session_id', 'sleep_session');
   need('observation', 'session_id', 'sleep_session', true);
   need('observation', 'settling_attempt_id', 'settling_attempt', true);

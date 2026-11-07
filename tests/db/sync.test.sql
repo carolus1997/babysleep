@@ -856,4 +856,58 @@ begin
   perform tests.as_superuser();
 end $$;
 
+-- S31 · citas (0012): alta con avisos (lista de enteros), validaciones y permisos
+do $$
+declare r jsonb; n int; ok boolean; v int[];
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('appointment', 110, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'kind', 'pediatrician', 'title', 'Revisión', 'start_utc', '2027-04-01T08:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'duration_min', 20, 'place', 'Centro de prueba', 'remind_before_min', jsonb_build_array(1440, 60))));
+  perform tests.assert(r ->> 'status' = 'applied', 'S31a cita con dos avisos');
+  perform tests.as_superuser();
+  select remind_before_min into v from app.appointment where id = tests.u(110);
+  perform tests.assert(v = array[1440, 60], 'S31b los avisos se guardan como lista de enteros');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('appointment', 111, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'kind', 'otro', 'title', 'X', 'start_utc', '2027-04-01T08:00:00.000Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S31c tipo desconocido: rechazado');
+  r := tests.go(tests.op('appointment', 112, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'kind', 'other', 'title', 'X', 'start_utc', '2027-04-01T08:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'remind_before_min', jsonb_build_array(60, 120, 180, 240, 300, 360))));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S31d más de 5 avisos: rechazado');
+  r := tests.go(tests.op('appointment', 113, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'kind', 'other', 'title', 'X', 'start_utc', '2027-04-01T08:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'remind_before_min', jsonb_build_array(50000))));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S31e un aviso de más de 4 semanas: rechazado');
+  r := tests.go(tests.op('appointment', 114, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'kind', 'other', 'title', 'X', 'start_utc', '2027-04-01T08:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'remind_before_min', jsonb_build_array(-5))));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S31f un aviso negativo: rechazado');
+  r := tests.go(tests.op('appointment', 115, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'kind', 'other', 'title', '', 'start_utc', '2027-04-01T08:00:00.000Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S31g el título es obligatorio');
+  r := tests.go(tests.op('appointment', 110, 1, '{"status":"done"}'));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 2, 'S31h marcar la cita como hecha');
+
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  r := tests.go(tests.op('appointment', 116, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'kind', 'other', 'title', 'X', 'start_utc', '2027-04-01T08:00:00.000Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S31i el bebé de otra familia no se puede usar');
+  select count(*) into n from app.appointment;
+  perform tests.assert(n = 0, 'S31j otra familia no ve las citas');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000003', 'lector@example.test');
+  begin
+    r := tests.go(tests.op('appointment', 117, null, jsonb_build_object(
+      'baby_id', tests.u(1), 'kind', 'other', 'title', 'X', 'start_utc', '2027-04-01T08:00:00.000Z', 'start_tz', 'Europe/Madrid')));
+    ok := false;
+  exception when others then ok := sqlerrm like '%not_allowed%'; end;
+  perform tests.assert(ok, 'S31k un lector no puede crear citas');
+  select count(*) into n from app.appointment;
+  perform tests.assert(n = 1, 'S31l un lector sí las ve');
+  perform tests.as_superuser();
+end $$;
+
 rollback;

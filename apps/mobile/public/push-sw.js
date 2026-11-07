@@ -14,14 +14,16 @@ self.addEventListener('push', (event) => {
     badge: 'icon-192.png',
     tag: data.tag || 'feed-reminder',
     renotify: true,
-    data: { url: data.url || './?feed=ask' },
-    // Los botones dependen de que el sistema los muestre; si no, basta con tocar el aviso.
-    actions: [
+    data: { url: data.url || './?feed=ask', kind: data.kind || 'feed' },
+  };
+  // Los botones de «Pecho / Biberón» solo tienen sentido en el aviso de toma. Dependen de que el sistema los muestre; si no, basta con tocar el aviso.
+  if (!data.kind || data.kind === 'feed') {
+    options.actions = [
       { action: 'breast', title: 'Pecho' },
       { action: 'bottle', title: 'Biberón' },
-    ],
-  };
-  event.waitUntil(self.registration.showNotification(data.title || 'Toca toma', options));
+    ];
+  }
+  event.waitUntil(self.registration.showNotification(data.title || 'BabySleep', options));
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -35,7 +37,9 @@ self.addEventListener('notificationclick', (event) => {
       for (const c of all) {
         if (c.url.startsWith(self.registration.scope) && 'focus' in c) {
           await c.focus();
-          c.postMessage({ type: 'feed-intent', feed: new URL(target).searchParams.get('feed') });
+          const q = new URL(target).searchParams;
+          if (q.get('go')) c.postMessage({ type: 'go', go: q.get('go') });
+          else c.postMessage({ type: 'feed-intent', feed: q.get('feed') });
           return;
         }
       }

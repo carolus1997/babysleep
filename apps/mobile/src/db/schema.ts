@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type {
   AggregateItemT,
   AggregatePeriodT,
+  AppointmentT,
   AwakeningT,
   BabyT,
   CaregiverT,
@@ -78,6 +79,7 @@ export class BabySleepDb extends Dexie {
   sleep_session!: Table<SleepSessionT, string>;
   awakening!: Table<AwakeningT, string>;
   vaccination!: Table<VaccinationT, string>;
+  appointment!: Table<AppointmentT, string>;
   settling_attempt!: Table<SettlingAttemptT, string>;
   wake_episode!: Table<WakeEpisodeT, string>;
   observation!: Table<ObservationT, string>;
@@ -117,6 +119,8 @@ export class BabySleepDb extends Dexie {
     this.version(5).stores({ awakening: 'id, baby_id, session_id, start_utc' });
     // v6: vacunas. Solo añade una tabla; la ficha de salud son columnas del perfil y no necesita migración.
     this.version(6).stores({ vaccination: 'id, baby_id, dose_key' });
+    // v7: citas médicas. Solo añade una tabla.
+    this.version(7).stores({ appointment: 'id, baby_id, start_utc' });
   }
 }
 
@@ -128,6 +132,7 @@ export const TABLES_FOR_EXPORT = [
   'sleep_session',
   'awakening',
   'vaccination',
+  'appointment',
   'settling_attempt',
   'wake_episode',
   'observation',

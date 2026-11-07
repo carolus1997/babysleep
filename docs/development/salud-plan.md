@@ -1,6 +1,6 @@
 # Módulo de Salud: plan por fases
 
-Estado (7 nov 2026): **fases 0, 1 y 2 hechas** (la migración 0011 debe aplicarse en Supabase antes de publicar); el resto es propuesta.
+Estado (7 nov 2026): **fases 0, 1, 2 y 3 hechas** (la migración 0012 y el nuevo despliegue de la función programada deben hacerse antes de publicar); el resto es propuesta.
 
 ## Qué se quiere
 
@@ -77,7 +77,7 @@ Cada fase es publicable por sí sola, lleva sus tests y, si toca la base de dato
 - Caso especial VRS: depende de la fecha de nacimiento y de la temporada.
 - Migración 0012.
 
-### Fase 3: citas y avisos (Google Calendar)
+### Fase 3: citas y avisos (Google Calendar) — HECHA (escalón 1)
 - Citas médicas (tipo, fecha y hora, lugar, motivo, notas, quién va) y vacunas previstas como citas.
 - **Avisos con el sistema propio** (web push, que ya funciona y es gratis): 1 día antes y 1 h antes, configurables. Es lo más fiable porque no depende de terceros.
 - **Google Calendar en dos escalones**:

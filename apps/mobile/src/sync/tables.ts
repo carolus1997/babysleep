@@ -1,6 +1,7 @@
 import {
   AggregateItem,
   AggregatePeriod,
+  Appointment,
   Awakening,
   Baby,
   EventCategory,
@@ -28,6 +29,7 @@ export const SYNC_TABLES = [
   'sleep_session',
   'awakening',
   'vaccination',
+  'appointment',
   'wake_episode',
   'observation',
   'observation_tag',
@@ -49,6 +51,7 @@ export const SYNC_SCHEMAS = {
   sleep_session: SleepSession,
   awakening: Awakening,
   vaccination: Vaccination,
+  appointment: Appointment,
   wake_episode: WakeEpisode,
   observation: Observation,
   observation_tag: ObservationTag,
