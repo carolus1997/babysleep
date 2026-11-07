@@ -3,6 +3,7 @@ import { buildSpans, localDate, parseInstant, sleepDayTotals, summarizeAwakening
 import { useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { finishAwakening, getOpenAwakening, listAwakenings, startAwakening, thresholdMs } from '../domain/awakening';
+import { awakeStatus } from '../domain/awake';
 import { backupReminderDue } from '../domain/export';
 import type { ObservationTarget } from '../domain/notes';
 import {
@@ -59,7 +60,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
     else await run(() => startAwakening(ctx, id));
   };
   const lastClosed = [...sessions].reverse().find((s) => s.sleep_end_utc !== null);
-  const awakeMs = !open && lastClosed?.sleep_end_utc ? now - parseInstant(lastClosed.sleep_end_utc) : null;
+  const awake = awakeStatus({ sessions, zone: ctx.zone, nowMs: now });
 
   const finish = async () => {
     if (!open) return;
@@ -100,6 +101,23 @@ export function Home({ goSettings }: { goSettings: () => void }) {
         <button className="w-full rounded-2xl border border-line bg-surface2 p-3 text-left text-sm" onClick={goSettings}>
           {t('home.backupDue')}
         </button>
+      )}
+
+      {awake.state === 'awake' && (
+        <Card className="text-center" aria-label={t('wakeTime.title')}>
+          <p className="text-sm font-semibold uppercase tracking-wide text-muted">{t('wakeTime.title')}</p>
+          <p className="my-1 text-4xl font-bold tabular-nums">{fmtDur(awake.elapsedMs)}</p>
+          <p className="text-sm text-muted">
+            {t('wakeTime.since', { time: fmtClock(awake.sinceMs, ctx.zone), what: t(awake.after === 'night' ? 'wakeTime.afterNight' : 'wakeTime.afterNap') })}
+          </p>
+          {awake.usual !== null && (
+            <p className="mt-2 text-xs text-muted">
+              {t('wakeTime.usual', { from: fmtDur(awake.usual.fromMs), to: fmtDur(awake.usual.toMs) })}
+              {awake.elapsedMs > awake.usual.toMs && ` ${t('wakeTime.over')}`}
+            </p>
+          )}
+          {awake.stale && <p className="mt-2 text-xs text-muted">{t('wakeTime.stale')}</p>}
+        </Card>
       )}
 
       {open ? (
@@ -212,7 +230,6 @@ export function Home({ goSettings }: { goSettings: () => void }) {
           </p>
         )}
         <p className="mt-2 text-center text-xs text-muted">{t('home.todayHint')}</p>
-        {awakeMs !== null && <p className="mt-3 text-center text-sm text-muted">{t('home.awakeFor', { dur: fmtDur(awakeMs) })}</p>}
       </Card>
 
       {lastClosedNight && !open && (
