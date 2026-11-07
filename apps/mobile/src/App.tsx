@@ -13,6 +13,7 @@ import { Stats } from './screens/Stats';
 import { fmtAges } from './ui/format';
 import { Avatar, useBabyPhotoUrl } from './ui/photo';
 import { Sheet } from './ui/primitives';
+import { Splash } from './ui/Splash';
 
 type Tab = 'home' | 'health' | 'stats' | 'settings';
 const TABS: ReadonlyArray<{ id: Tab; label: I18nKey; icon: string }> = [
@@ -104,10 +105,20 @@ export function App() {
     return () => document.documentElement.removeAttribute('data-photo');
   }, [photo]);
 
-  if (babies.length === 0 || baby === null) return <Onboarding />;
+  // La bienvenida va siempre la primera de un fragmento, en la misma posición en ambas ramas, para que no se
+  // reinicie cuando el bebé activo termina de cargar. Se monta una vez por carga de la página.
+  if (babies.length === 0 || baby === null)
+    return (
+      <>
+        <Splash baby={baby} />
+        <Onboarding />
+      </>
+    );
 
   return (
-    <div className="relative mx-auto flex min-h-dvh max-w-md flex-col">
+    <>
+      <Splash baby={baby} />
+      <div className="relative mx-auto flex min-h-dvh max-w-md flex-col">
       {photo && <div aria-hidden className="photo-bg" style={{ backgroundImage: `url(${photo})` }} />}
       <header
         className="sticky top-0 z-30 border-b-4 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]"
@@ -180,6 +191,7 @@ export function App() {
           </ul>
         </Sheet>
       )}
-    </div>
+      </div>
+    </>
   );
 }

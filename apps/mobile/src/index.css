@@ -130,3 +130,125 @@ input[type='date'] {
     transition: none !important;
   }
 }
+
+/*
+ * Bienvenida del arranque (src/ui/Splash.tsx). Los estilos base son el estado FINAL y las animaciones solo
+ * definen el `from`: así, con «reducir movimiento» (que anula las animaciones) se ve completa y fija.
+ */
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('@fontsource/baloo-2/files/baloo-2-latin-800-normal.woff2') format('woff2');
+}
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(120% 80% at 50% 30%, color-mix(in srgb, var(--accent) 22%, var(--bg)), var(--bg) 70%);
+  font-family: 'Baloo 2', var(--font-sans);
+  transition: opacity var(--splash-fade, 400ms) ease;
+}
+.splash-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+.splash-center {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 24px;
+}
+.splash-photo {
+  position: absolute;
+  inset: -20px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(28px);
+  opacity: 0;
+}
+[data-theme='light'] .splash-photo {
+  opacity: 0.22;
+  animation: splash-fade-in 0.9s ease both;
+}
+.splash-star {
+  position: absolute;
+  width: calc(4px + (var(--i) % 3) * 2px);
+  height: calc(4px + (var(--i) % 3) * 2px);
+  border-radius: 50%;
+  background: var(--seg-nap);
+  box-shadow: 0 0 8px 1px var(--seg-nap);
+  animation:
+    splash-fade-in 0.6s ease calc(0.15s + var(--i) * 0.07s) backwards,
+    splash-twinkle 2.4s ease-in-out calc(var(--i) * 0.23s) infinite;
+}
+.splash-moon {
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--seg-nap) 55%, transparent));
+  animation: splash-moon-in 0.8s cubic-bezier(0.2, 0.9, 0.3, 1) 0.05s backwards;
+}
+.splash-logo {
+  margin: 4px 0 0;
+  font-size: 3.1rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: var(--fg);
+  animation: splash-logo-in 0.75s ease 0.2s backwards;
+}
+.splash-baby {
+  margin-top: 28px;
+  padding: 5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ring) 30%, transparent);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.22);
+  animation: splash-pop 0.6s cubic-bezier(0.3, 1.5, 0.5, 1) 0.65s backwards;
+}
+.splash-name {
+  margin: 10px 0 0;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--fg);
+  animation: splash-rise 0.5s ease 0.95s backwards;
+}
+@keyframes splash-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes splash-twinkle {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+}
+@keyframes splash-moon-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) rotate(-25deg) scale(0.7);
+  }
+}
+@keyframes splash-logo-in {
+  from {
+    opacity: 0;
+    filter: blur(14px);
+    transform: scale(1.18);
+  }
+}
+@keyframes splash-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+@keyframes splash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

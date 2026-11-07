@@ -59,7 +59,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: `${base}index.html`,
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,woff2}'],
         // Avisos de «toca toma» (web push): el manejador de `push` y de clic en el aviso vive en public/push-sw.js.
         importScripts: ['push-sw.js'],
       },
