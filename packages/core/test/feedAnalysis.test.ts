@@ -39,7 +39,7 @@ describe('análisis de tomas', () => {
     expect(r.intervals.maxMs).toBe(9 * HOUR); // 17:00 → 02:00 del día siguiente
     expect(r.intervals.medianMs).toBe(7 * HOUR);
     expect(r.count).toBe(5);
-    expect(r.byType).toEqual({ breast: 2, bottle: 2, solids: 1 });
+    expect(r.byType).toEqual({ breast: 2, bottle: 2, mixed: 0, solids: 1 });
   });
 
   it('un intervalo de más de 12 h no se promedia y se cuenta aparte', () => {

@@ -103,9 +103,10 @@ export function FeedStats() {
           </Card>
 
           <Card title={t('fstats.types')}>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <Stat label={t('feed.type.breast')} value={String(cur.byType.breast)} />
               <Stat label={t('feed.type.bottle')} value={String(cur.byType.bottle)} />
+              <Stat label={t('feed.type.mixed')} value={String(cur.byType.mixed)} />
               <Stat label={t('feed.type.solids')} value={String(cur.byType.solids)} />
             </div>
             {cur.bottle.n > 0 && (

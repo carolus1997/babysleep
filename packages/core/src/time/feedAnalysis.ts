@@ -92,7 +92,7 @@ export function analyzeFeeding(input: {
     .sort((a, b) => a.start - b.start);
   const mine = all.filter((x) => within(x.start));
 
-  const byType: Record<FeedTypeT, number> = { breast: 0, bottle: 0, solids: 0 };
+  const byType: Record<FeedTypeT, number> = { breast: 0, bottle: 0, mixed: 0, solids: 0 };
   for (const { f } of mine) byType[f.feed_type]++;
 
   const milk = all.filter((x) => isMilk(x.f.feed_type));
@@ -134,7 +134,7 @@ export function analyzeFeeding(input: {
       all.filter((x) => x.start >= parseInstant(s.sleep_start_utc) && x.start < parseInstant(s.sleep_end_utc as string) && isMilk(x.f.feed_type)).length,
   );
 
-  const bottles = mine.filter((x) => x.f.feed_type === 'bottle');
+  const bottles = mine.filter((x) => x.f.feed_type === 'bottle' || x.f.feed_type === 'mixed');
   const ml = bottles.map((x) => x.f.amount_ml).filter((v): v is number => typeof v === 'number');
 
   return {

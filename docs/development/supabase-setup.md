@@ -101,6 +101,7 @@ La URL y la clave pública están en `apps/mobile/src/sync/config.ts` (públicas
 | `0013_growth.sql` | Medidas de crecimiento: peso, talla y perímetro cefálico (contrato 0.7.0). **Aplícala ANTES de publicar la web que la usa** | Aplicada |
 | `0014_medication.sql` | Tratamientos y dosis, y avisos de «toca la siguiente dosis» (contrato 0.8.0). **Aplícala ANTES de publicar la web que la usa** y vuelve a desplegar la función `feed-reminders` (ahora también envía los avisos de medicación) | **Pendiente** |
 | `0015_illness.sql` | Episodios de enfermedad y sus anotaciones (contrato 0.9.0). **Aplícala ANTES de publicar la web que la usa** | **Pendiente** |
+| `0016_feeding_mixed.sql` | Tomas de pecho y biberón a la vez: nuevo tipo `mixed` (contrato 0.10.0). **Aplícala ANTES de publicar la web que la usa** | **Pendiente** |
 
 ## Cosas que conviene saber
 

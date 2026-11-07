@@ -2,7 +2,7 @@ import type { BreastSideT, FeedingT, FeedTypeT } from '@babysleep/contract';
 import { parseInstant } from '@babysleep/core';
 import { useState, type ReactNode } from 'react';
 import { useApp } from '../app/AppContext';
-import { addManualFeeding, deleteFeeding, editFeeding, finishFeeding, restoreFeeding, FEED_TYPES } from '../domain/feeding';
+import { addManualFeeding, deleteFeeding, editFeeding, finishFeeding, hasBottle, hasBreast, restoreFeeding, FEED_TYPES } from '../domain/feeding';
 import { localToMs } from '../domain/sleep';
 import { t, type I18nKey } from '../i18n/es';
 import { feedIcon, toLocalInput } from '../ui/format';
@@ -84,14 +84,17 @@ export function FinishFeedingSheet({ feeding, onClose, onDone }: { feeding: Feed
       <p className="mb-3 text-sm text-muted">
         <FeedLabel type={feeding.feed_type} />
       </p>
-      {feeding.feed_type === 'breast' && <SideChips value={side} onChange={setSide} />}
-      {feeding.feed_type === 'bottle' && <MlField value={ml} onChange={setMl} />}
+      {hasBreast(feeding.feed_type) && <SideChips value={side} onChange={setSide} />}
+      {hasBottle(feeding.feed_type) && <MlField value={ml} onChange={setMl} />}
       <Btn
         variant="primary"
         className="w-full"
         onClick={async () => {
           const done = await run(() =>
-            finishFeeding(ctx, feeding.id, feeding.feed_type === 'breast' ? { side } : feeding.feed_type === 'bottle' ? { amountMl: toMl(ml) } : {}),
+            finishFeeding(ctx, feeding.id, {
+              ...(hasBreast(feeding.feed_type) ? { side } : {}),
+              ...(hasBottle(feeding.feed_type) ? { amountMl: toMl(ml) } : {}),
+            }),
           );
           if (done) onDone(done);
         }}
@@ -119,8 +122,8 @@ export function ManualFeedingSheet({ babyId, onClose }: { babyId: string; onClos
       <Field label={`${t('feed.duration')} · ${t('feed.optional')}`}>
         <input className={inputCls} inputMode="numeric" placeholder={t('feed.durationUnknown')} value={minutes} onChange={(e) => setMinutes(e.target.value)} />
       </Field>
-      {type === 'breast' && <SideChips value={side} onChange={setSide} />}
-      {type === 'bottle' && <MlField value={ml} onChange={setMl} />}
+      {hasBreast(type) && <SideChips value={side} onChange={setSide} />}
+      {hasBottle(type) && <MlField value={ml} onChange={setMl} />}
       <Btn
         variant="primary"
         className="w-full"
@@ -128,7 +131,7 @@ export function ManualFeedingSheet({ babyId, onClose }: { babyId: string; onClos
         onClick={async () => {
           const input: Parameters<typeof addManualFeeding>[1] = {
             babyId, type, startLocal: start, durationMin: minutes.trim() === '' ? null : Number(minutes.trim().replace(',', '.')),
-            side: type === 'breast' ? side : null, amountMl: type === 'bottle' ? toMl(ml) : null,
+            side: hasBreast(type) ? side : null, amountMl: hasBottle(type) ? toMl(ml) : null,
           };
           if (sc !== undefined) input.startChoice = sc;
           if (await run(() => addManualFeeding(ctx, input))) onClose();
@@ -160,8 +163,8 @@ export function FeedingSheet({ feeding, onClose, onNotes }: { feeding: FeedingT;
       if (type !== feeding.feed_type) patch.type = type;
       if (start !== iStart) patch.startMs = localToMs(start, ctx.zone, sc);
       if (end !== iEnd) patch.endMs = end === '' ? null : localToMs(end, ctx.zone, ec);
-      if (type === 'breast') patch.side = side;
-      if (type === 'bottle') patch.amountMl = toMl(ml);
+      if (hasBreast(type)) patch.side = side;
+      if (hasBottle(type)) patch.amountMl = toMl(ml);
       await editFeeding(ctx, feeding.id, patch);
       return true;
     });
@@ -173,8 +176,8 @@ export function FeedingSheet({ feeding, onClose, onNotes }: { feeding: FeedingT;
       <TypeChips value={type} onChange={setType} />
       <TimeField label={t('session.start')} value={start} onChange={setStart} choice={sc} onChoice={setSc} zone={ctx.zone} />
       <TimeField label={t('session.end')} value={end} onChange={setEnd} choice={ec} onChoice={setEc} zone={ctx.zone} />
-      {type === 'breast' && <SideChips value={side} onChange={setSide} />}
-      {type === 'bottle' && <MlField value={ml} onChange={setMl} />}
+      {hasBreast(type) && <SideChips value={side} onChange={setSide} />}
+      {hasBottle(type) && <MlField value={ml} onChange={setMl} />}
       <div className="flex flex-col gap-2">
         <Btn variant="primary" disabled={!ready} onClick={save}>
           {t('session.save')}

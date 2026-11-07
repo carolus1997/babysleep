@@ -86,7 +86,7 @@ export function buildReport(input: ReportInput): Report {
         n: f.intervals.n,
       }),
     );
-    feeds.push(t('report.feedTypes', { b: f.byType.breast, bt: f.byType.bottle, s: f.byType.solids }));
+    feeds.push(t('report.feedTypes', { b: f.byType.breast, bt: f.byType.bottle, m: f.byType.mixed, s: f.byType.solids }));
     if (f.bottle.meanMl !== null) feeds.push(t('report.bottleMl', { ml: Math.round(f.bottle.meanMl), k: f.bottle.withMl, n: f.bottle.n }));
     if (f.nights.meanPerNight !== null) feeds.push(t('report.nightFeeds', { n: f.nights.meanPerNight.toFixed(1), nights: f.nights.n }));
   }

@@ -6,7 +6,12 @@ import { DomainError } from './context';
 import { localToMs } from './sleep';
 import { insertRow, newRow, restoreRow, softDelete, updateRow } from './write';
 
-export const FEED_TYPES: readonly FeedTypeT[] = ['breast', 'bottle', 'solids'];
+export const FEED_TYPES: readonly FeedTypeT[] = ['breast', 'bottle', 'mixed', 'solids'];
+
+/** ¿La toma lleva pecho? (pecho o pecho y biberón). */
+export const hasBreast = (type: FeedTypeT): boolean => type === 'breast' || type === 'mixed';
+/** ¿La toma lleva biberón? (biberón o pecho y biberón). */
+export const hasBottle = (type: FeedTypeT): boolean => type === 'bottle' || type === 'mixed';
 export const MAX_MANUAL_MINUTES = 240;
 
 // ------------------------------------------------------------ consultas
@@ -30,11 +35,11 @@ export async function getOpenFeeding(ctx: Ctx, babyId: string): Promise<FeedingT
 
 // --------------------------------------------------------- validaciones
 
-/** El pecho solo en una toma de pecho y los ml solo en un biberón; con mensajes en español. */
+/** El pecho solo en una toma con pecho y los ml solo en una con biberón; con mensajes en español. */
 function checkDetails(type: FeedTypeT, side: BreastSideT | null | undefined, amountMl: number | null | undefined): void {
-  if (side != null && type !== 'breast') throw new DomainError('invalid', 'El pecho solo se indica en una toma de pecho');
+  if (side != null && !hasBreast(type)) throw new DomainError('invalid', 'El pecho solo se indica en una toma con pecho');
   if (amountMl != null) {
-    if (type !== 'bottle') throw new DomainError('invalid', 'Los ml solo se indican en un biberón');
+    if (!hasBottle(type)) throw new DomainError('invalid', 'Los ml solo se indican en una toma con biberón');
     if (!Number.isInteger(amountMl) || amountMl < 1 || amountMl > 500) throw new DomainError('invalid', 'La cantidad debe estar entre 1 y 500 ml');
   }
 }
@@ -150,7 +155,7 @@ export interface FeedingPatch {
 
 /**
  * Edita una toma manteniéndola coherente: al cambiar el tipo se quita lo que ya no aplica (el pecho de un
- * biberón, los ml de una toma de pecho) y el fin no puede quedar antes del inicio.
+ * biberón, los ml de una toma de pecho; pasar a pecho y biberón conserva ambos) y el fin no puede quedar antes del inicio.
  */
 export async function editFeeding(ctx: Ctx, id: string, patch: FeedingPatch): Promise<FeedingT> {
   const cur = await ctx.db.feeding.get(id);
@@ -161,8 +166,8 @@ export async function editFeeding(ctx: Ctx, id: string, patch: FeedingPatch): Pr
   if (end !== null && end <= start) throw new DomainError('invalid_range', 'El fin debe ser posterior al inicio');
 
   // Lo explícito se valida tal cual; lo heredado se descarta si el nuevo tipo no lo admite.
-  const side = patch.side !== undefined ? patch.side : type === 'breast' ? cur.breast_side : null;
-  const amount = patch.amountMl !== undefined ? patch.amountMl : type === 'bottle' ? cur.amount_ml : null;
+  const side = patch.side !== undefined ? patch.side : hasBreast(type) ? cur.breast_side : null;
+  const amount = patch.amountMl !== undefined ? patch.amountMl : hasBottle(type) ? cur.amount_ml : null;
   checkDetails(type, side, amount);
 
   const changes: Partial<FeedingT> = { feed_type: type, breast_side: side, amount_ml: amount };
@@ -192,26 +197,26 @@ export const restoreFeeding = (ctx: Ctx, id: string) => restoreRow(ctx, ctx.db.f
 
 export interface FeedingDay {
   count: number;
-  /** Suma de los ml de los biberones del día (las tomas sin cantidad no suman, no se estiman). */
+  /** Suma de los ml de los biberones del día, también los de pecho y biberón (sin cantidad no suman, no se estiman). */
   ml: number;
   /** Cuántos biberones llevan cantidad: sirve para decir «ml de 3 de 4». */
   bottlesWithAmount: number;
   bottles: number;
-  /** Tiempo total al pecho (tomas cerradas), en ms. */
+  /** Tiempo total de tomas cerradas con pecho (incluye pecho y biberón), en ms. */
   breastMs: number;
 }
 
 /** Resumen de las tomas que EMPEZARON en el día local indicado (`YYYY-MM-DD`). */
 export function summarizeFeedings(feedings: readonly FeedingT[], dateLocal: string, zone: string): FeedingDay {
   const day = feedings.filter((f) => f.deleted_at === null && localDate(parseInstant(f.start_utc), zone) === dateLocal);
-  const bottles = day.filter((f) => f.feed_type === 'bottle');
+  const bottles = day.filter((f) => hasBottle(f.feed_type));
   return {
     count: day.length,
     ml: bottles.reduce((n, f) => n + (f.amount_ml ?? 0), 0),
     bottles: bottles.length,
     bottlesWithAmount: bottles.filter((f) => f.amount_ml !== null).length,
     breastMs: day
-      .filter((f) => f.feed_type === 'breast' && f.end_utc !== null)
+      .filter((f) => hasBreast(f.feed_type) && f.end_utc !== null)
       .reduce((n, f) => n + parseInstant(f.end_utc as string) - parseInstant(f.start_utc), 0),
   };
 }

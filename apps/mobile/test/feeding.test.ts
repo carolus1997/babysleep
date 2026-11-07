@@ -88,6 +88,38 @@ describe('cronómetro de tomas', () => {
   });
 });
 
+describe('pecho y biberón en la misma toma', () => {
+  it('una toma mixta admite a la vez el pecho y los ml, desde el cronómetro y a mano', async () => {
+    const h = await makeHarness('2027-01-15T10:00');
+    const baby = await babyOf(h);
+    const f = await startFeeding(h.ctx, baby, 'mixed', { side: 'left' });
+    expect(f).toMatchObject({ feed_type: 'mixed', breast_side: 'left', amount_ml: null });
+    h.advance(15 * MIN);
+    expect(await finishFeeding(h.ctx, f.id, { side: 'both', amountMl: 60 })).toMatchObject({ feed_type: 'mixed', breast_side: 'both', amount_ml: 60 });
+    const m = await addManualFeeding(h.ctx, { babyId: baby, type: 'mixed', startLocal: '2027-01-15T04:00', durationMin: 20, side: 'right', amountMl: 80 });
+    expect(m).toMatchObject({ breast_side: 'right', amount_ml: 80 });
+    expect(await code(addManualFeeding(h.ctx, { babyId: baby, type: 'mixed', startLocal: '2027-01-15T05:00', amountMl: 501 }))).toBe('invalid');
+  });
+
+  it('pasar a pecho y biberón conserva ambos datos; salir de él quita lo que ya no aplica', async () => {
+    const h = await makeHarness();
+    const baby = await babyOf(h);
+    const f = await addManualFeeding(h.ctx, { babyId: baby, type: 'bottle', startLocal: '2027-01-15T07:30', durationMin: 10, amountMl: 90 });
+    const mixed = await editFeeding(h.ctx, f.id, { type: 'mixed', side: 'left' });
+    expect(mixed).toMatchObject({ feed_type: 'mixed', breast_side: 'left', amount_ml: 90 });
+    expect(await editFeeding(h.ctx, f.id, { type: 'breast' })).toMatchObject({ breast_side: 'left', amount_ml: null });
+  });
+
+  it('el resumen cuenta los ml y el tiempo al pecho de una toma mixta', async () => {
+    const h = await makeHarness();
+    const baby = await babyOf(h);
+    await addManualFeeding(h.ctx, { babyId: baby, type: 'mixed', startLocal: '2027-01-15T08:00', durationMin: 12, amountMl: 70 });
+    await addManualFeeding(h.ctx, { babyId: baby, type: 'bottle', startLocal: '2027-01-15T12:00', durationMin: 10, amountMl: 100 });
+    const d = summarizeFeedings(await listFeedings(h.ctx, baby), '2027-01-15', 'Europe/Madrid');
+    expect(d).toEqual({ count: 2, ml: 170, bottles: 2, bottlesWithAmount: 2, breastMs: 12 * MIN });
+  });
+});
+
 describe('registro manual de tomas', () => {
   it('los minutos son opcionales: sin ellos la toma queda sin fin (duración desconocida), no «en curso» ni 0', async () => {
     const h = await makeHarness();

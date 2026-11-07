@@ -82,7 +82,7 @@ export function FeedingCard() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {FEED_TYPES.map((ty: FeedTypeT) => (
                 <Btn key={ty} className="flex min-h-16 flex-col items-center justify-center gap-0.5 px-1 text-sm leading-tight" onClick={() => run(() => startFeeding(ctx, baby.id, ty))}>
                   <FeedLabel type={ty} />

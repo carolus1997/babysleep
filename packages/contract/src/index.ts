@@ -7,7 +7,7 @@ import { z } from 'zod';
  * de PostgreSQL (database/migrations). Los instantes son siempre UTC ISO-8601
  * con sufijo `Z`; la zona IANA y el offset viajan aparte en cada evento.
  */
-export const CONTRACT_VERSION = '0.9.0';
+export const CONTRACT_VERSION = '0.10.0';
 
 // ---------------------------------------------------------------- primitivos
 
@@ -280,12 +280,13 @@ type IllnessKindFields = 'temp_dc' | 'symptom' | 'intake' | 'diaper';
 
 // ---------------------------------------------------------------------- tomas
 
-export const FeedType = z.enum(['breast', 'bottle', 'solids']);
+export const FeedType = z.enum(['breast', 'bottle', 'mixed', 'solids']);
 export const BreastSide = z.enum(['left', 'right', 'both']);
 
 /**
- * Una toma de comida. `end_*` es `null` mientras la toma sigue en curso (cronómetro). El pecho usado solo
- * existe en una toma de pecho y la cantidad en ml solo en un biberón. Todo dato opcional es `null` si no
+ * Una toma de comida. `end_*` es `null` mientras la toma sigue en curso (cronómetro). `mixed` es una toma de pecho
+ * Y biberón a la vez. El pecho usado solo existe en una toma con pecho (`breast` o `mixed`) y la cantidad en ml
+ * solo en una con biberón (`bottle` o `mixed`). Todo dato opcional es `null` si no
  * se conoce (nunca 0).
  */
 export const Feeding = SyncedRow.extend({
@@ -305,8 +306,12 @@ export const Feeding = SyncedRow.extend({
     message: 'El fin de la toma debe ser posterior al inicio',
   })
   .refine((f) => (f.end_utc === null) === (f.end_tz === null), { message: 'end_utc y end_tz van juntos' })
-  .refine((f) => f.breast_side === null || f.feed_type === 'breast', { message: 'El pecho solo se indica en una toma de pecho' })
-  .refine((f) => f.amount_ml === null || f.feed_type === 'bottle', { message: 'Los ml solo se indican en un biberón' });
+  .refine((f) => f.breast_side === null || f.feed_type === 'breast' || f.feed_type === 'mixed', {
+    message: 'El pecho solo se indica en una toma con pecho',
+  })
+  .refine((f) => f.amount_ml === null || f.feed_type === 'bottle' || f.feed_type === 'mixed', {
+    message: 'Los ml solo se indican en una toma con biberón',
+  });
 
 
 // ------------------------------------------------------------------ despertares
