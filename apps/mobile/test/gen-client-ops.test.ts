@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { mustResolveLocal } from '@babysleep/core';
 import { describe, expect, it } from 'vitest';
 import { BabySleepDb } from '../src/db/schema';
+import { addGrowth, deleteGrowth, editGrowth, restoreGrowth } from '../src/domain/growth';
 import { addAppointment, deleteAppointment, editAppointment, restoreAppointment, setAppointmentStatus } from '../src/domain/appointments';
 import { createBaby, ensureBootstrap, renameBaby } from '../src/domain/bootstrap';
 import { addExtraVaccine, deleteVaccination, editVaccination, markNotApplicable, recordDoses, restoreVaccination } from '../src/domain/vaccines';
@@ -75,15 +76,29 @@ describe('operaciones de salud que envía el móvil', () => {
     await restoreAppointment(ctx, b.id);
     await step();
 
+    // crecimiento: medidas opcionales (null = no medido), editar, borrar y restaurar
+    const g1 = await addGrowth(ctx, { babyId: baby.id, measuredOn: '2027-01-05', weightG: 5600, headMm: 405, place: 'Centro de prueba', notes: 'en ayunas' });
+    const g2 = await addGrowth(ctx, { babyId: baby.id, measuredOn: '2027-01-12', lengthMm: 625 });
+    await step();
+    await editGrowth(ctx, g1.id, { weightG: 5650, notes: '' });
+    await step();
+    await deleteGrowth(ctx, g2.id);
+    await step();
+    await restoreGrowth(ctx, g2.id);
+    await step();
+
     // el servidor simulado ha recibido exactamente lo que hay en el móvil
     expect(server.rows('vaccination')).toHaveLength(5);
     expect(server.rows('appointment')).toHaveLength(2);
+    expect(server.rows('growth_measure')).toHaveLength(2);
+    expect(server.get('growth_measure', g1.id)).toMatchObject({ weight_g: 5650, length_mm: null, head_mm: 405, notes: null });
     expect(server.get('appointment', a.id)).toMatchObject({ remind_before_min: [10080, 120, 0], status: 'done' });
     expect(server.get('baby', baby.id)).toMatchObject({ cipa: null, health_notes: 'linea 1\nlinea 2', pediatrician: 'Dra. Prueba' });
 
     const flat = batches.flat();
     expect(flat.some((o) => o.table === 'appointment' && Array.isArray(o.fields['remind_before_min']))).toBe(true);
     expect(flat.some((o) => o.table === 'vaccination' && o.delete === true)).toBe(true);
+    expect(flat.some((o) => o.table === 'growth_measure' && o.fields['weight_g'] === 5650)).toBe(true);
     expect(flat.some((o) => o.table === 'baby' && o.base_rev !== null && 'pediatrician' in o.fields)).toBe(true);
 
     if (process.env['UPDATE_FIXTURES']) {

@@ -7,7 +7,7 @@ import { z } from 'zod';
  * de PostgreSQL (database/migrations). Los instantes son siempre UTC ISO-8601
  * con sufijo `Z`; la zona IANA y el offset viajan aparte en cada evento.
  */
-export const CONTRACT_VERSION = '0.6.0';
+export const CONTRACT_VERSION = '0.7.0';
 
 // ---------------------------------------------------------------- primitivos
 
@@ -150,6 +150,29 @@ export const Appointment = SyncedRow.extend({
   status: AppointmentStatus.default('scheduled'),
   remind_before_min: z.array(z.number().int().min(0).max(APPOINTMENT_MAX_REMIND_MIN)).max(APPOINTMENT_MAX_REMINDERS).default([]),
 });
+
+// ----------------------------------------------------------------- crecimiento
+
+/** Límites de plausibilidad de cada medida (evitan teclear mal una cifra). Desde 0.7.0. */
+export const GROWTH_LIMITS = {
+  weight_g: { min: 500, max: 30000 },
+  length_mm: { min: 300, max: 1300 },
+  head_mm: { min: 250, max: 600 },
+} as const;
+
+/**
+ * Una visita de medición: fecha y, como máximo, peso (g), longitud/talla (mm) y perímetro cefálico (mm). Cada medida es
+ * opcional (`null` = no se midió, nunca 0), pero al menos una debe constar. Enteros: sin errores de coma flotante.
+ */
+export const GrowthMeasure = SyncedRow.extend({
+  baby_id: Uuid,
+  measured_on: LocalDate,
+  weight_g: z.number().int().min(GROWTH_LIMITS.weight_g.min).max(GROWTH_LIMITS.weight_g.max).nullable().default(null),
+  length_mm: z.number().int().min(GROWTH_LIMITS.length_mm.min).max(GROWTH_LIMITS.length_mm.max).nullable().default(null),
+  head_mm: z.number().int().min(GROWTH_LIMITS.head_mm.min).max(GROWTH_LIMITS.head_mm.max).nullable().default(null),
+  place: z.string().max(160).nullable().default(null),
+  notes: z.string().max(500).nullable().default(null),
+}).refine((g) => g.weight_g !== null || g.length_mm !== null || g.head_mm !== null, { message: 'Anota al menos una medida' });
 
 // ---------------------------------------------------------------------- tomas
 
@@ -334,6 +357,7 @@ export type FeedingT = z.infer<typeof Feeding>;
 export type AwakeningT = z.infer<typeof Awakening>;
 export type VaccinationT = z.infer<typeof Vaccination>;
 export type AppointmentT = z.infer<typeof Appointment>;
+export type GrowthMeasureT = z.infer<typeof GrowthMeasure>;
 export type AppointmentKindT = z.infer<typeof AppointmentKind>;
 export type AppointmentStatusT = z.infer<typeof AppointmentStatus>;
 export type VaccinationStatusT = z.infer<typeof VaccinationStatus>;

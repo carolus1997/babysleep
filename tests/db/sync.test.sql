@@ -949,4 +949,54 @@ begin
   perform tests.assert(t = 'Centro 2', 'S32i gana el último cambio de cada campo');
 end $$;
 
+-- S33 · crecimiento (0013): medidas opcionales pero al menos una, límites, aislamiento, permisos y fusión por campo
+do $$
+declare r jsonb; n int; ok boolean; w int; h int;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('growth_measure', 130, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'measured_on', '2027-01-05', 'weight_g', 5600, 'head_mm', 405, 'place', 'Centro de prueba')));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 1, 'S33a peso y perimetro cefalico, sin talla');
+  r := tests.go(tests.op('growth_measure', 131, null, jsonb_build_object('baby_id', tests.u(1), 'measured_on', '2027-01-12', 'length_mm', 625)));
+  perform tests.assert(r ->> 'status' = 'applied', 'S33b basta una sola medida');
+  r := tests.go(tests.op('growth_measure', 132, null, jsonb_build_object('baby_id', tests.u(1), 'measured_on', '2027-01-12', 'place', 'sin medidas')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S33c sin ninguna medida: rechazada');
+  r := tests.go(tests.op('growth_measure', 133, null, jsonb_build_object('baby_id', tests.u(1), 'measured_on', '2027-01-12', 'weight_g', 100)));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S33d un peso imposible (100 g): rechazado');
+  r := tests.go(tests.op('growth_measure', 134, null, jsonb_build_object('baby_id', tests.u(1), 'measured_on', '2027-01-12', 'head_mm', 700)));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S33e un perimetro cefalico imposible (70 cm): rechazado');
+  select weight_g, head_mm into w, h from app.growth_measure where id = tests.u(131);
+  perform tests.assert(w is null and h is null, 'S33f lo no medido queda null, nunca 0');
+
+  -- fusion por campo: campos distintos se combinan, el mismo campo queda como conflicto
+  r := tests.go(tests.op('growth_measure', 130, 1, '{"weight_g":5650}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S33g el primero edita el peso');
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  r := tests.go(tests.op('growth_measure', 130, 1, '{"head_mm":410}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S33h otro campo con base obsoleta: se combina');
+  r := tests.go(tests.op('growth_measure', 130, 1, '{"weight_g":5700}'));
+  perform tests.assert(r ->> 'status' in ('merged', 'conflict'), 'S33i el mismo campo: no se rechaza, queda en conflicto');
+  perform tests.as_superuser();
+  select count(*) into n from app.sync_conflict where row_id = tests.u(130) and field_name = 'weight_g' and status = 'open';
+  perform tests.assert(n = 1, 'S33j el conflicto del peso queda abierto');
+  select weight_g, head_mm into w, h from app.growth_measure where id = tests.u(130);
+  perform tests.assert(w = 5650 and h = 410, 'S33k vale el primero en el peso y se conserva el otro campo');
+
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  r := tests.go(tests.op('growth_measure', 135, null, jsonb_build_object('baby_id', tests.u(1), 'measured_on', '2027-01-05', 'weight_g', 5000)));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S33l el bebe de otra familia no se puede usar');
+  select count(*) into n from app.growth_measure;
+  perform tests.assert(n = 0, 'S33m otra familia no ve las medidas');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000003', 'lector@example.test');
+  begin
+    r := tests.go(tests.op('growth_measure', 136, null, jsonb_build_object('baby_id', tests.u(1), 'measured_on', '2027-01-05', 'weight_g', 5000)));
+    ok := false;
+  exception when others then ok := sqlerrm like '%not_allowed%'; end;
+  perform tests.assert(ok, 'S33n un lector no puede crear medidas');
+  select count(*) into n from app.growth_measure;
+  perform tests.assert(n = 2, 'S33o un lector sí las ve');
+  perform tests.as_superuser();
+end $$;
+
 rollback;

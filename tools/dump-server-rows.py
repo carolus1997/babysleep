@@ -56,12 +56,16 @@ select tests.go(tests.op('appointment', 110, null, jsonb_build_object(
   'remind_before_min', jsonb_build_array(1440, 60))));
 select tests.go(tests.op('appointment', 111, null, jsonb_build_object(
   'baby_id', tests.u(1), 'kind', 'other', 'title', 'Sin avisos', 'start_utc', '2027-04-02T08:00:00.000Z', 'start_tz', 'Europe/Madrid')));
+select tests.go(tests.op('growth_measure', 120, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'measured_on', '2027-01-05', 'weight_g', 5600, 'head_mm', 405, 'place', 'Centro de prueba', 'notes', 'en ayunas')));
+select tests.go(tests.op('growth_measure', 121, null, jsonb_build_object('baby_id', tests.u(1), 'measured_on', '2027-01-12', 'length_mm', 625)));
 select tests.as_superuser();
 select '@@JSON@@';
 select jsonb_pretty(jsonb_build_object(
   'baby', (select jsonb_agg(to_jsonb(b)) from app.baby b where b.id = tests.u(1)),
   'vaccination', (select jsonb_agg(to_jsonb(v) order by v.id) from app.vaccination v),
-  'appointment', (select jsonb_agg(to_jsonb(a) order by a.id) from app.appointment a)));
+  'appointment', (select jsonb_agg(to_jsonb(a) order by a.id) from app.appointment a),
+  'growth_measure', (select jsonb_agg(to_jsonb(g) order by g.id) from app.growth_measure g)));
 rollback;
 """
 

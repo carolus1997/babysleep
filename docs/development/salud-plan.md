@@ -1,6 +1,6 @@
 # Módulo de Salud: plan por fases
 
-Estado (7 nov 2026): **fases 0, 1, 2 y 3 hechas** (la migración 0012 y el nuevo despliegue de la función programada deben hacerse antes de publicar); el resto es propuesta.
+Estado (7 nov 2026): **fases 0, 1, 2, 3 y 4 hechas** (la migración 0013 debe aplicarse en Supabase antes de publicar la fase 4); el resto es propuesta.
 
 ## Qué se quiere
 
@@ -85,13 +85,22 @@ Cada fase es publicable por sí sola, lleva sus tests y, si toca la base de dato
   2. Más adelante y solo si hace falta: crear los eventos directamente con la API (token de corta duración, se renueva con un toque). Requiere dar de alta un proyecto de Google y probar si el modo «testing» con las dos cuentas basta sin verificación.
 - Migración 0013 (citas y generalización de recordatorios).
 
-### Fase 4: crecimiento
+### Fase 4: crecimiento — HECHA (falta la curva de talla)
 - Medidas: fecha, peso, talla/longitud, perímetro cefálico; quién la tomó y dónde (opcional).
 - Curvas OMS para niñas de 0 a 5 años con la niña dibujada encima (percentil y z-score por medida), usando edad cronológica o corregida si es prematura (se muestra cuál).
 - Tablas de la OMS convertidas **una sola vez** a JSON estático con un script, con atribución y edición. Si no están las columnas L/M/S, se usan las tablas de percentiles (3, 15, 50, 85, 97) con interpolación.
 - Gráfica y lista; tendencia entre medidas; **sin interpretar** («has bajado de percentil» sí es un hecho, «está mal» no).
 - Averiguar si el Documento de Salud Infantil de Madrid usa las curvas OMS u otras (Orbegozo), y avisar de ello.
-- Migración 0014.
+- Migración 0013 (tabla `growth_measure`, contrato 0.7.0).
+
+**Lo que se hizo y lo que se decidió:**
+- **Las tablas de la OMS SÍ traen L, M y S.** Peso para la edad: tablas «expanded» en xlsx, un renglón por día (0-1856). Perímetro cefálico: solo hay PDF de percentiles (un renglón por mes, 0-60) y de ahí se leen L, M y S. Con L/M/S se calcula la puntuación z y el percentil exactos y se dibujan las curvas 3, 15, 50, 85 y 97 (la prueba reproduce las columnas de desviaciones estándar que publica la OMS).
+- `tools/build-who-tables.py` convierte **una sola vez** esos archivos (que se bajan a mano y no entran en el repositorio) en `packages/core/src/health/whoGirlsData.ts`, con la atribución. El PDF se lee con `pdftotext`.
+- **Falta la talla/longitud para la edad**: no se ha podido bajar ninguna tabla. La app ya guarda y sincroniza la talla, pero sin curva ni percentil (lo dice en pantalla). Cuando haya `lhfa` de niñas (xlsx o PDF), se ejecuta de nuevo el script con ese archivo como tercer argumento.
+- Se guardan enteros (g y mm), cada medida es opcional (`null` = no medida, nunca 0) pero cada visita lleva al menos una. Percentil y z **no se guardan**: se calculan, para poder usar la edad corregida si es prematura (se indica en pantalla) o cambiar la edición de las tablas.
+- Solo hechos: percentil, z y cambio respecto a la medida anterior; ni «normal» ni «anormal».
+- **Pendiente de averiguar:** si el Documento de Salud Infantil de Madrid usa las curvas de la OMS u otras (Orbegozo); hasta confirmarlo se cita la fuente OMS y se avisa de que la interpretación es del pediatra.
+- **Sincronización verificada** como pide la sección siguiente: escenarios de dos móviles, filas reales de PostgreSQL, operaciones reales del móvil reproducidas en PostgreSQL, pruebas SQL (S33) y acciones de crecimiento en la prueba aleatoria.
 
 ### Fase 5: medicación con cronómetro
 - Tratamiento: nombre, dosis **tal como la escribió el médico**, intervalo en horas, inicio y fin, notas; todo lo escribe la familia.

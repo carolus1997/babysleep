@@ -13,4 +13,5 @@ export * from './stats/descriptive';
 export * from './stats/forecast';
 export * from './aggregate';
 export * from './health/vaccines';
+export * from './health/growth';
 export { buildIcs, googleCalendarUrl, reminderTimes, icsEscape, icsFold, icsUtc, DEFAULT_APPOINTMENT_MIN, type CalendarEventInput, type IcsOptions } from './health/appointments';

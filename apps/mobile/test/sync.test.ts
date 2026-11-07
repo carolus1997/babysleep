@@ -6,6 +6,7 @@ import { createBaby, deleteBaby, ensureBootstrap, listBabies, renameBaby, restor
 import { mergeBabies } from '../src/domain/merge';
 import type { Ctx } from '../src/domain/context';
 import { addAppointment, deleteAppointment, editAppointment, listAppointments, restoreAppointment, setAppointmentStatus } from '../src/domain/appointments';
+import { addGrowth, deleteGrowth, editGrowth, listGrowth, restoreGrowth } from '../src/domain/growth';
 import { addExtraVaccine, deleteVaccination, editVaccination, listVaccinations, markNotApplicable, planFor, recordDoses, restoreVaccination } from '../src/domain/vaccines';
 import { addManualAwakening, deleteAwakening, editAwakening, finishAwakening, getOpenAwakening, startAwakening } from '../src/domain/awakening';
 import { deleteFeeding, editFeeding, finishFeeding as finishFeed, getOpenFeeding, listFeedings, nudgeFeedingStart, restoreFeeding, startFeeding as startFeed } from '../src/domain/feeding';
@@ -829,9 +830,113 @@ describe('salud entre dos móviles', () => {
   });
 });
 
+describe('crecimiento entre dos móviles', () => {
+  const summary = async (p: Phone, baby: string) => (await listGrowth(p.ctx, baby)).map((g) => `${g.measured_on}|${g.weight_g}|${g.length_mm}|${g.head_mm}|${g.place}`);
+
+  it('una medida anotada en un móvil llega al otro con las mismas cifras; lo no medido sigue siendo «no medido», nunca 0', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    await addGrowth(A.ctx, { babyId: baby, measuredOn: '2027-01-05', weightG: 5600, headMm: 405, place: 'Centro de prueba', notes: 'en ayunas' });
+    await addGrowth(A.ctx, { babyId: baby, measuredOn: '2027-01-12', lengthMm: 625 });
+    await settle(A, B);
+    expect(await summary(B, baby)).toEqual(['2027-01-05|5600|null|405|Centro de prueba', '2027-01-12|null|625|null|null']);
+    expect(await summary(A, baby)).toEqual(await summary(B, baby));
+    expect(server.rows('growth_measure')).toHaveLength(2);
+    await expectConverged(server, A, B);
+  });
+
+  it('editar, borrar y restaurar se propagan; campos distintos editados a la vez se fusionan', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const g = await addGrowth(A.ctx, { babyId: baby, measuredOn: '2027-01-05', weightG: 5600, lengthMm: 600, headMm: 400 });
+    await settle(A, B);
+    await editGrowth(A.ctx, g.id, { weightG: 5650 });
+    await editGrowth(B.ctx, g.id, { headMm: 410, place: 'Casa' });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    for (const p of [A, B]) expect((await listGrowth(p.ctx, baby))[0]).toMatchObject({ weight_g: 5650, length_mm: 600, head_mm: 410, place: 'Casa' });
+    expect(server.conflicts.filter((c) => c.status === 'open')).toEqual([]);
+    await deleteGrowth(B.ctx, g.id);
+    await settle(A, B);
+    expect(await listGrowth(A.ctx, baby)).toEqual([]);
+    await restoreGrowth(A.ctx, g.id);
+    await settle(A, B);
+    expect(await listGrowth(B.ctx, baby)).toHaveLength(1);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    await expectConverged(server, A, B);
+  });
+
+  it('dos cuidadores cambian el mismo peso a la vez: nada se rechaza y queda el cambio alternativo para decidir', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const g = await addGrowth(A.ctx, { babyId: baby, measuredOn: '2027-01-05', weightG: 5600 });
+    await settle(A, B);
+    await editGrowth(A.ctx, g.id, { weightG: 5700 });
+    await editGrowth(B.ctx, g.id, { weightG: 5800 });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    expect(server.conflicts.filter((c) => c.status === 'open' && c.field === 'weight_g')).toHaveLength(1);
+    await expectConverged(server, A, B);
+  });
+
+  it('borrar una medida en un móvil mientras el otro la edita: se conserva y queda marcada', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const g = await addGrowth(A.ctx, { babyId: baby, measuredOn: '2027-01-05', weightG: 5600 });
+    await settle(A, B);
+    await deleteGrowth(A.ctx, g.id);
+    await editGrowth(B.ctx, g.id, { notes: 'revisada' });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    expect(server.conflicts.filter((c) => c.status === 'open')).toHaveLength(1);
+    for (const p of [A, B]) expect(await listGrowth(p.ctx, baby)).toHaveLength(1);
+    await expectConverged(server, A, B);
+  });
+
+  it('un móvil nuevo que entra después recibe las medidas; las anotadas antes de conectar se suben tal cual', async () => {
+    const { clock, server, A, B, baby } = await connectedPair();
+    await addGrowth(A.ctx, { babyId: baby, measuredOn: '2027-01-05', weightG: 5600 });
+    await settle(A, B);
+    clock.tick(HOUR);
+    const C = await makePhone(server, clock, 'C', 0);
+    expect((await C.connect()).ok).toBe(true);
+    await settle(A, B, C);
+    expect(await summary(C, baby)).toEqual(await summary(A, baby));
+    await expectConverged(server, A, B, C);
+
+    const pre = await pair({
+      seedA: async (X) => {
+        const b = await createBaby(X.ctx, { alias: 'Lía', birthDate: '2026-07-01' });
+        await addGrowth(X.ctx, { babyId: b.id, measuredOn: '2026-11-02', weightG: 5000, headMm: 395 });
+      },
+    });
+    expect((await pre.A.connect()).ok).toBe(true);
+    expect((await pre.B.connect()).ok).toBe(true);
+    await settle(pre.A, pre.B);
+    expect(pre.server.rows('growth_measure')).toHaveLength(1);
+    expect(await listGrowth(pre.B.ctx, (await listBabies(pre.B.ctx))[0]!.id)).toHaveLength(1);
+  });
+
+  it('al fusionar dos perfiles duplicados las medidas pasan al que se conserva, en los dos móviles', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const other = await createBaby(A.ctx, { alias: 'Duplicado', birthDate: '2026-07-01' });
+    await addGrowth(A.ctx, { babyId: other.id, measuredOn: '2027-01-05', weightG: 5600 });
+    await settle(A, B);
+    await mergeBabies(A.ctx, other.id, baby);
+    await settle(A, B);
+    for (const p of [A, B]) {
+      expect(await listGrowth(p.ctx, baby)).toHaveLength(1);
+      expect(await listGrowth(p.ctx, other.id)).toEqual([]);
+    }
+    await expectConverged(server, A, B);
+  });
+});
+
 describe('convergencia (prueba aleatoria)', () => {
   /** Cuánto de lo de salud acabó en el servidor a lo largo de todas las semillas: si fuera 0, la prueba no probaría nada. */
-  const exercised = { seeds: 0, vaccinations: 0, appointments: 0, healthProfiles: 0, withReminders: 0 };
+  const exercised = { seeds: 0, growth: 0, vaccinations: 0, appointments: 0, healthProfiles: 0, withReminders: 0 };
   const rng = (seed: number) => () => {
     seed |= 0;
     seed = (seed + 0x6d2b79f5) | 0;
@@ -861,9 +966,10 @@ describe('convergencia (prueba aleatoria)', () => {
       const nights = live.filter((x) => x.sleep_type === 'night');
       const vacs = (await p.ctx.db.vaccination.toArray()).filter((x) => x.baby_id === baby);
       const appts = (await p.ctx.db.appointment.toArray()).filter((x) => x.baby_id === baby);
+      const grows = (await p.ctx.db.growth_measure.toArray()).filter((x) => x.baby_id === baby);
       clock.tick((1 + Math.floor(rand() * 25)) * MIN);
 
-      const action = pick(['start', 'finish', 'cancel', 'edit', 'delete', 'restore', 'manual', 'note', 'profile', 'feedStart', 'feedFinish', 'feedEdit', 'feedNote', 'feedDelete', 'awStart', 'awManual', 'awFinish', 'awEdit', 'awDelete', 'hProfile', 'vRecord', 'vEdit', 'vDelete', 'vRestore', 'aAdd', 'aEdit', 'aStatus', 'aDelete', 'aRestore', 'sync', 'sync', 'sync', 'fail']);
+      const action = pick(['start', 'finish', 'cancel', 'edit', 'delete', 'restore', 'manual', 'note', 'profile', 'feedStart', 'feedFinish', 'feedEdit', 'feedNote', 'feedDelete', 'awStart', 'awManual', 'awFinish', 'awEdit', 'awDelete', 'hProfile', 'vRecord', 'vEdit', 'vDelete', 'vRestore', 'aAdd', 'aEdit', 'aStatus', 'aDelete', 'aRestore', 'gAdd', 'gEdit', 'gDelete', 'gRestore', 'sync', 'sync', 'sync', 'fail']);
       trace.push(`${step} ${p.name} ${action} open=${open?.id.slice(-6) ?? '-'} live=[${live.map((x) => x.id.slice(-6))}] trash=[${trashed.map((x) => x.id.slice(-6))}]`);
       try {
         if (action === 'start' && !open) await startSleep(p.ctx, baby);
@@ -922,6 +1028,13 @@ describe('convergencia (prueba aleatoria)', () => {
         } else if (action === 'aStatus' && appts.some((x) => x.deleted_at === null)) await setAppointmentStatus(p.ctx, pick(appts.filter((x) => x.deleted_at === null)).id, pick(['scheduled', 'done', 'cancelled'] as const));
         else if (action === 'aDelete' && appts.some((x) => x.deleted_at === null)) await deleteAppointment(p.ctx, pick(appts.filter((x) => x.deleted_at === null)).id);
         else if (action === 'aRestore' && appts.some((x) => x.deleted_at !== null)) await restoreAppointment(p.ctx, pick(appts.filter((x) => x.deleted_at !== null)).id);
+        else if (action === 'gAdd') {
+          await addGrowth(p.ctx, { babyId: baby, measuredOn: `2027-01-${10 + Math.floor(rand() * 5)}`, weightG: rand() < 0.2 ? null : 4000 + Math.floor(rand() * 2000), lengthMm: rand() < 0.5 ? null : 560 + Math.floor(rand() * 80), headMm: rand() < 0.5 ? null : 380 + Math.floor(rand() * 40) });
+        } else if (action === 'gEdit' && grows.some((x) => x.deleted_at === null)) {
+          const g = pick(grows.filter((x) => x.deleted_at === null));
+          await editGrowth(p.ctx, g.id, rand() < 0.5 ? { weightG: 4000 + Math.floor(rand() * 2000) } : { place: `Lugar ${step}`, notes: rand() < 0.3 ? '' : `nota ${step}` });
+        } else if (action === 'gDelete' && grows.some((x) => x.deleted_at === null)) await deleteGrowth(p.ctx, pick(grows.filter((x) => x.deleted_at === null)).id);
+        else if (action === 'gRestore' && grows.some((x) => x.deleted_at !== null)) await restoreGrowth(p.ctx, pick(grows.filter((x) => x.deleted_at !== null)).id);
         else if (action === 'sync') await p.sync();
         else if (action === 'fail') {
           p.transport[rand() < 0.5 ? 'dropNextResponse' : 'offline'] = true;
@@ -941,6 +1054,7 @@ describe('convergencia (prueba aleatoria)', () => {
     exercised.seeds++;
     exercised.vaccinations += server.rows('vaccination').length;
     exercised.appointments += server.rows('appointment').length;
+    exercised.growth += server.rows('growth_measure').length;
     exercised.withReminders += server.rows('appointment').filter((a) => ((a['remind_before_min'] as number[] | undefined) ?? []).length > 0).length;
     exercised.healthProfiles += server.rows('baby').filter((b) => b['pediatrician'] != null || b['health_center_name'] != null || b['cipa'] != null).length;
     try {
@@ -955,6 +1069,7 @@ describe('convergencia (prueba aleatoria)', () => {
     if (exercised.seeds === 0) return; // se filtró la ejecución y las semillas no corrieron
     expect(exercised.vaccinations).toBeGreaterThan(0);
     expect(exercised.appointments).toBeGreaterThan(0);
+    expect(exercised.growth).toBeGreaterThan(0);
     expect(exercised.withReminders).toBeGreaterThan(0);
     expect(exercised.healthProfiles).toBeGreaterThan(0);
   });

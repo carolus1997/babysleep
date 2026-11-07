@@ -57,6 +57,11 @@ const FIELD_LABEL: Record<string, string> = {
   status: 'estado',
   kind: 'tipo',
   remind_before_min: 'avisos',
+  // crecimiento (0.7.0)
+  measured_on: 'fecha de la medida',
+  weight_g: 'peso',
+  length_mm: 'talla',
+  head_mm: 'perímetro cefálico',
 };
 
 const STATUS_LABEL: Record<string, string> = { scheduled: 'Pendiente', done: 'Hecha', cancelled: 'Cancelada', given: 'Puesta', not_applicable: 'No procede' };
@@ -81,8 +86,10 @@ export function describeValue(field: string | null, value: unknown, zone: string
     if (field === 'type_source') return SOURCE_LABEL[value] ?? value;
     if (field === 'status') return STATUS_LABEL[value] ?? value;
     if (field === 'cipa') return maskSecret(value);
-    if (field === 'given_on' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(`${value}T12:00:00Z`).toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
+    if ((field === 'given_on' || field === 'measured_on') && /^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(`${value}T12:00:00Z`).toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
   }
+  if (typeof value === 'number' && field === 'weight_g') return `${(value / 1000).toLocaleString('es-ES', { maximumFractionDigits: 3 })} kg`;
+  if (typeof value === 'number' && (field === 'length_mm' || field === 'head_mm')) return `${(value / 10).toLocaleString('es-ES', { maximumFractionDigits: 1 })} cm`;
   if (field === 'remind_before_min' && Array.isArray(value)) return value.length === 0 ? 'ninguno' : (value as number[]).map(reminderText).join(', ');
   return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { listAppointments } from '../src/domain/appointments';
+import { listGrowth } from '../src/domain/growth';
 import { listVaccinations, planFor } from '../src/domain/vaccines';
 import { normalizeServerRow, pullOnly } from '../src/sync/engine';
 import { SYNC_SCHEMAS } from '../src/sync/tables';
@@ -13,7 +14,7 @@ import { makeHarness } from './harness';
  * la base de datos devuelve: formato de las fechas, listas de enteros, textos con saltos de línea, nulos.
  * Si cambia el esquema, se vuelve a generar el archivo.
  */
-type Fixture = { baby: Array<Record<string, unknown>>; vaccination: Array<Record<string, unknown>>; appointment: Array<Record<string, unknown>> };
+type Fixture = { baby: Array<Record<string, unknown>>; vaccination: Array<Record<string, unknown>>; appointment: Array<Record<string, unknown>>; growth_measure: Array<Record<string, unknown>> };
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/postgres-rows.json', import.meta.url), 'utf-8')) as Fixture;
 
 describe('filas reales de PostgreSQL de salud', () => {
@@ -26,6 +27,7 @@ describe('filas reales de PostgreSQL de salud', () => {
     ['baby', () => fixture.baby],
     ['vaccination', () => fixture.vaccination],
     ['appointment', () => fixture.appointment],
+    ['growth_measure', () => fixture.growth_measure],
   ] as const)('cada fila de %s se normaliza y cumple el contrato', (table, rows) => {
     expect(rows().length).toBeGreaterThan(0);
     for (const raw of rows()) {
@@ -56,12 +58,15 @@ describe('filas reales de PostgreSQL de salud', () => {
       status: 'scheduled',
     });
     expect(appt.find((a) => a.title === 'Sin avisos')?.remind_before_min).toEqual([]);
+    const growth = fixture.growth_measure.map((r) => SYNC_SCHEMAS.growth_measure.parse(normalizeServerRow(r)));
+    expect(growth.find((g) => g.measured_on === '2027-01-05')).toMatchObject({ weight_g: 5600, length_mm: null, head_mm: 405, place: 'Centro de prueba', notes: 'en ayunas' });
+    expect(growth.find((g) => g.measured_on === '2027-01-12')).toMatchObject({ weight_g: null, length_mm: 625, head_mm: null });
   });
 
   it('un móvil nuevo que recibe estas filas por el motor de sincronización las guarda y la app las entiende', async () => {
     const h = await makeHarness('2027-02-01T12:00');
     const page: PullPage = {
-      rows: { baby: fixture.baby, vaccination: fixture.vaccination, appointment: fixture.appointment },
+      rows: { baby: fixture.baby, vaccination: fixture.vaccination, appointment: fixture.appointment, growth_measure: fixture.growth_measure },
       change_seq: 7,
       more: false,
     };
@@ -72,7 +77,7 @@ describe('filas reales de PostgreSQL de salud', () => {
     };
     const report = await pullOnly(h.ctx, transport);
     expect(report.invalidRows).toBe(0);
-    expect(report.pulled).toBe(fixture.baby.length + fixture.vaccination.length + fixture.appointment.length);
+    expect(report.pulled).toBe(fixture.baby.length + fixture.vaccination.length + fixture.appointment.length + fixture.growth_measure.length);
 
     const babyId = fixture.baby[0]?.['id'] as string;
     const baby = (await h.ctx.db.baby.get(babyId))!;
@@ -83,5 +88,6 @@ describe('filas reales de PostgreSQL de salud', () => {
     expect(plan.find((m) => m.milestone.id === '2m')?.doses.find((d) => d.key === 'DTPa@2m')?.status).toBe('given');
     expect(plan.find((m) => m.milestone.id === '2m')?.doses.find((d) => d.key === 'RV@2m')?.status).toBe('not_applicable');
     expect((await listAppointments(h.ctx, babyId)).map((a) => a.title)).toEqual(['Revision de los 4 meses', 'Sin avisos']);
+    expect((await listGrowth(h.ctx, babyId)).map((g) => `${g.measured_on}:${g.weight_g}:${g.length_mm}:${g.head_mm}`)).toEqual(['2027-01-05:5600:null:405', '2027-01-12:null:625:null']);
   });
 });
