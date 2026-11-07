@@ -19,9 +19,16 @@ begin
   end loop;
 end $$;
 
+-- Nombres propios: `feeding_breast_side_check` y `feeding_amount_ml_check` ya existen (son las restricciones de
+-- columna de 0008 sobre los valores del pecho y el rango de ml) y no se tocan. El `drop ... if exists` permite
+-- volver a ejecutar el script si una ejecución anterior se quedó a medias.
+alter table app.feeding
+  drop constraint if exists feeding_feed_type_check,
+  drop constraint if exists feeding_breast_side_type_check,
+  drop constraint if exists feeding_amount_ml_type_check;
 alter table app.feeding
   add constraint feeding_feed_type_check check (feed_type in ('breast', 'bottle', 'mixed', 'solids')),
-  add constraint feeding_breast_side_check check (breast_side is null or feed_type in ('breast', 'mixed')),
-  add constraint feeding_amount_ml_check check (amount_ml is null or feed_type in ('bottle', 'mixed'));
+  add constraint feeding_breast_side_type_check check (breast_side is null or feed_type in ('breast', 'mixed')),
+  add constraint feeding_amount_ml_type_check check (amount_ml is null or feed_type in ('bottle', 'mixed'));
 
 update app.app_meta set value = '0.16.0' where key = 'schema_version';
