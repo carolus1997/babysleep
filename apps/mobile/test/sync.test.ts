@@ -5,6 +5,8 @@ import { BabySleepDb } from '../src/db/schema';
 import { createBaby, deleteBaby, ensureBootstrap, listBabies, renameBaby, restoreBaby } from '../src/domain/bootstrap';
 import { mergeBabies } from '../src/domain/merge';
 import type { Ctx } from '../src/domain/context';
+import { addAppointment, deleteAppointment, editAppointment, listAppointments, restoreAppointment, setAppointmentStatus } from '../src/domain/appointments';
+import { addExtraVaccine, deleteVaccination, editVaccination, listVaccinations, markNotApplicable, planFor, recordDoses, restoreVaccination } from '../src/domain/vaccines';
 import { addManualAwakening, deleteAwakening, editAwakening, finishAwakening, getOpenAwakening, startAwakening } from '../src/domain/awakening';
 import { deleteFeeding, editFeeding, finishFeeding as finishFeed, getOpenFeeding, listFeedings, nudgeFeedingStart, restoreFeeding, startFeeding as startFeed } from '../src/domain/feeding';
 import { listTags, saveObservation } from '../src/domain/notes';
@@ -613,7 +615,223 @@ describe('perfiles duplicados del mismo bebé', () => {
   });
 });
 
+describe('salud entre dos móviles', () => {
+  const doseStates = async (p: Phone, baby: string) => {
+    const b = (await p.ctx.db.baby.get(baby))!;
+    return planFor(p.ctx, b, await listVaccinations(p.ctx, baby)).flatMap((m) => m.doses.map((d) => `${d.key}:${d.status}:${d.record?.given_on ?? '-'}`));
+  };
+
+  it('la ficha de salud de uno aparece en el otro; el CIPA también', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    await renameBaby(A.ctx, baby, { pediatrician: 'Dra. Prueba', health_center_name: 'Centro de prueba', health_center_phone: '910000000', allergies: 'ninguna conocida', health_notes: 'linea 1\nlinea 2', cipa: 'TEST0000000000' });
+    await settle(A, B);
+    for (const p of [A, B]) {
+      expect(await p.ctx.db.baby.get(baby)).toMatchObject({ pediatrician: 'Dra. Prueba', health_center_name: 'Centro de prueba', health_center_phone: '910000000', allergies: 'ninguna conocida', health_notes: 'linea 1\nlinea 2', cipa: 'TEST0000000000' });
+    }
+    expect(server.get('baby', baby)).toMatchObject({ cipa: 'TEST0000000000' });
+    await expectConverged(server, A, B);
+  });
+
+  it('campos distintos de la ficha editados a la vez sin conexión se fusionan; el mismo campo: gana el último, sin conflicto ni rechazo', async () => {
+    const { clock, server, A, B, baby } = await connectedPair();
+    await renameBaby(A.ctx, baby, { pediatrician: 'Dra. A', health_center_name: 'Centro de A' });
+    clock.tick(MIN);
+    await renameBaby(B.ctx, baby, { nurse: 'Enfermera B', health_center_name: 'Centro de B' });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    for (const p of [A, B]) {
+      expect(await p.ctx.db.baby.get(baby)).toMatchObject({ pediatrician: 'Dra. A', nurse: 'Enfermera B', health_center_name: 'Centro de B' });
+    }
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    expect(server.conflicts.filter((c) => c.status === 'open')).toEqual([]);
+    await expectConverged(server, A, B);
+  });
+
+  it('los dos móviles abren la ficha a la vez y guardan el formulario ENTERO: lo que cada uno cambió se conserva, no se pisan los campos que no tocaron', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    await renameBaby(A.ctx, baby, { pediatrician: 'Dra. Inicial', nurse: 'Enfermera inicial' });
+    await settle(A, B);
+    const open = async (p: Phone) => {
+      const b = (await p.ctx.db.baby.get(baby))!;
+      return { pediatrician: b.pediatrician, nurse: b.nurse, health_center_name: b.health_center_name, allergies: b.allergies, cipa: b.cipa };
+    };
+    const formA = await open(A);
+    const formB = await open(B); // los dos parten de lo mismo
+    await renameBaby(A.ctx, baby, { ...formA, pediatrician: 'Dra. Nueva' });
+    await renameBaby(B.ctx, baby, { ...formB, nurse: 'Enfermera nueva', health_center_name: 'Centro nuevo' });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    for (const p of [A, B]) expect(await p.ctx.db.baby.get(baby)).toMatchObject({ pediatrician: 'Dra. Nueva', nurse: 'Enfermera nueva', health_center_name: 'Centro nuevo' });
+    await expectConverged(server, A, B);
+  });
+
+  it('una visita de vacunas registrada en un móvil llega al otro con las mismas fechas y estados; editar, borrar y restaurar se propagan', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const made = await recordDoses(A.ctx, { babyId: baby, doseKeys: ['VHB@2m', 'DTPa@2m', 'VPI@2m', 'Hib@2m'], givenOn: '2027-01-05', center: 'Centro de prueba', lot: 'LOTE-1' });
+    await markNotApplicable(A.ctx, baby, 'RV@2m');
+    await addExtraVaccine(A.ctx, { babyId: baby, vaccine: 'Gripe 2026-27', givenOn: '2027-01-10' });
+    await settle(A, B);
+    expect(await listVaccinations(B.ctx, baby)).toHaveLength(6);
+    expect(await doseStates(B, baby)).toEqual(await doseStates(A, baby));
+
+    await editVaccination(B.ctx, made[0]!.id, { givenOn: '2027-01-06', lot: 'LOTE-2' });
+    await deleteVaccination(A.ctx, made[1]!.id);
+    await settle(A, B);
+    expect((await B.ctx.db.vaccination.get(made[0]!.id))).toMatchObject({ given_on: '2027-01-06', lot: 'LOTE-2' });
+    expect(await listVaccinations(B.ctx, baby)).toHaveLength(5);
+    expect(await doseStates(B, baby)).toEqual(await doseStates(A, baby));
+
+    await restoreVaccination(B.ctx, made[1]!.id);
+    await settle(A, B);
+    expect(await listVaccinations(A.ctx, baby)).toHaveLength(6);
+    expect(await doseStates(A, baby)).toEqual(await doseStates(B, baby));
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    await expectConverged(server, A, B);
+  });
+
+  it('dos cuidadores anotan la misma dosis sin conexión: nada se rechaza, converge y el plan es el mismo en los dos', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    await recordDoses(A.ctx, { babyId: baby, doseKeys: ['DTPa@2m'], givenOn: '2027-01-08' });
+    await recordDoses(B.ctx, { babyId: baby, doseKeys: ['DTPa@2m', 'VPI@2m'], givenOn: '2027-01-05' });
+    await markNotApplicable(A.ctx, baby, 'VPI@2m'); // uno la da por puesta, el otro por «no procede»
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    expect((await listVaccinations(A.ctx, baby)).filter((v) => v.dose_key === 'DTPa@2m')).toHaveLength(2);
+    const a = await doseStates(A, baby);
+    expect(a).toEqual(await doseStates(B, baby));
+    expect(a).toContain('DTPa@2m:given:2027-01-05'); // gana la primera vez que consta
+    expect(a).toContain('VPI@2m:given:2027-01-05'); // «puesta» gana a «no procede»
+    await expectConverged(server, A, B);
+  });
+
+  it('las citas viajan con sus avisos (lista); estado y título editados a la vez se fusionan', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const a = await addAppointment(A.ctx, { babyId: baby, kind: 'pediatrician', title: 'Revision', startLocal: '2027-03-01T09:30', durationMin: 20, place: 'Centro de prueba', remindBeforeMin: [1440, 60] });
+    await settle(A, B);
+    expect(await listAppointments(B.ctx, baby)).toMatchObject([{ id: a.id, title: 'Revision', remind_before_min: [1440, 60], duration_min: 20, start_utc: a.start_utc }]);
+
+    await setAppointmentStatus(B.ctx, a.id, 'done');
+    await editAppointment(A.ctx, a.id, { title: 'Revision de los 4 meses', place: 'Otro centro' });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    for (const p of [A, B]) expect(await p.ctx.db.appointment.get(a.id)).toMatchObject({ status: 'done', title: 'Revision de los 4 meses', place: 'Otro centro' });
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    await expectConverged(server, A, B);
+  });
+
+  it('los avisos de una cita editados a la vez: converge, sin rechazos, y queda el cambio alternativo para decidir', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const a = await addAppointment(A.ctx, { babyId: baby, kind: 'test', title: 'Analisis', startLocal: '2027-03-01T09:30', remindBeforeMin: [1440, 60] });
+    await settle(A, B);
+    await editAppointment(A.ctx, a.id, { remindBeforeMin: [120] });
+    await editAppointment(B.ctx, a.id, { remindBeforeMin: [10080, 30] });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    expect(server.get('appointment', a.id)?.['remind_before_min']).toEqual([120]); // el primero en llegar
+    expect(server.conflicts.some((c) => c.field === 'remind_before_min' && c.status === 'open')).toBe(true);
+    await expectConverged(server, A, B);
+  });
+
+  it('borrar una cita en un móvil mientras el otro la edita (en cualquier orden de envío): se conserva y queda marcada; borrar y restaurar se propagan', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const a = await addAppointment(A.ctx, { babyId: baby, kind: 'other', title: 'Cita', startLocal: '2027-03-01T09:30' });
+    const b = await addAppointment(A.ctx, { babyId: baby, kind: 'other', title: 'Otra cita', startLocal: '2027-03-02T09:30' });
+    await settle(A, B);
+
+    // el borrado llega primero y la edición después / la edición llega primero y el borrado después
+    await deleteAppointment(A.ctx, a.id);
+    await editAppointment(B.ctx, a.id, { place: 'Lugar nuevo' });
+    await editAppointment(A.ctx, b.id, { place: 'Lugar de A' });
+    await deleteAppointment(B.ctx, b.id);
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    expect(server.conflicts.filter((c) => c.status === 'open').map((c) => c.row_id).sort()).toEqual([a.id, b.id].sort());
+    expect(server.conflicts.map((c) => c.kind).sort()).toEqual(['delete_vs_edit', 'edit_after_delete']);
+    // nada se pierde en silencio: las dos citas siguen vivas en los dos móviles
+    for (const p of [A, B]) expect((await listAppointments(p.ctx, baby)).map((x) => x.id).sort()).toEqual([a.id, b.id].sort());
+
+    await deleteAppointment(B.ctx, a.id);
+    await settle(A, B);
+    expect((await listAppointments(A.ctx, baby)).map((x) => x.id)).toEqual([b.id]);
+    await restoreAppointment(A.ctx, a.id);
+    await settle(A, B);
+    expect(await listAppointments(B.ctx, baby)).toHaveLength(2);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    await expectConverged(server, A, B);
+  });
+
+  it('un móvil nuevo que entra después recibe todo lo de salud: ficha, vacunas y citas', async () => {
+    const { clock, server, A, B, baby } = await connectedPair();
+    await renameBaby(A.ctx, baby, { pediatrician: 'Dra. Prueba', cipa: 'TEST0000000000' });
+    await recordDoses(A.ctx, { babyId: baby, doseKeys: ['VHB@2m', 'DTPa@2m'], givenOn: '2027-01-05' });
+    await addAppointment(B.ctx, { babyId: baby, kind: 'nurse', title: 'Enfermeria', startLocal: '2027-03-01T09:30', remindBeforeMin: [60] });
+    await settle(A, B);
+
+    clock.tick(HOUR);
+    const C = await makePhone(server, clock, 'C', 0);
+    expect((await C.connect()).ok).toBe(true);
+    await settle(A, B, C);
+    expect(await C.ctx.db.baby.get(baby)).toMatchObject({ pediatrician: 'Dra. Prueba', cipa: 'TEST0000000000' });
+    expect(await listVaccinations(C.ctx, baby)).toHaveLength(2);
+    expect((await listAppointments(C.ctx, baby)).map((x) => x.title)).toEqual(['Enfermeria']);
+    expect(await doseStates(C, baby)).toEqual(await doseStates(A, baby));
+    await expectConverged(server, A, B, C);
+  });
+
+  it('lo anotado de salud ANTES de conectar el móvil se sube tal cual y el otro lo recibe', async () => {
+    const { server, A, B } = await pair({
+      seedA: async (A) => {
+        const baby = await createBaby(A.ctx, { alias: 'Lía', birthDate: '2026-07-01' });
+        await renameBaby(A.ctx, baby.id, { pediatrician: 'Dra. Prueba', cipa: 'TEST0000000000' });
+        await recordDoses(A.ctx, { babyId: baby.id, doseKeys: ['VHB@2m'], givenOn: '2026-11-02' });
+        await addAppointment(A.ctx, { babyId: baby.id, kind: 'other', title: 'Cita previa', startLocal: '2027-03-01T09:30' });
+      },
+    });
+    expect((await A.connect()).ok).toBe(true);
+    expect((await B.connect()).ok).toBe(true);
+    await settle(A, B);
+    expect(server.rows('vaccination')).toHaveLength(1);
+    expect(server.rows('appointment')).toHaveLength(1);
+    const baby = (await listBabies(B.ctx))[0]!;
+    expect(baby).toMatchObject({ pediatrician: 'Dra. Prueba', cipa: 'TEST0000000000' });
+    expect(await listVaccinations(B.ctx, baby.id)).toHaveLength(1);
+    expect(await listAppointments(B.ctx, baby.id)).toHaveLength(1);
+    await expectConverged(server, A, B);
+  });
+
+  it('un perfil anterior a la ficha de salud (sin esos campos) sigue sincronizando y recibe la ficha del otro móvil', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    // El móvil B guardó su perfil antes de existir los campos de salud: en su almacenamiento no están.
+    const legacy: Record<string, unknown> = { ...(await B.ctx.db.baby.get(baby)) };
+    for (const k of ['pediatrician', 'nurse', 'health_center_name', 'health_center_address', 'health_center_phone', 'birth_hospital', 'allergies', 'health_notes', 'cipa']) delete legacy[k];
+    await B.ctx.db.baby.put(legacy as never);
+    await renameBaby(A.ctx, baby, { pediatrician: 'Dra. Prueba', cipa: 'TEST0000000000' });
+    await settle(A, B);
+    expect(await B.ctx.db.baby.get(baby)).toMatchObject({ pediatrician: 'Dra. Prueba', cipa: 'TEST0000000000' });
+    await renameBaby(B.ctx, baby, { nurse: 'Enfermera B' });
+    await settle(A, B);
+    expect(await A.ctx.db.baby.get(baby)).toMatchObject({ nurse: 'Enfermera B', pediatrician: 'Dra. Prueba' });
+    await expectConverged(server, A, B);
+  });
+});
+
 describe('convergencia (prueba aleatoria)', () => {
+  /** Cuánto de lo de salud acabó en el servidor a lo largo de todas las semillas: si fuera 0, la prueba no probaría nada. */
+  const exercised = { seeds: 0, vaccinations: 0, appointments: 0, healthProfiles: 0, withReminders: 0 };
   const rng = (seed: number) => () => {
     seed |= 0;
     seed = (seed + 0x6d2b79f5) | 0;
@@ -641,9 +859,11 @@ describe('convergencia (prueba aleatoria)', () => {
       const feeds = (await p.ctx.db.feeding.toArray()).filter((x) => x.baby_id === baby && x.deleted_at === null);
       const awakes = (await p.ctx.db.awakening.toArray()).filter((x) => x.baby_id === baby && x.deleted_at === null);
       const nights = live.filter((x) => x.sleep_type === 'night');
+      const vacs = (await p.ctx.db.vaccination.toArray()).filter((x) => x.baby_id === baby);
+      const appts = (await p.ctx.db.appointment.toArray()).filter((x) => x.baby_id === baby);
       clock.tick((1 + Math.floor(rand() * 25)) * MIN);
 
-      const action = pick(['start', 'finish', 'cancel', 'edit', 'delete', 'restore', 'manual', 'note', 'profile', 'feedStart', 'feedFinish', 'feedEdit', 'feedNote', 'feedDelete', 'awStart', 'awManual', 'awFinish', 'awEdit', 'awDelete', 'sync', 'sync', 'sync', 'fail']);
+      const action = pick(['start', 'finish', 'cancel', 'edit', 'delete', 'restore', 'manual', 'note', 'profile', 'feedStart', 'feedFinish', 'feedEdit', 'feedNote', 'feedDelete', 'awStart', 'awManual', 'awFinish', 'awEdit', 'awDelete', 'hProfile', 'vRecord', 'vEdit', 'vDelete', 'vRestore', 'aAdd', 'aEdit', 'aStatus', 'aDelete', 'aRestore', 'sync', 'sync', 'sync', 'fail']);
       trace.push(`${step} ${p.name} ${action} open=${open?.id.slice(-6) ?? '-'} live=[${live.map((x) => x.id.slice(-6))}] trash=[${trashed.map((x) => x.id.slice(-6))}]`);
       try {
         if (action === 'start' && !open) await startSleep(p.ctx, baby);
@@ -684,6 +904,24 @@ describe('convergencia (prueba aleatoria)', () => {
           if (rand() < 0.5) await editAwakening(p.ctx, a.id, { reason: pick(['crying', 'other', null] as const) });
           else await editAwakening(p.ctx, a.id, { endMs: parseInstant(a.start_utc) + (10 + Math.floor(rand() * 50)) * MIN });
         } else if (action === 'awDelete' && awakes.length > 0) await deleteAwakening(p.ctx, pick(awakes).id);
+        else if (action === 'hProfile') {
+          await renameBaby(p.ctx, baby, rand() < 0.5 ? { pediatrician: `Dra. ${step}`, cipa: rand() < 0.3 ? '' : `TEST${step}` } : { health_center_name: `Centro ${step}`, allergies: rand() < 0.3 ? '' : `alergia ${step}` });
+        } else if (action === 'vRecord') {
+          const keys = ['VHB@2m', 'DTPa@2m', 'VPI@2m', 'Hib@2m', 'VNC@2m', 'MenB@2m', 'RV@2m', 'VHB@4m', 'DTPa@4m'];
+          await recordDoses(p.ctx, { babyId: baby, doseKeys: [pick(keys), pick(keys)], givenOn: `2027-01-${10 + Math.floor(rand() * 5)}` });
+          if (rand() < 0.3) await addExtraVaccine(p.ctx, { babyId: baby, vaccine: `Campaña ${step}`, givenOn: '2027-01-12' });
+        } else if (action === 'vEdit' && vacs.some((x) => x.deleted_at === null && x.status === 'given')) {
+          await editVaccination(p.ctx, pick(vacs.filter((x) => x.deleted_at === null && x.status === 'given')).id, rand() < 0.5 ? { givenOn: `2027-01-${10 + Math.floor(rand() * 5)}` } : { lot: `L${step}` });
+        } else if (action === 'vDelete' && vacs.some((x) => x.deleted_at === null)) await deleteVaccination(p.ctx, pick(vacs.filter((x) => x.deleted_at === null)).id);
+        else if (action === 'vRestore' && vacs.some((x) => x.deleted_at !== null)) await restoreVaccination(p.ctx, pick(vacs.filter((x) => x.deleted_at !== null)).id);
+        else if (action === 'aAdd') {
+          await addAppointment(p.ctx, { babyId: baby, kind: pick(['pediatrician', 'nurse', 'vaccination', 'other'] as const), title: `Cita ${step}`, startLocal: `2027-02-${10 + Math.floor(rand() * 10)}T09:30`, remindBeforeMin: rand() < 0.3 ? [] : [1440, 60] });
+        } else if (action === 'aEdit' && appts.some((x) => x.deleted_at === null)) {
+          const a = pick(appts.filter((x) => x.deleted_at === null));
+          await editAppointment(p.ctx, a.id, rand() < 0.5 ? { remindBeforeMin: pick([[60], [1440, 120], [], [10080, 0]]) } : { title: `Cita ${step} editada`, place: `Lugar ${step}` });
+        } else if (action === 'aStatus' && appts.some((x) => x.deleted_at === null)) await setAppointmentStatus(p.ctx, pick(appts.filter((x) => x.deleted_at === null)).id, pick(['scheduled', 'done', 'cancelled'] as const));
+        else if (action === 'aDelete' && appts.some((x) => x.deleted_at === null)) await deleteAppointment(p.ctx, pick(appts.filter((x) => x.deleted_at === null)).id);
+        else if (action === 'aRestore' && appts.some((x) => x.deleted_at !== null)) await restoreAppointment(p.ctx, pick(appts.filter((x) => x.deleted_at !== null)).id);
         else if (action === 'sync') await p.sync();
         else if (action === 'fail') {
           p.transport[rand() < 0.5 ? 'dropNextResponse' : 'offline'] = true;
@@ -700,11 +938,24 @@ describe('convergencia (prueba aleatoria)', () => {
     await settle(A, B);
     expect(await rejectedEntries(A.ctx.db)).toEqual([]);
     expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    exercised.seeds++;
+    exercised.vaccinations += server.rows('vaccination').length;
+    exercised.appointments += server.rows('appointment').length;
+    exercised.withReminders += server.rows('appointment').filter((a) => ((a['remind_before_min'] as number[] | undefined) ?? []).length > 0).length;
+    exercised.healthProfiles += server.rows('baby').filter((b) => b['pediatrician'] != null || b['health_center_name'] != null || b['cipa'] != null).length;
     try {
       await expectConverged(server, A, B);
     } catch (e) {
       if (process.env['SYNC_TRACE']) console.log(trace.join('\n'));
       throw e;
     }
+  });
+
+  it('la prueba aleatoria sí ejercita la ficha, las vacunas y las citas (no converge «en vacío»)', () => {
+    if (exercised.seeds === 0) return; // se filtró la ejecución y las semillas no corrieron
+    expect(exercised.vaccinations).toBeGreaterThan(0);
+    expect(exercised.appointments).toBeGreaterThan(0);
+    expect(exercised.withReminders).toBeGreaterThan(0);
+    expect(exercised.healthProfiles).toBeGreaterThan(0);
   });
 });

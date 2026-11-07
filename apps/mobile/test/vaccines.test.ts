@@ -38,6 +38,27 @@ describe('ficha de salud', () => {
   });
 });
 
+describe('guardar la ficha manda solo lo que cambió', () => {
+  it('los campos que no se tocaron no se envían (no pisan lo que otro móvil cambió) y sin cambios no se escribe nada', async () => {
+    const h = await makeHarness('2027-01-20T12:00');
+    const baby = await createBaby(h.ctx, { alias: 'B', birthDate: '2026-09-01' });
+    await renameBaby(h.ctx, baby.id, { pediatrician: 'Dra. A', nurse: 'Enfermera A' });
+    h.ctx.db.syncEnabled = true;
+    const before = (await h.ctx.db.baby.get(baby.id))!;
+
+    // El formulario manda TODOS los campos; solo `nurse` es nuevo.
+    await renameBaby(h.ctx, baby.id, { alias: 'B', birth_date: '2026-09-01', pediatrician: 'Dra. A', nurse: 'Enfermera B', allergies: '', cipa: '' });
+    const sent = (await h.ctx.db.outbox.toArray()).flatMap((e) => Object.keys(e.fields));
+    expect(sent).toEqual(['nurse']);
+
+    // Sin ningún cambio real: ni se escribe ni sube la versión.
+    const rev = (await h.ctx.db.baby.get(baby.id))!.rev;
+    await renameBaby(h.ctx, baby.id, { pediatrician: 'Dra. A', nurse: 'Enfermera B', allergies: null });
+    expect((await h.ctx.db.baby.get(baby.id))!.rev).toBe(rev);
+    expect(before.pediatrician).toBe('Dra. A');
+  });
+});
+
 describe('perfiles anteriores a la ficha de salud', () => {
   it('un perfil guardado antes de 0.5.0 (sin esos campos) se edita y se lee sin problema', async () => {
     const h = await makeHarness('2027-01-20T12:00');

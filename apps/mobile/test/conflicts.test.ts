@@ -36,6 +36,22 @@ describe('descripción de conflictos para personas', () => {
     expect(v.other).toBe('Usar Noche');
   });
 
+  it('los campos de salud tienen nombre legible, el CIPA se oculta y los avisos se leen como texto', () => {
+    expect(describeValue('cipa', 'TEST0000000000', ZONE)).toBe('••••••••••0000');
+    expect(describeValue('cipa', 'AB', ZONE)).toBe('••••');
+    expect(describeValue('remind_before_min', [1440, 60, 0, 10080, 30], ZONE)).toBe('1 d antes, 1 h antes, a la hora, 1 sem antes, 30 min antes');
+    expect(describeValue('remind_before_min', [], ZONE)).toBe('ninguno');
+    expect(describeValue('status', 'done', ZONE)).toBe('Hecha');
+    expect(describeValue('given_on', '2027-01-05', ZONE)).toMatch(/5 ene 2027/);
+    const v = describeConflict(row({ kind: 'field', field_name: 'cipa', current_value: 'TEST0000000000', alternate_value: 'OTRO1111111111' }), ZONE);
+    expect(v.question).toMatch(/CIPA/);
+    expect(v.keep + v.other).not.toMatch(/TEST0000000000|OTRO1111111111/); // nunca el valor completo
+    const r = describeConflict(row({ kind: 'field', field_name: 'remind_before_min', current_value: [120], alternate_value: [30, 0] }), ZONE);
+    expect(r.question).toMatch(/avisos/);
+    expect(r.keep).toBe('Dejar 2 h antes');
+    expect(r.other).toBe('Usar 30 min antes, a la hora');
+  });
+
   it('un campo desconocido se muestra con su nombre interno, sin romper', () => {
     const v = describeConflict(row({ kind: 'field', field_name: 'campo_raro', current_value: 1, alternate_value: 2 }), ZONE);
     expect(v.question).toMatch(/campo_raro/);

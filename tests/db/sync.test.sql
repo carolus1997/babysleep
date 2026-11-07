@@ -910,4 +910,43 @@ begin
   perform tests.as_superuser();
 end $$;
 
+-- S32 · conflictos de salud: se pueden resolver, también el de una lista (avisos de una cita) y el de la ficha del bebé
+do $$
+declare r jsonb; v_cid uuid; v int[]; n int; t text;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('appointment', 120, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'kind', 'test', 'title', 'Analisis', 'start_utc', '2027-05-01T08:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'remind_before_min', jsonb_build_array(1440, 60))));
+  perform tests.assert(r ->> 'status' = 'applied', 'S32a cita fixture');
+  r := tests.go(tests.op('appointment', 120, 1, '{"remind_before_min":[120]}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S32b el primero cambia los avisos');
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  r := tests.go(tests.op('appointment', 120, 1, '{"remind_before_min":[30, 0]}'));      -- base obsoleta: otro cambió lo mismo
+  perform tests.assert(r ->> 'status' in ('merged', 'conflict'), 'S32c el segundo no se rechaza: queda como conflicto');
+  perform tests.as_superuser();
+  select id into v_cid from app.sync_conflict where row_id = tests.u(120) and field_name = 'remind_before_min' and status = 'open';
+  perform tests.assert(v_cid is not null, 'S32d el conflicto de los avisos queda abierto');
+  select remind_before_min into v from app.appointment where id = tests.u(120);
+  perform tests.assert(v = array[120], 'S32e mientras tanto vale el primero');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  perform app.resolve_conflict(v_cid, 'other');
+  perform tests.as_superuser();
+  select remind_before_min into v from app.appointment where id = tests.u(120);
+  perform tests.assert(v = array[30, 0], 'S32f resolver con «usar el otro» aplica la lista alternativa');
+  select count(*) into n from app.sync_conflict where row_id = tests.u(120) and status = 'open';
+  perform tests.assert(n = 0, 'S32g el conflicto queda cerrado');
+
+  -- la ficha del bebé: «último por campo», sin conflicto, también con los campos de salud
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('baby', 1, (select rev from app.baby where id = tests.u(1)), '{"health_center_name":"Centro 1"}'));
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  r := tests.go(tests.op('baby', 1, 1, '{"health_center_name":"Centro 2","nurse":"Enfermera"}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S32h la ficha no genera conflictos: último por campo');
+  perform tests.as_superuser();
+  select health_center_name into t from app.baby where id = tests.u(1);
+  perform tests.assert(t = 'Centro 2', 'S32i gana el último cambio de cada campo');
+end $$;
+
 rollback;

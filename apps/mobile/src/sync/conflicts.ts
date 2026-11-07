@@ -36,7 +36,37 @@ const FIELD_LABEL: Record<string, string> = {
   birth_date: 'fecha de nacimiento',
   note_text: 'comentario',
   description: 'descripción',
+  // salud (0.5.0 y 0.6.0)
+  pediatrician: 'pediatra',
+  nurse: 'enfermera',
+  health_center_name: 'centro de salud',
+  health_center_address: 'dirección del centro',
+  health_center_phone: 'teléfono del centro',
+  birth_hospital: 'hospital de nacimiento',
+  allergies: 'alergias',
+  health_notes: 'notas de salud',
+  cipa: 'CIPA',
+  given_on: 'fecha en que se puso la vacuna',
+  center: 'centro',
+  lot: 'lote',
+  notes: 'notas',
+  title: 'título de la cita',
+  start_utc: 'hora de la cita',
+  place: 'lugar',
+  duration_min: 'duración (min)',
+  status: 'estado',
+  kind: 'tipo',
+  remind_before_min: 'avisos',
 };
+
+const STATUS_LABEL: Record<string, string> = { scheduled: 'Pendiente', done: 'Hecha', cancelled: 'Cancelada', given: 'Puesta', not_applicable: 'No procede' };
+
+/** «1 día antes», «1 h antes», «a la hora»… para la lista de avisos de una cita. */
+const reminderText = (min: number): string =>
+  min === 0 ? 'a la hora' : min % 10080 === 0 ? `${min / 10080} sem antes` : min % 1440 === 0 ? `${min / 1440} d antes` : min % 60 === 0 ? `${min / 60} h antes` : `${min} min antes`;
+
+/** El CIPA nunca se enseña entero en una pantalla de decisión: solo los 4 últimos caracteres. */
+const maskSecret = (v: string): string => (v.length <= 4 ? '••••' : `${'•'.repeat(v.length - 4)}${v.slice(-4)}`);
 
 const dateTime = (iso: string, zone: string) =>
   new Date(iso).toLocaleString('es-ES', { timeZone: zone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -49,7 +79,11 @@ export function describeValue(field: string | null, value: unknown, zone: string
     if (field === 'sleep_type') return TYPE_LABEL[value] ?? value;
     if (field === 'awakenings_completeness') return COMPLETENESS_LABEL[value] ?? value;
     if (field === 'type_source') return SOURCE_LABEL[value] ?? value;
+    if (field === 'status') return STATUS_LABEL[value] ?? value;
+    if (field === 'cipa') return maskSecret(value);
+    if (field === 'given_on' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(`${value}T12:00:00Z`).toLocaleDateString('es-ES', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
   }
+  if (field === 'remind_before_min' && Array.isArray(value)) return value.length === 0 ? 'ninguno' : (value as number[]).map(reminderText).join(', ');
   return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }
 

@@ -56,3 +56,28 @@ SYNC_TRACE=1 …                                                  # imprime las 
 - **Metadatos locales.** Si una edición del móvil resulta ser un no-op para el servidor (p. ej. restaurar algo vivo), el móvil conserva su `rev`/`updated_*` propios. El **contenido** converge siempre; la prueba solo tolera esos campos.
 - **Campos acoplados: juntos o ninguno** (migración 0008). El fin de una sesión con su zona y calidad, y en una toma el tipo con el pecho y los ml, solo tienen sentido juntos. Si otra persona tocó cualquiera de un grupo desde la versión que viste, tu cambio de ese grupo no se aplica y queda como conflicto abierto, en lugar de rechazarse. (Lo encontró la prueba aleatoria con tomas: 5 de 300 casos.)
 - **La foto del bebé no se sincroniza** (decisión de producto).
+
+## Datos de salud: cómo se sabe que viajan entre móviles
+
+La ficha de salud (columnas del perfil), las vacunas y las citas usan EXACTAMENTE el mismo camino que el sueño y las
+tomas (cola de operaciones, `apply_changes`, lectura por `change_seq`). Lo que lo comprueba:
+
+- **Dos móviles simulados** (`apps/mobile/test/sync.test.ts`, bloque «salud entre dos móviles»): la ficha (incluido el
+  CIPA), visitas de vacunas, la misma dosis anotada por dos cuidadores, citas con avisos (lista de enteros), edición a
+  la vez, borrar frente a editar, un móvil nuevo que entra después, datos anotados antes de conectar, perfiles
+  anteriores a la ficha, y dos formularios guardados a la vez sin pisarse campos. La prueba aleatoria (`SYNC_SEEDS=300`)
+  incluye acciones de salud y comprueba que de verdad se ejercitan.
+- **Filas reales de PostgreSQL → móvil** (`apps/mobile/test/server-rows.test.ts`): el cliente entiende el formato exacto
+  que devuelve la base de datos. El archivo `fixtures/postgres-rows.json` lo genera `python tools/dump-server-rows.py .`.
+- **Móvil → PostgreSQL real** (`tools/replay-client-ops.py`): reproduce contra PostgreSQL las operaciones REALES que envía
+  el motor (`fixtures/client-ops.json`, generado con `UPDATE_FIXTURES=1 npx vitest run apps/mobile/test/gen-client-ops.test.ts`)
+  y falla si el servidor rechaza alguna.
+- **Pruebas SQL** (`tests/db/sync.test.sql`, S29–S32): validaciones, aislamiento entre familias, permisos de lector y
+  resolución de conflictos de salud, incluida una lista.
+
+Regla importante: **al guardar un formulario solo viaja lo que cambió** (`renameBaby` descarta los campos iguales). El
+perfil se fusiona «último por campo» en el servidor; si se enviaran también los campos sin tocar, con el valor que tenían
+al abrir el formulario, se desharía en silencio lo que otro móvil cambió entre tanto.
+
+Si cambia el esquema de salud: aplicar la migración, regenerar los dos archivos de `fixtures/` y volver a pasar
+`python tools/run-db-tests.py .` y `python tools/replay-client-ops.py .`.

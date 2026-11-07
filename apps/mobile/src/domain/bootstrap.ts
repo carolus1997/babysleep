@@ -329,6 +329,15 @@ export async function renameBaby(
   }
   if (birth_date !== undefined) changes['birth_date'] = birth_date;
   if (color !== undefined) changes['color'] = color;
+  // Solo viaja lo que de verdad cambia. Un formulario manda todos sus campos, también los que la persona no tocó, con el
+  // valor que tenían al abrirlo: si otro móvil cambió uno de ellos mientras tanto (el perfil se fusiona «último por
+  // campo»), enviarlo lo desharía en silencio. Un campo ausente (perfil anterior a la ficha de salud) cuenta como `null`.
+  const current = await ctx.db.baby.get(id);
+  if (current !== undefined) {
+    const row = current as unknown as Record<string, unknown>;
+    for (const k of Object.keys(changes)) if ((row[k] ?? null) === (changes[k] ?? null)) delete changes[k];
+    if (Object.keys(changes).length === 0) return current;
+  }
   return updateRow(ctx, ctx.db.baby, Baby, id, changes);
 }
 

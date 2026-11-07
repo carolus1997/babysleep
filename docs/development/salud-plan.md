@@ -130,3 +130,9 @@ Cada fase es publicable por sí sola, lleva sus tests y, si toca la base de dato
 
 1. **Google Calendar:** se propone empezar con avisos propios + archivo `.ics`/enlace (sin permisos de Google) y dejar la conexión directa para más adelante.
 2. ¿Hay ya un tratamiento en curso que haga prioritaria la medicación (fase 5)?
+
+## Verificación de la sincronización entre móviles (antes de seguir con más fases)
+
+Cada fase que añada datos de salud debe pasar, antes de darse por hecha, las mismas comprobaciones que ya pasan la ficha,
+las vacunas y las citas: escenarios de dos móviles, filas reales de PostgreSQL, operaciones reales del móvil contra
+PostgreSQL y la prueba aleatoria con acciones de esa fase. El detalle está en `sync-client.md`.

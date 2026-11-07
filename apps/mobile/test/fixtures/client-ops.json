@@ -1,0 +1,886 @@
+[
+ [
+  {
+   "op_id": "01a1b670-ec54-7333-b52a-e2489923729a",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7060-a37e-19eb03c4eaba",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "wake.spontaneous",
+    "category": "wake",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Despertó solo"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-76a5-85f0-1b5808a82a84",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7089-b2da-9d61cef405a5",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "onset.after_feeding",
+    "category": "onset",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Tras comer"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-7859-b8c3-ab3dcac59502",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-70ec-bed1-4f03171b346b",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "wake.calm",
+    "category": "wake",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Tranquilo"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-7728-ac24-ca40e9282a6b",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7118-807c-b19a2e712fa3",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "feeding.fussy",
+    "category": "feeding",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Inquieto"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-7bcf-b054-1dda19eefd23",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7130-adee-695ab29b5d9c",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "feeding.good",
+    "category": "feeding",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Comió bien"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-73fa-8a64-88876d9d63ac",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-716e-97d0-da4ee9b2fca3",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "wake.noise",
+    "category": "wake",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Por un ruido"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-715b-b925-a0f364227b94",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7195-983a-935753d6497b",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "settling.crying",
+    "category": "settling",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Lloraba"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-7d25-a9d1-9af8e8c60835",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-71c7-98e8-2a7bc7539882",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "settling.after_feeding",
+    "category": "settling",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Tras comer"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-7b49-b0c4-0fb4d93a6c67",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7238-a032-895d15097759",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "wake.happy",
+    "category": "wake",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Despertó contento"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-77cf-935e-27dd47595529",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-72e9-bdcb-496e96de3ac7",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "wake.crying",
+    "category": "wake",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Despertó llorando"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-7577-9ca3-4cfdc1f3da9e",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7377-81c5-600ae0a4a1d0",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "wake.still_tired",
+    "category": "wake",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Parecía cansado"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-7e14-a8b0-6033660b01ae",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7396-9442-a6be0eae3660",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "settling.hard_to_settle",
+    "category": "settling",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Costó calmarlo"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-7d49-9d67-873b701f22f3",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-73b0-a225-ef7f9664f204",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "feeding.took_little",
+    "category": "feeding",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Tomó poco"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-79f5-8ba5-edc90589cecf",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-73f5-a8d7-6c11449cc6f1",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "wake.woken_by_caregiver",
+    "category": "wake",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Lo despertamos"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-75c5-b898-48e883dc4a2f",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7406-95ad-4a05e23067ed",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "settling.very_tired",
+    "category": "settling",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Muy cansado"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec55-765f-8a86-2c5c260d9cf2",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-74ba-8c6f-a95096b857c2",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "during.moved",
+    "category": "during",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Cambio de ubicación"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-7bce-98cc-a3783fa90494",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7635-b097-0a1646bf3b6f",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "onset.in_arms",
+    "category": "onset",
+    "kind": "system",
+    "label_i18n": {
+     "es": "En brazos"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-7bb6-a8fc-085e3ad1b70e",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-76b9-9484-3386253b35cc",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "feeding.spit_up",
+    "category": "feeding",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Regurgitó"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-76d0-a773-fb5b6e3c2076",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7765-be8f-4df292542d7d",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "during.back_to_sleep_alone",
+    "category": "during",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Volvió a dormir solo"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-71c4-b5ec-529d898d2673",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-77bc-a9a1-14393bdcc2fe",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "settling.in_arms",
+    "category": "settling",
+    "kind": "system",
+    "label_i18n": {
+     "es": "En brazos"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-76d1-b8ee-945d878d1cf1",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-77f1-a300-1e3602160f6b",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "during.outside_noise",
+    "category": "during",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Ruido exterior"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-7ae0-bdfb-a3cf64e918c4",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-787e-ae94-e6f338a33f15",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "onset.babywearing",
+    "category": "onset",
+    "kind": "system",
+    "label_i18n": {
+     "es": "En porteo"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-7dce-94d1-da5a2180ae90",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-792b-997f-ce89d0e10f12",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "during.brief_wake",
+    "category": "during",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Despertar breve"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-7532-9303-a8a55fa83999",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-79f8-87f9-cd58c8e0f0e7",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "settling.easy",
+    "category": "settling",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Se calmó fácil"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-7082-9c8e-85141da3f6de",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-79f8-bf4c-49bd709753b1",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "onset.in_crib",
+    "category": "onset",
+    "kind": "system",
+    "label_i18n": {
+     "es": "En la cuna"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-7aee-941f-c2617731f93b",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7a42-a024-2e850d02f498",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "during.caregiver_intervention",
+    "category": "during",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Intervención del cuidador"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-72cc-b48e-49dd1700cd29",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7b43-b321-693dfd4d1681",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "onset.hard_to_fall_asleep",
+    "category": "onset",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Le costó dormirse"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-7481-8ac6-c0840ea2432a",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7c0d-a114-465ec7cf0f1d",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "feeding.refused",
+    "category": "feeding",
+    "kind": "system",
+    "label_i18n": {
+     "es": "La rechazó"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-7a70-9cb6-6c36b27a9196",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7cdf-9fd7-a292f0091d93",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "feeding.gas",
+    "category": "feeding",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Gases"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-70ab-b664-e265692efab5",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7d62-a7dd-aa8dd5012b7a",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "onset.in_car",
+    "category": "onset",
+    "kind": "system",
+    "label_i18n": {
+     "es": "En el coche"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-7da8-950e-ad10ee08cd34",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7e06-871e-8cb11a3ba0cb",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "onset.during_walk",
+    "category": "onset",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Durante un paseo"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec56-792a-ab6b-055ad01f3c3d",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7e29-a916-342cafb02956",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "feeding.fell_asleep",
+    "category": "feeding",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Se durmió comiendo"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-78cd-931d-baea04618d66",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7f8f-9cb6-7e711bb3be94",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "settling.restless",
+    "category": "settling",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Inquieto"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-7d2a-8aec-45a45264aad9",
+   "table": "tag",
+   "row_id": "01a3701f-5a80-7fdd-b919-f15c1606b40d",
+   "base_rev": null,
+   "fields": {
+    "tag_slug": "onset.fell_easily",
+    "category": "onset",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Se durmió fácilmente"
+    },
+    "archived": false
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-7e5a-a12f-9793c5b8fa20",
+   "table": "event_category",
+   "row_id": "01a3701f-5a80-71d8-8165-874cbaecbbc7",
+   "base_rev": null,
+   "fields": {
+    "slug": "illness",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Enfermedad"
+    }
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-7100-9f52-772d9d904e63",
+   "table": "event_category",
+   "row_id": "01a3701f-5a80-74a9-8ea5-16003eff2ddd",
+   "base_rev": null,
+   "fields": {
+    "slug": "room_change",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Cambio de habitación"
+    }
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-7055-b992-efcde9d56410",
+   "table": "event_category",
+   "row_id": "01a3701f-5a80-7632-8124-ccca1d65a429",
+   "base_rev": null,
+   "fields": {
+    "slug": "environment",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Cambio ambiental"
+    }
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-70b5-a54a-cae7daea7b5c",
+   "table": "event_category",
+   "row_id": "01a3701f-5a80-7846-9625-d0c714d10950",
+   "base_rev": null,
+   "fields": {
+    "slug": "other",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Otro"
+    }
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-789a-b95c-4fbd26a5bc9a",
+   "table": "event_category",
+   "row_id": "01a3701f-5a80-7981-933d-10ba1143d42e",
+   "base_rev": null,
+   "fields": {
+    "slug": "family_visit",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Visita familiar"
+    }
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-79e6-aa54-a38b5c3a1a85",
+   "table": "event_category",
+   "row_id": "01a3701f-5a80-7a81-b3da-22b1c1a13b2f",
+   "base_rev": null,
+   "fields": {
+    "slug": "vaccine",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Vacunación"
+    }
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-7918-96fb-3ef2e3b2e3b2",
+   "table": "event_category",
+   "row_id": "01a3701f-5a80-7b2e-ab9d-183b6f28b857",
+   "base_rev": null,
+   "fields": {
+    "slug": "trip",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Viaje"
+    }
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-7a76-93a8-45365f48a5cd",
+   "table": "event_category",
+   "row_id": "01a3701f-5a80-7c9d-8b86-cf3d8109a2b1",
+   "base_rev": null,
+   "fields": {
+    "slug": "routine_change",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Cambio de rutina"
+    }
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-7228-9772-bfdd3d989b5b",
+   "table": "event_category",
+   "row_id": "01a3701f-5a80-7d5f-9642-3bdc0e955e1b",
+   "base_rev": null,
+   "fields": {
+    "slug": "daycare",
+    "kind": "system",
+    "label_i18n": {
+     "es": "Guardería"
+    }
+   }
+  },
+  {
+   "op_id": "01a1b670-ec57-773d-9a5b-33c99ccf3c98",
+   "table": "baby",
+   "row_id": "01a3701f-5a80-7ec9-ae82-f248087ff96d",
+   "base_rev": null,
+   "fields": {
+    "alias": "Bebe de prueba",
+    "birth_date": "2026-09-01",
+    "color": "#6366f1",
+    "sex": null,
+    "gestational_weeks": null,
+    "birth_weight_g": null,
+    "birth_length_cm": null,
+    "notes": null,
+    "awakening_threshold_min": null,
+    "pediatrician": null,
+    "nurse": null,
+    "health_center_name": null,
+    "health_center_address": null,
+    "health_center_phone": null,
+    "birth_hospital": null,
+    "allergies": null,
+    "health_notes": null,
+    "cipa": null
+   }
+  }
+ ],
+ [
+  {
+   "op_id": "01a1b670-ec70-7794-974d-e8f127ec2408",
+   "table": "baby",
+   "row_id": "01a3701f-5a80-7ec9-ae82-f248087ff96d",
+   "base_rev": 1,
+   "fields": {
+    "pediatrician": "Dra. Prueba",
+    "health_center_name": "Centro de prueba",
+    "health_center_phone": "910000000",
+    "allergies": "ninguna conocida",
+    "cipa": "TEST0000000000"
+   }
+  }
+ ],
+ [
+  {
+   "op_id": "01a1b670-ec72-7017-a593-1ac14112fd46",
+   "table": "baby",
+   "row_id": "01a3701f-5a80-7ec9-ae82-f248087ff96d",
+   "base_rev": 2,
+   "fields": {
+    "health_notes": "linea 1\nlinea 2",
+    "cipa": null
+   }
+  }
+ ],
+ [
+  {
+   "op_id": "01a1b670-ec75-7240-a5cc-cd28dd5c0c27",
+   "table": "vaccination",
+   "row_id": "01a37021-2f40-7ea0-9d4d-2065892104e6",
+   "base_rev": null,
+   "fields": {
+    "baby_id": "01a3701f-5a80-7ec9-ae82-f248087ff96d",
+    "dose_key": "VHB@2m",
+    "vaccine": "Hepatitis B",
+    "status": "given",
+    "given_on": "2026-11-02",
+    "center": "Centro de prueba",
+    "lot": "LOTE-1",
+    "notes": null
+   }
+  },
+  {
+   "op_id": "01a1b670-ec75-7422-bac2-0d9e61fb39e1",
+   "table": "vaccination",
+   "row_id": "01a37021-2f40-7f15-9d14-75a46b9b389d",
+   "base_rev": null,
+   "fields": {
+    "baby_id": "01a3701f-5a80-7ec9-ae82-f248087ff96d",
+    "dose_key": "DTPa@2m",
+    "vaccine": "Difteria-tétanos-tosferina (DTPa)",
+    "status": "given",
+    "given_on": "2026-11-02",
+    "center": "Centro de prueba",
+    "lot": "LOTE-1",
+    "notes": null
+   }
+  },
+  {
+   "op_id": "01a1b670-ec76-77e4-bd85-fcb61c4acf8e",
+   "table": "vaccination",
+   "row_id": "01a37021-2f40-7432-8161-0379345da9a4",
+   "base_rev": null,
+   "fields": {
+    "baby_id": "01a3701f-5a80-7ec9-ae82-f248087ff96d",
+    "dose_key": "VPI@2m",
+    "vaccine": "Poliomielitis (VPI)",
+    "status": "given",
+    "given_on": "2026-11-02",
+    "center": "Centro de prueba",
+    "lot": "LOTE-1",
+    "notes": null
+   }
+  },
+  {
+   "op_id": "01a1b670-ec76-7aa5-a28e-5bf2f2f344bd",
+   "table": "vaccination",
+   "row_id": "01a37021-2f40-7c22-9bbd-70cbd20af83e",
+   "base_rev": null,
+   "fields": {
+    "baby_id": "01a3701f-5a80-7ec9-ae82-f248087ff96d",
+    "dose_key": "RV@2m",
+    "vaccine": "Rotavirus",
+    "status": "not_applicable",
+    "given_on": null,
+    "center": null,
+    "lot": null,
+    "notes": "lo indico el pediatra"
+   }
+  },
+  {
+   "op_id": "01a1b670-ec77-7889-b919-611d64dccddf",
+   "table": "vaccination",
+   "row_id": "01a37021-2f40-7454-ae68-c18d2d7b4be4",
+   "base_rev": null,
+   "fields": {
+    "baby_id": "01a3701f-5a80-7ec9-ae82-f248087ff96d",
+    "dose_key": null,
+    "vaccine": "Gripe 2026-27",
+    "status": "given",
+    "given_on": "2027-01-20",
+    "center": null,
+    "lot": null,
+    "notes": null
+   }
+  }
+ ],
+ [
+  {
+   "op_id": "01a1b670-ec7b-7d8f-8808-43ba854073ad",
+   "table": "vaccination",
+   "row_id": "01a37021-2f40-7ea0-9d4d-2065892104e6",
+   "base_rev": 1,
+   "fields": {
+    "given_on": "2026-11-03",
+    "lot": "LOTE-2",
+    "notes": "sin reaccion"
+   }
+  }
+ ],
+ [
+  {
+   "op_id": "01a1b670-ec7c-7c01-9f1d-e69834a3bcea",
+   "table": "vaccination",
+   "row_id": "01a37021-2f40-7f15-9d14-75a46b9b389d",
+   "base_rev": 1,
+   "fields": {},
+   "delete": true
+  }
+ ],
+ [
+  {
+   "op_id": "01a1b670-ec7e-7083-99e0-d92398b5adb5",
+   "table": "vaccination",
+   "row_id": "01a37021-2f40-7f15-9d14-75a46b9b389d",
+   "base_rev": 2,
+   "fields": {},
+   "restore": true
+  }
+ ],
+ [
+  {
+   "op_id": "01a1b670-ec82-7621-9c06-a27b4d7f522c",
+   "table": "appointment",
+   "row_id": "01a37024-d8c0-76e0-a994-13742b4b5abe",
+   "base_rev": null,
+   "fields": {
+    "baby_id": "01a3701f-5a80-7ec9-ae82-f248087ff96d",
+    "kind": "pediatrician",
+    "title": "Revision de los 4 meses",
+    "start_utc": "2027-03-01T08:30:00.000Z",
+    "start_tz": "Europe/Madrid",
+    "duration_min": 20,
+    "place": "Centro de prueba",
+    "notes": null,
+    "status": "scheduled",
+    "remind_before_min": [
+     1440,
+     60
+    ]
+   }
+  },
+  {
+   "op_id": "01a1b670-ec83-7b10-8f37-8c216fbde1b1",
+   "table": "appointment",
+   "row_id": "01a37024-d8c0-73cf-93d5-2f449a438607",
+   "base_rev": null,
+   "fields": {
+    "baby_id": "01a3701f-5a80-7ec9-ae82-f248087ff96d",
+    "kind": "other",
+    "title": "Sin avisos",
+    "start_utc": "2027-03-02T08:30:00.000Z",
+    "start_tz": "Europe/Madrid",
+    "duration_min": null,
+    "place": null,
+    "notes": null,
+    "status": "scheduled",
+    "remind_before_min": []
+   }
+  }
+ ],
+ [
+  {
+   "op_id": "01a1b670-ec87-7eb3-8341-75b97c0211d9",
+   "table": "appointment",
+   "row_id": "01a37024-d8c0-76e0-a994-13742b4b5abe",
+   "base_rev": 1,
+   "fields": {
+    "title": "Revision 4 meses",
+    "notes": "llevar el documento",
+    "remind_before_min": [
+     10080,
+     120,
+     0
+    ]
+   }
+  }
+ ],
+ [
+  {
+   "op_id": "01a1b670-ec88-7558-881e-64ad595d8d7a",
+   "table": "appointment",
+   "row_id": "01a37024-d8c0-76e0-a994-13742b4b5abe",
+   "base_rev": 2,
+   "fields": {
+    "status": "done"
+   }
+  },
+  {
+   "op_id": "01a1b670-ec89-7c9f-b2d7-6c96a338ead1",
+   "table": "appointment",
+   "row_id": "01a37024-d8c0-73cf-93d5-2f449a438607",
+   "base_rev": 1,
+   "fields": {},
+   "delete": true
+  }
+ ],
+ [
+  {
+   "op_id": "01a1b670-ec8a-7d91-a5e6-cb629cbf15a6",
+   "table": "appointment",
+   "row_id": "01a37024-d8c0-73cf-93d5-2f449a438607",
+   "base_rev": 2,
+   "fields": {},
+   "restore": true
+  }
+ ]
+]
