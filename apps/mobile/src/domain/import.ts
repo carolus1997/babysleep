@@ -7,6 +7,10 @@ import {
   EventCategory,
   Feeding,
   GrowthMeasure,
+  IllnessEntry,
+  IllnessEpisode,
+  Medication,
+  MedicationDose,
   LifeEvent,
   Observation,
   ObservationTag,
@@ -39,6 +43,10 @@ const IMPORT_TABLES = [
   ['vaccination', Vaccination],
   ['appointment', Appointment],
   ['growth_measure', GrowthMeasure],
+  ['medication', Medication],
+  ['medication_dose', MedicationDose],
+  ['illness_episode', IllnessEpisode],
+  ['illness_entry', IllnessEntry],
   ['wake_episode', WakeEpisode],
   ['observation', Observation],
   ['observation_tag', ObservationTag],
@@ -192,6 +200,8 @@ export async function planImport(ctx: Ctx, text: string): Promise<ImportPlan> {
     sleep_session: await ids('sleep_session'),
     settling_attempt: await ids('settling_attempt'),
     observation: await ids('observation'),
+    medication: await ids('medication'),
+    illness_episode: await ids('illness_episode'),
     tag: await ids('tag'),
     event_category: await ids('event_category'),
     aggregate_period: await ids('aggregate_period'),
@@ -216,6 +226,12 @@ export async function planImport(ctx: Ctx, text: string): Promise<ImportPlan> {
   need('vaccination', 'baby_id', 'baby');
   need('appointment', 'baby_id', 'baby');
   need('growth_measure', 'baby_id', 'baby');
+  need('medication', 'baby_id', 'baby');
+  need('medication_dose', 'baby_id', 'baby');
+  need('medication_dose', 'medication_id', 'medication');
+  need('illness_episode', 'baby_id', 'baby');
+  need('illness_entry', 'baby_id', 'baby');
+  need('illness_entry', 'episode_id', 'illness_episode');
   need('wake_episode', 'session_id', 'sleep_session');
   need('observation', 'session_id', 'sleep_session', true);
   need('observation', 'settling_attempt_id', 'settling_attempt', true);

@@ -308,4 +308,90 @@ begin
   perform tests.as_superuser();
 end $$;
 
+-- P06 · avisos de medicación (0014): una sola vez por dosis debida, sin avisar de lo terminado, a demanda ni del maximo diario
+do $$
+declare n int; r record; t0 timestamptz := '2027-04-10 08:00:00+00'; v_fam uuid; v_cg uuid;
+begin
+  perform tests.as_superuser();
+  select id into v_fam from app.family where name = 'Familia A';
+  select id into v_cg from app.caregiver where email_normalized = 'admin-a@example.test';
+  delete from app.push_subscription;
+  insert into app.push_subscription (family_id, caregiver_id, endpoint, p256dh, auth)
+  values (v_fam, v_cg, 'https://push.example.test/med', 'k', 'a');
+
+  insert into app.medication (id, family_id, baby_id, name, dose_text, interval_min, start_utc, start_tz)
+  values (tests.u(310), v_fam, tests.u(1), 'Medicamento de prueba', '2,5 ml', 360, t0, 'Europe/Madrid');
+
+  select count(*) into n from app.claim_due_medication_reminders(t0 - interval '1 minute');
+  perform tests.assert(n = 0, 'P06a antes del inicio no se avisa');
+  select * into r from app.claim_due_medication_reminders(t0 + interval '1 minute') limit 1;
+  perform tests.assert(r.name = 'Medicamento de prueba' and r.dose_text = '2,5 ml' and r.baby_alias = 'Bebé A' and r.interval_min = 360,
+    'P06b sin dosis, la primera toca al inicio y el aviso lleva nombre, dosis y bebé');
+  select count(*) into n from app.claim_due_medication_reminders(t0 + interval '6 minutes');
+  perform tests.assert(n = 0, 'P06c nunca se avisa dos veces por la misma dosis debida');
+
+  insert into app.medication_dose (id, family_id, baby_id, medication_id, given_utc, given_tz)
+  values (tests.u(311), v_fam, tests.u(1), tests.u(310), t0 + interval '10 minutes', 'Europe/Madrid');
+  select count(*) into n from app.claim_due_medication_reminders(t0 + interval '10 minutes' + interval '359 minutes');
+  perform tests.assert(n = 0, 'P06d tras una dosis no toca hasta pasar el intervalo');
+  select * into r from app.claim_due_medication_reminders(t0 + interval '10 minutes' + interval '361 minutes') limit 1;
+  perform tests.assert(r.due_utc = t0 + interval '370 minutes', 'P06e la siguiente toca a la ultima dosis + el intervalo');
+  select count(*) into n from app.claim_due_medication_reminders(t0 + interval '10 minutes' + interval '365 minutes');
+  perform tests.assert(n = 0, 'P06f y tampoco se repite');
+
+  -- lo que no avisa
+  insert into app.medication (id, family_id, baby_id, name, dose_text, interval_min, start_utc, start_tz, remind)
+  values (tests.u(312), v_fam, tests.u(1), 'Sin aviso', '1 ml', 60, t0 + interval '1 day', 'Europe/Madrid', false);
+  insert into app.medication (id, family_id, baby_id, name, dose_text, interval_min, start_utc, start_tz)
+  values (tests.u(313), v_fam, tests.u(1), 'A demanda', '1 ml', null, t0 + interval '1 day', 'Europe/Madrid');
+  insert into app.medication (id, family_id, baby_id, name, dose_text, interval_min, start_utc, start_tz, end_utc)
+  values (tests.u(314), v_fam, tests.u(1), 'Terminado', '1 ml', 60, t0 + interval '1 day', 'Europe/Madrid', t0 + interval '1 day' + interval '30 minutes');
+  insert into app.medication (id, family_id, baby_id, name, dose_text, interval_min, start_utc, start_tz, deleted_at)
+  values (tests.u(315), v_fam, tests.u(1), 'Eliminado', '1 ml', 60, t0 + interval '1 day', 'Europe/Madrid', now());
+  select count(*) into n from app.claim_due_medication_reminders(t0 + interval '1 day' + interval '40 minutes');
+  perform tests.assert(n = 0, 'P06g sin aviso activado, a demanda, terminado o eliminado: no avisa');
+
+  -- maximo diario: no se empuja a pasarse de lo que escribio la familia
+  insert into app.medication (id, family_id, baby_id, name, dose_text, interval_min, start_utc, start_tz, daily_max)
+  values (tests.u(316), v_fam, tests.u(1), 'Con maximo', '1 ml', 60, t0 + interval '2 days', 'Europe/Madrid', 2);
+  insert into app.medication_dose (id, family_id, baby_id, medication_id, given_utc, given_tz) values
+    (tests.u(317), v_fam, tests.u(1), tests.u(316), t0 + interval '2 days', 'Europe/Madrid'),
+    (tests.u(318), v_fam, tests.u(1), tests.u(316), t0 + interval '2 days' + interval '60 minutes', 'Europe/Madrid');
+  select count(*) into n from app.claim_due_medication_reminders(t0 + interval '2 days' + interval '121 minutes');
+  perform tests.assert(n = 0, 'P06h con el maximo diario alcanzado no se avisa');
+  update app.medication set daily_max = 3 where id = tests.u(316);
+  select count(*) into n from app.claim_due_medication_reminders(t0 + interval '2 days' + interval '122 minutes');
+  perform tests.assert(n = 1, 'P06i con el maximo subido (aun no alcanzado) si se avisa');
+
+  -- una dosis eliminada no cuenta
+  insert into app.medication (id, family_id, baby_id, name, dose_text, interval_min, start_utc, start_tz)
+  values (tests.u(319), v_fam, tests.u(1), 'Con borrada', '1 ml', 60, t0 + interval '3 days', 'Europe/Madrid');
+  insert into app.medication_dose (id, family_id, baby_id, medication_id, given_utc, given_tz, deleted_at) values
+    (tests.u(320), v_fam, tests.u(1), tests.u(319), t0 + interval '3 days' + interval '60 minutes', 'Europe/Madrid', now());
+  insert into app.medication_dose (id, family_id, baby_id, medication_id, given_utc, given_tz) values
+    (tests.u(321), v_fam, tests.u(1), tests.u(319), t0 + interval '3 days', 'Europe/Madrid');
+  select * into r from app.claim_due_medication_reminders(t0 + interval '3 days' + interval '70 minutes') limit 1;
+  perform tests.assert(r.due_utc = t0 + interval '3 days' + interval '60 minutes', 'P06j la dosis eliminada se ignora para calcular la siguiente');
+
+  -- ventana de 2 h
+  insert into app.medication (id, family_id, baby_id, name, dose_text, interval_min, start_utc, start_tz)
+  values (tests.u(322), v_fam, tests.u(1), 'Vieja', '1 ml', 60, t0 + interval '4 days', 'Europe/Madrid');
+  select count(*) into n from app.claim_due_medication_reminders(t0 + interval '4 days' + interval '3 hours');
+  perform tests.assert(n = 0, 'P06k si la hora debida pasó hace más de 2 h no llega un aviso viejo');
+
+  insert into app.medication (id, family_id, baby_id, name, dose_text, interval_min, start_utc, start_tz)
+  values (tests.u(323), (select id from app.family where name = 'Familia B'), tests.u(2), 'De B', '1 ml', 60, t0 + interval '5 days', 'Europe/Madrid');
+  select count(*) into n from app.claim_due_medication_reminders(t0 + interval '5 days' + interval '10 minutes');
+  perform tests.assert(n = 0, 'P06l una familia sin móviles registrados no recibe avisos');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  begin
+    perform * from app.claim_due_medication_reminders(now());
+    perform tests.assert(false, 'P06m un cliente no puede reclamar avisos');
+  exception when insufficient_privilege then
+    perform tests.assert(true, 'P06m un cliente no puede reclamar avisos');
+  end;
+  perform tests.as_superuser();
+end $$;
+
 rollback;

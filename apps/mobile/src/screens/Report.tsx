@@ -8,11 +8,11 @@ import { t } from '../i18n/es';
 import { download } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
 import { Btn, Card } from '../ui/primitives';
-import { buildReport, reportToHtml, reportToText } from '../ui/report';
+import { buildReport, reportToHtml, reportToText, type Report as ReportData } from '../ui/report';
 
 /** Módulo de análisis 5: resumen semanal para compartir con el pediatra. */
 export function Report() {
-  const { ctx, baby, toast } = useApp();
+  const { ctx, baby } = useApp();
   const babyId = baby?.id ?? '';
   const sessions = useLive(() => listSessions(ctx, babyId), [ctx, babyId], [] as SleepSessionT[]);
   const feedings = useLive(() => listFeedings(ctx, babyId), [ctx, babyId], [] as FeedingT[]);
@@ -24,7 +24,17 @@ export function Report() {
     [baby, sessions, feedings, awakenings, thr, ctx.zone, now],
   );
   if (baby === null || rep === null) return null;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted">{t('report.intro')}</p>
+      <ReportView rep={rep} filenameBase="informe-semanal" nowMs={now} />
+    </div>
+  );
+}
 
+/** Un informe ya construido, con sus tres salidas: compartir, copiar el texto y guardar como HTML (sirve a cualquier informe). */
+export function ReportView({ rep, filenameBase, nowMs }: { rep: ReportData; filenameBase: string; nowMs: number }) {
+  const { toast } = useApp();
   const text = reportToText(rep);
   const copy = async () => {
     try {
@@ -43,13 +53,12 @@ export function Report() {
     }
   };
   const save = () => {
-    download({ filename: `informe-semanal-${new Date(now).toISOString().slice(0, 10)}.html`, mime: 'text/html', content: reportToHtml(rep) });
+    download({ filename: `${filenameBase}-${new Date(nowMs).toISOString().slice(0, 10)}.html`, mime: 'text/html', content: reportToHtml(rep) });
     toast(t('report.downloaded'));
   };
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted">{t('report.intro')}</p>
       <Card>
         <h2 className="text-lg font-bold">{rep.title}</h2>
         <p className="mb-3 text-sm text-muted">{rep.subtitle}</p>
@@ -57,8 +66,8 @@ export function Report() {
           <div key={s.title} className="mb-3">
             <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">{s.title}</h3>
             <ul className="space-y-1 text-sm">
-              {s.lines.map((l) => (
-                <li key={l}>{l}</li>
+              {s.lines.map((l, i) => (
+                <li key={`${i}-${l}`}>{l}</li>
               ))}
             </ul>
           </div>

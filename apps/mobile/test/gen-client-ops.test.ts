@@ -3,6 +3,8 @@ import { mustResolveLocal } from '@babysleep/core';
 import { describe, expect, it } from 'vitest';
 import { BabySleepDb } from '../src/db/schema';
 import { addGrowth, deleteGrowth, editGrowth, restoreGrowth } from '../src/domain/growth';
+import { addEntry, deleteEntry, deleteEpisode, editEntry, editEpisode, endEpisode, restoreEntry, restoreEpisode, startEpisode } from '../src/domain/illness';
+import { addDose, addMedication, deleteDose, editDose, editMedication, restoreDose, stopMedication } from '../src/domain/medication';
 import { addAppointment, deleteAppointment, editAppointment, restoreAppointment, setAppointmentStatus } from '../src/domain/appointments';
 import { createBaby, ensureBootstrap, renameBaby } from '../src/domain/bootstrap';
 import { addExtraVaccine, deleteVaccination, editVaccination, markNotApplicable, recordDoses, restoreVaccination } from '../src/domain/vaccines';
@@ -87,10 +89,61 @@ describe('operaciones de salud que envía el móvil', () => {
     await restoreGrowth(ctx, g2.id);
     await step();
 
+    // medicación: tratamiento con intervalo y a demanda (null), dosis (con y sin texto propio), editar, terminar, borrar y restaurar
+    const m1 = await addMedication(ctx, { babyId: baby.id, name: 'Medicamento de prueba', doseText: '2,5 ml', intervalMin: 360, dailyMax: 4, notes: 'con las comidas' });
+    const m2 = await addMedication(ctx, { babyId: baby.id, name: 'A demanda', doseText: '1 comprimido', remind: false });
+    await step();
+    const d1 = await addDose(ctx, { medicationId: m1.id });
+    const d2 = await addDose(ctx, { medicationId: m1.id, doseText: '2 ml', notes: 'se durmio', confirmed: true });
+    await step();
+    await editMedication(ctx, m1.id, { doseText: '3 ml', intervalMin: 480 });
+    await editDose(ctx, d1.id, { notes: 'sin problemas' });
+    await step();
+    await stopMedication(ctx, m2.id);
+    await deleteDose(ctx, d2.id);
+    await step();
+    await restoreDose(ctx, d2.id);
+    await step();
+
+    // enfermedad: episodio en curso, una anotación de cada tipo, editar, terminar, borrar y restaurar
+    const ep = await startEpisode(ctx, { babyId: baby.id, title: 'Resfriado de prueba', notes: 'empezo con mocos' });
+    await step();
+    const i1 = await addEntry(ctx, { episodeId: ep.id, kind: 'temperature', tempDc: 384, site: 'axillary' });
+    await addEntry(ctx, { episodeId: ep.id, kind: 'symptom', symptom: 'cough', note: 'seca' });
+    await addEntry(ctx, { episodeId: ep.id, kind: 'intake', intake: 'less' });
+    await addEntry(ctx, { episodeId: ep.id, kind: 'diaper', diaper: 'both' });
+    const i5 = await addEntry(ctx, { episodeId: ep.id, kind: 'note', note: 'Durmio inquieta' });
+    await step();
+    await editEntry(ctx, i1.id, { tempDc: 391, site: null });
+    await editEpisode(ctx, ep.id, { title: 'Resfriado' });
+    await step();
+    await deleteEntry(ctx, i5.id);
+    await endEpisode(ctx, ep.id);
+    await step();
+    await restoreEntry(ctx, i5.id);
+    await step();
+    const ep2 = await startEpisode(ctx, { babyId: baby.id, title: 'Otro' });
+    await step();
+    await deleteEpisode(ctx, ep2.id);
+    await step();
+    await restoreEpisode(ctx, ep2.id);
+    await step();
+
     // el servidor simulado ha recibido exactamente lo que hay en el móvil
     expect(server.rows('vaccination')).toHaveLength(5);
     expect(server.rows('appointment')).toHaveLength(2);
     expect(server.rows('growth_measure')).toHaveLength(2);
+    expect(server.rows('medication')).toHaveLength(2);
+    expect(server.rows('medication_dose')).toHaveLength(2);
+    expect(server.rows('illness_episode')).toHaveLength(2);
+    expect(server.rows('illness_entry')).toHaveLength(5);
+    expect(server.get('illness_entry', i1.id)).toMatchObject({ kind: 'temperature', temp_dc: 391, temp_site: null, symptom: null });
+    expect(server.get('illness_episode', ep.id)).toMatchObject({ title: 'Resfriado' });
+    expect(server.get('illness_episode', ep.id)?.['end_utc']).not.toBeNull();
+    expect(server.get('medication', m1.id)).toMatchObject({ dose_text: '3 ml', interval_min: 480, daily_max: 4 });
+    expect(server.get('medication', m2.id)).toMatchObject({ interval_min: null, remind: false });
+    expect(server.get('medication', m2.id)?.['end_utc']).not.toBeNull();
+    expect(server.get('medication_dose', d1.id)).toMatchObject({ dose_text: null, notes: 'sin problemas' });
     expect(server.get('growth_measure', g1.id)).toMatchObject({ weight_g: 5650, length_mm: null, head_mm: 405, notes: null });
     expect(server.get('appointment', a.id)).toMatchObject({ remind_before_min: [10080, 120, 0], status: 'done' });
     expect(server.get('baby', baby.id)).toMatchObject({ cipa: null, health_notes: 'linea 1\nlinea 2', pediatrician: 'Dra. Prueba' });
@@ -99,6 +152,10 @@ describe('operaciones de salud que envía el móvil', () => {
     expect(flat.some((o) => o.table === 'appointment' && Array.isArray(o.fields['remind_before_min']))).toBe(true);
     expect(flat.some((o) => o.table === 'vaccination' && o.delete === true)).toBe(true);
     expect(flat.some((o) => o.table === 'growth_measure' && o.fields['weight_g'] === 5650)).toBe(true);
+    expect(flat.some((o) => o.table === 'medication' && o.fields['interval_min'] === 480)).toBe(true);
+    expect(flat.some((o) => o.table === 'medication_dose' && o.delete === true)).toBe(true);
+    expect(flat.some((o) => o.table === 'illness_entry' && o.fields['temp_dc'] === 391)).toBe(true);
+    expect(flat.some((o) => o.table === 'illness_episode' && o.delete === true)).toBe(true);
     expect(flat.some((o) => o.table === 'baby' && o.base_rev !== null && 'pediatrician' in o.fields)).toBe(true);
 
     if (process.env['UPDATE_FIXTURES']) {

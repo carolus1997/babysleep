@@ -4,6 +4,10 @@ import type {
   AggregatePeriodT,
   AppointmentT,
   GrowthMeasureT,
+  IllnessEntryT,
+  IllnessEpisodeT,
+  MedicationDoseT,
+  MedicationT,
   AwakeningT,
   BabyT,
   CaregiverT,
@@ -82,6 +86,10 @@ export class BabySleepDb extends Dexie {
   vaccination!: Table<VaccinationT, string>;
   appointment!: Table<AppointmentT, string>;
   growth_measure!: Table<GrowthMeasureT, string>;
+  medication!: Table<MedicationT, string>;
+  medication_dose!: Table<MedicationDoseT, string>;
+  illness_episode!: Table<IllnessEpisodeT, string>;
+  illness_entry!: Table<IllnessEntryT, string>;
   settling_attempt!: Table<SettlingAttemptT, string>;
   wake_episode!: Table<WakeEpisodeT, string>;
   observation!: Table<ObservationT, string>;
@@ -125,6 +133,10 @@ export class BabySleepDb extends Dexie {
     this.version(7).stores({ appointment: 'id, baby_id, start_utc' });
     // v8: medidas de crecimiento (peso, talla, perímetro cefálico). Solo añade una tabla.
     this.version(8).stores({ growth_measure: 'id, baby_id, measured_on' });
+    // v9: medicación (tratamientos y dosis). Solo añade dos tablas.
+    this.version(9).stores({ medication: 'id, baby_id, start_utc', medication_dose: 'id, baby_id, medication_id, given_utc' });
+    // v10: episodios de enfermedad y sus anotaciones. Solo añade dos tablas.
+    this.version(10).stores({ illness_episode: 'id, baby_id, start_utc', illness_entry: 'id, baby_id, episode_id, at_utc' });
   }
 }
 
@@ -138,6 +150,10 @@ export const TABLES_FOR_EXPORT = [
   'vaccination',
   'appointment',
   'growth_measure',
+  'medication',
+  'medication_dose',
+  'illness_episode',
+  'illness_entry',
   'settling_attempt',
   'wake_episode',
   'observation',

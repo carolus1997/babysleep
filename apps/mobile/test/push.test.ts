@@ -5,7 +5,8 @@ import { getOpenFeeding, listFeedings, startFeeding } from '../src/domain/feedin
 import {
   getReminderSettings, pushSupport, registerPush, setReminderSettings, unregisterPush, urlBase64ToUint8Array, type PushEnv,
 } from '../src/sync/push';
-import { buildPayload, isGone, sinceText } from '../../../supabase/functions/feed-reminders/payload';
+import { parseMedIntent } from '../src/domain/medIntent';
+import { buildMedicationPayload, buildPayload, isGone, sinceText } from '../../../supabase/functions/feed-reminders/payload';
 import { makeHarness } from './harness';
 
 const env = (over: Partial<PushEnv> = {}): PushEnv => ({
@@ -107,5 +108,35 @@ describe('al tocar el aviso', () => {
     const f = await startFeeding(h.ctx, baby, 'breast');
     const r = await applyFeedIntent(h.ctx, baby, 'bottle');
     expect(r).toMatchObject({ kind: 'already_running', feeding: { id: f.id } });
+  });
+});
+
+describe('aviso de medicación', () => {
+  const r = {
+    subscription_id: 's', endpoint: 'https://push.example.test/x', p256dh: 'k', auth: 'a',
+    medication_id: '0190a7c2-0000-7000-8000-000000000001', baby_id: 'b1', baby_alias: 'Lía', name: 'Medicamento de prueba',
+    dose_text: '2,5 ml', interval_min: 360, due_utc: '2027-01-20T14:00:00.000Z',
+  };
+  it('repite lo que escribió la familia (nombre, dosis, intervalo), con una etiqueta por tratamiento y el botón «Ya la di»', () => {
+    expect(buildMedicationPayload(r)).toEqual({
+      title: 'Toca Medicamento de prueba · Lía',
+      body: '2,5 ml. Pauta: cada 6 h.',
+      tag: 'med-0190a7c2-0000-7000-8000-000000000001',
+      url: './?med=0190a7c2-0000-7000-8000-000000000001',
+      babyId: 'b1',
+      kind: 'medication',
+      medicationId: '0190a7c2-0000-7000-8000-000000000001',
+    });
+    expect(buildMedicationPayload({ ...r, interval_min: 90 }).body).toBe('2,5 ml. Pauta: cada 1 h 30 min.');
+  });
+
+  it('la dirección del aviso solo admite un identificador de tratamiento; «given» solo con 1', () => {
+    const id = '0190a7c2-0000-7000-8000-000000000001';
+    expect(parseMedIntent(`?med=${id}`)).toEqual({ medicationId: id, given: false });
+    expect(parseMedIntent(`?med=${id}&given=1`)).toEqual({ medicationId: id, given: true });
+    expect(parseMedIntent(`?med=${id}&given=yes`)).toEqual({ medicationId: id, given: false });
+    expect(parseMedIntent('?med=../../etc')).toBeNull();
+    expect(parseMedIntent('?med=')).toBeNull();
+    expect(parseMedIntent('?feed=ask')).toBeNull();
   });
 });

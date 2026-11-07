@@ -50,8 +50,9 @@ const FIELD_LABEL: Record<string, string> = {
   center: 'centro',
   lot: 'lote',
   notes: 'notas',
-  title: 'título de la cita',
-  start_utc: 'hora de la cita',
+  title: 'título',
+  start_utc: 'hora de inicio',
+  end_utc: 'hora de fin',
   place: 'lugar',
   duration_min: 'duración (min)',
   status: 'estado',
@@ -62,6 +63,28 @@ const FIELD_LABEL: Record<string, string> = {
   weight_g: 'peso',
   length_mm: 'talla',
   head_mm: 'perímetro cefálico',
+  // medicación (0.8.0)
+  name: 'nombre',
+  dose_text: 'dosis',
+  interval_min: 'intervalo entre dosis',
+  daily_max: 'máximo de dosis al día',
+  remind: 'aviso al móvil',
+  given_utc: 'hora de la dosis',
+  // enfermedad (0.9.0)
+  at_utc: 'hora de la anotación',
+  temp_dc: 'temperatura',
+  temp_site: 'dónde se midió',
+  symptom: 'síntoma',
+  intake: 'cuánto comió',
+  diaper: 'pañal',
+  note: 'nota',
+};
+
+const ILLNESS_LABEL: Record<string, Record<string, string>> = {
+  temp_site: { axillary: 'axila', rectal: 'recto', ear: 'oído', forehead: 'frente', oral: 'boca', other: 'otro sitio' },
+  symptom: { cough: 'tos', runny_nose: 'mocos', congestion: 'congestión', sneezing: 'estornudos', vomiting: 'vómitos', diarrhea: 'diarrea', rash: 'erupción', fussy: 'irritable', drowsy: 'adormilada', pain: 'dolor', other: 'otro' },
+  intake: { usual: 'como siempre', less: 'menos de lo habitual', much_less: 'mucho menos', almost_none: 'casi nada' },
+  diaper: { wet: 'pis', dirty: 'caca', both: 'pis y caca' },
 };
 
 const STATUS_LABEL: Record<string, string> = { scheduled: 'Pendiente', done: 'Hecha', cancelled: 'Cancelada', given: 'Puesta', not_applicable: 'No procede' };
@@ -90,6 +113,10 @@ export function describeValue(field: string | null, value: unknown, zone: string
   }
   if (typeof value === 'number' && field === 'weight_g') return `${(value / 1000).toLocaleString('es-ES', { maximumFractionDigits: 3 })} kg`;
   if (typeof value === 'number' && (field === 'length_mm' || field === 'head_mm')) return `${(value / 10).toLocaleString('es-ES', { maximumFractionDigits: 1 })} cm`;
+  if (typeof value === 'string' && field !== null && ILLNESS_LABEL[field]?.[value] !== undefined) return ILLNESS_LABEL[field][value] as string;
+  if (typeof value === 'number' && field === 'temp_dc') return `${(value / 10).toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} °C`;
+  if (typeof value === 'number' && field === 'interval_min') return value % 60 === 0 ? `${value / 60} h` : `${value} min`;
+  if (typeof value === 'boolean' && field === 'remind') return value ? 'con aviso' : 'sin aviso';
   if (field === 'remind_before_min' && Array.isArray(value)) return value.length === 0 ? 'ninguno' : (value as number[]).map(reminderText).join(', ');
   return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }

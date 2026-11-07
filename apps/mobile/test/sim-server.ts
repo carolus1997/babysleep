@@ -33,6 +33,8 @@ const REFS: Record<string, SyncTable> = {
   category_id: 'event_category',
   merged_into: 'sleep_session',
   feeding_id: 'feeding',
+  medication_id: 'medication',
+  episode_id: 'illness_episode',
 };
 
 /** Campos que solo tienen sentido juntos: se fusionan juntos o no se fusionan (ver migración 0008). */

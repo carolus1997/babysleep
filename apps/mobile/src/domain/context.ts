@@ -20,6 +20,7 @@ export class DomainError extends Error {
       | 'already_open'
       | 'ambiguous_time'
       | 'nonexistent_time'
+      | 'needs_confirmation'
       | 'invalid',
     message: string,
   ) {

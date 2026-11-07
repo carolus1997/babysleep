@@ -23,6 +23,8 @@ self.addEventListener('push', (event) => {
       { action: 'bottle', title: 'Biberón' },
     ];
   }
+  // «Ya la di» no registra nada por sí solo: abre la app en ese tratamiento para confirmar la hora (y ver si ya se dio).
+  if (data.kind === 'medication') options.actions = [{ action: 'given', title: 'Ya la di' }];
   event.waitUntil(self.registration.showNotification(data.title || 'BabySleep', options));
 });
 
@@ -30,7 +32,8 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const action = event.action; // '' si se toca el aviso en sí
   const base = (event.notification.data && event.notification.data.url) || './?feed=ask';
-  const target = new URL(action === 'breast' || action === 'bottle' ? './?feed=' + action : base, self.registration.scope).href;
+  const withGiven = action === 'given' ? base + (base.indexOf('?') >= 0 ? '&' : '?') + 'given=1' : base;
+  const target = new URL(action === 'breast' || action === 'bottle' ? './?feed=' + action : withGiven, self.registration.scope).href;
   event.waitUntil(
     (async () => {
       const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
@@ -38,7 +41,8 @@ self.addEventListener('notificationclick', (event) => {
         if (c.url.startsWith(self.registration.scope) && 'focus' in c) {
           await c.focus();
           const q = new URL(target).searchParams;
-          if (q.get('go')) c.postMessage({ type: 'go', go: q.get('go') });
+          if (q.get('med')) c.postMessage({ type: 'med-intent', med: q.get('med'), given: q.get('given') === '1' });
+          else if (q.get('go')) c.postMessage({ type: 'go', go: q.get('go') });
           else c.postMessage({ type: 'feed-intent', feed: q.get('feed') });
           return;
         }

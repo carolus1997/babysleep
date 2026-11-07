@@ -2,6 +2,7 @@ import type { BabyT } from '@babysleep/contract';
 import { useEffect, useState } from 'react';
 import { useApp } from './app/AppContext';
 import { applyFeedIntent, parseFeedIntent, type FeedIntent } from './domain/feedIntent';
+import { parseMedIntent, type MedIntent } from './domain/medIntent';
 import { cancelFeeding, restoreFeeding } from './domain/feeding';
 import { t, type I18nKey } from './i18n/es';
 import { Health } from './screens/Health';
@@ -37,6 +38,8 @@ export function App() {
   const [tab, setTab] = useState<Tab>('home');
   const [homeSection, setHomeSection] = useState<HomeSection>('today');
   const [switching, setSwitching] = useState(false);
+  // Aviso de medicación: abre Salud → Medicación en ese tratamiento (y, con «Ya la di», la hoja de registro).
+  const [medIntent, setMedIntent] = useState<MedIntent | null>(null);
   const photo = useBabyPhotoUrl(baby?.id ?? '');
   const { ctx, run, toast } = useApp();
   const babyId = baby?.id ?? null;
@@ -66,13 +69,26 @@ export function App() {
       window.history.replaceState(null, '', window.location.pathname + window.location.hash);
       setTab('health');
     }
+    const medFromUrl = parseMedIntent(window.location.search);
+    if (medFromUrl !== null) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+      setTab('health');
+      setMedIntent(medFromUrl);
+    }
     const fromUrl = parseFeedIntent(window.location.search);
     if (fromUrl !== null) {
       window.history.replaceState(null, '', window.location.pathname + window.location.hash);
       void handle(fromUrl);
     }
     const onMessage = (e: MessageEvent) => {
-      const d = e.data as { type?: string; feed?: string; go?: string } | null;
+      const d = e.data as { type?: string; feed?: string; go?: string; med?: string; given?: boolean } | null;
+      if (d?.type === 'med-intent') {
+        const intent = parseMedIntent(`?med=${d.med ?? ''}${d.given === true ? '&given=1' : ''}`);
+        if (intent === null) return;
+        setTab('health');
+        setMedIntent(intent);
+        return;
+      }
       if (d?.type === 'go' && d.go === 'health') return setTab('health');
       if (d?.type !== 'feed-intent') return;
       const intent = parseFeedIntent(`?feed=${d.feed ?? ''}`);
@@ -115,7 +131,7 @@ export function App() {
           apilamiento; con `z-10` las hojas (z-40) quedaban atrapadas debajo de la cabecera y la barra. */}
       <main className="relative flex-1 px-4 pb-28 pt-4">
         {tab === 'home' && <HomeShell section={homeSection} onSection={setHomeSection} goSettings={() => setTab('settings')} />}
-        {tab === 'health' && <Health />}
+        {tab === 'health' && <Health medIntent={medIntent} onMedIntentUsed={() => setMedIntent(null)} />}
         {tab === 'stats' && <Stats />}
         {tab === 'settings' && <Settings />}
       </main>

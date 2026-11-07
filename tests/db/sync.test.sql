@@ -999,4 +999,175 @@ begin
   perform tests.as_superuser();
 end $$;
 
+-- S34 · medicación (0014): tratamientos y dosis, límites, referencias, aislamiento, permisos y fusión por campo
+do $$
+declare r jsonb; n int; ok boolean; t text; iv int;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('medication', 140, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'name', 'Medicamento de prueba', 'dose_text', '2,5 ml', 'interval_min', 360,
+    'start_utc', '2027-01-20T08:00:00Z', 'start_tz', 'Europe/Madrid', 'daily_max', 4)));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 1, 'S34a un tratamiento con intervalo y maximo diario');
+  r := tests.go(tests.op('medication', 141, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'name', 'A demanda', 'dose_text', '1 ml', 'start_utc', '2027-01-20T08:00:00Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S34b sin intervalo: a demanda');
+  select interval_min into iv from app.medication where id = tests.u(141);
+  perform tests.assert(iv is null, 'S34c a demanda queda null, nunca 0');
+
+  r := tests.go(tests.op('medication', 142, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'name', 'x', 'dose_text', '1 ml', 'interval_min', 10, 'start_utc', '2027-01-20T08:00:00Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S34d un intervalo imposible (10 min): rechazado');
+  r := tests.go(tests.op('medication', 143, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'name', 'x', 'dose_text', '1 ml', 'daily_max', 0, 'start_utc', '2027-01-20T08:00:00Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S34e un maximo diario de 0: rechazado');
+  r := tests.go(tests.op('medication', 144, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'name', 'x', 'dose_text', '1 ml', 'start_utc', '2027-01-20T08:00:00Z', 'end_utc', '2027-01-19T08:00:00Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S34f un fin anterior al inicio: rechazado');
+  r := tests.go(tests.op('medication', 145, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'name', '', 'dose_text', '1 ml', 'start_utc', '2027-01-20T08:00:00Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S34g un tratamiento sin nombre: rechazado');
+
+  r := tests.go(tests.op('medication_dose', 146, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'medication_id', tests.u(140), 'given_utc', '2027-01-20T08:05:00Z', 'given_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S34h una dosis de ese tratamiento');
+  select dose_text into t from app.medication_dose where id = tests.u(146);
+  perform tests.assert(t is null, 'S34i dose_text null = lo habitual del tratamiento');
+  r := tests.go(tests.op('medication_dose', 147, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'medication_id', tests.u(999), 'given_utc', '2027-01-20T08:05:00Z', 'given_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S34j una dosis de un tratamiento inexistente: rechazada');
+
+  -- fusion por campo: campos distintos se combinan, el mismo campo queda como conflicto
+  r := tests.go(tests.op('medication', 140, 1, '{"dose_text":"3 ml"}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S34k el primero edita la dosis');
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  r := tests.go(tests.op('medication', 140, 1, '{"interval_min":480}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S34l otro campo con base obsoleta: se combina');
+  r := tests.go(tests.op('medication', 140, 1, '{"dose_text":"4 ml"}'));
+  perform tests.assert(r ->> 'status' in ('merged', 'conflict'), 'S34m el mismo campo: no se rechaza, queda en conflicto');
+  perform tests.as_superuser();
+  select count(*) into n from app.sync_conflict where row_id = tests.u(140) and field_name = 'dose_text' and status = 'open';
+  perform tests.assert(n = 1, 'S34n el conflicto de la dosis pautada queda abierto');
+  select dose_text, interval_min into t, iv from app.medication where id = tests.u(140);
+  perform tests.assert(t = '3 ml' and iv = 480, 'S34o vale el primero en la dosis y se conserva el otro campo');
+
+  -- terminar el tratamiento es un cambio normal de campo
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('medication', 141, 1, '{"end_utc":"2027-01-21T08:00:00Z"}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S34p terminar un tratamiento');
+
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  r := tests.go(tests.op('medication_dose', 148, null, jsonb_build_object(
+    'baby_id', tests.u(2), 'medication_id', tests.u(140), 'given_utc', '2027-01-20T09:00:00Z', 'given_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S34q el tratamiento de otra familia no se puede usar');
+  select count(*) into n from app.medication;
+  perform tests.assert(n = 0, 'S34r otra familia no ve los tratamientos');
+  select count(*) into n from app.medication_dose;
+  perform tests.assert(n = 0, 'S34s otra familia no ve las dosis');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000003', 'lector@example.test');
+  begin
+    r := tests.go(tests.op('medication_dose', 149, null, jsonb_build_object(
+      'baby_id', tests.u(1), 'medication_id', tests.u(140), 'given_utc', '2027-01-20T09:00:00Z', 'given_tz', 'Europe/Madrid')));
+    ok := false;
+  exception when others then ok := sqlerrm like '%not_allowed%'; end;
+  perform tests.assert(ok, 'S34t un lector no puede registrar dosis');
+  select count(*) into n from app.medication;
+  perform tests.assert(n = 2, 'S34u un lector si ve los tratamientos');
+  perform tests.as_superuser();
+end $$;
+
+-- S35 · episodios de enfermedad (0015): un solo dato por anotacion segun su tipo, limites, referencias, aislamiento, permisos y fusion
+do $$
+declare r jsonb; n int; ok boolean; t text; dc int;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('illness_episode', 150, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'title', 'Resfriado de prueba', 'start_utc', '2027-01-20T18:00:00Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'applied' and (r ->> 'rev')::int = 1, 'S35a un episodio en curso (sin fin)');
+  r := tests.go(tests.op('illness_episode', 151, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'start_utc', '2027-01-20T18:00:00Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S35b el titulo es opcional');
+  r := tests.go(tests.op('illness_episode', 152, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'start_utc', '2027-01-20T18:00:00Z', 'end_utc', '2027-01-19T18:00:00Z', 'start_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S35c un fin anterior al inicio: rechazado');
+
+  r := tests.go(tests.op('illness_entry', 153, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'temperature', 'at_utc', '2027-01-20T19:00:00Z', 'at_tz', 'Europe/Madrid', 'temp_dc', 384, 'temp_site', 'axillary')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S35d una temperatura con su lugar de medida');
+  r := tests.go(tests.op('illness_entry', 154, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'symptom', 'at_utc', '2027-01-20T19:05:00Z', 'at_tz', 'Europe/Madrid', 'symptom', 'cough')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S35e un sintoma');
+  r := tests.go(tests.op('illness_entry', 155, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'intake', 'at_utc', '2027-01-20T19:10:00Z', 'at_tz', 'Europe/Madrid', 'intake', 'less')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S35f cuanto ha comido');
+  r := tests.go(tests.op('illness_entry', 156, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'diaper', 'at_utc', '2027-01-20T19:15:00Z', 'at_tz', 'Europe/Madrid', 'diaper', 'wet')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S35g un panal');
+  r := tests.go(tests.op('illness_entry', 157, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'note', 'at_utc', '2027-01-20T19:20:00Z', 'at_tz', 'Europe/Madrid', 'note', 'Durmio inquieta')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S35h una nota libre');
+
+  -- combinaciones imposibles
+  r := tests.go(tests.op('illness_entry', 158, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'temperature', 'at_utc', '2027-01-20T19:00:00Z', 'at_tz', 'Europe/Madrid', 'temp_dc', 384, 'symptom', 'cough')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S35i una temperatura con un sintoma: rechazada');
+  r := tests.go(tests.op('illness_entry', 159, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'temperature', 'at_utc', '2027-01-20T19:00:00Z', 'at_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S35j una temperatura sin valor: rechazada');
+  r := tests.go(tests.op('illness_entry', 160, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'symptom', 'at_utc', '2027-01-20T19:00:00Z', 'at_tz', 'Europe/Madrid', 'symptom', 'cough', 'temp_site', 'rectal')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S35k un sintoma con lugar de medida: rechazado');
+  r := tests.go(tests.op('illness_entry', 161, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'note', 'at_utc', '2027-01-20T19:00:00Z', 'at_tz', 'Europe/Madrid')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S35l una nota vacia: rechazada');
+  r := tests.go(tests.op('illness_entry', 162, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'temperature', 'at_utc', '2027-01-20T19:00:00Z', 'at_tz', 'Europe/Madrid', 'temp_dc', 450)));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S35m una temperatura imposible (45 C): rechazada');
+  r := tests.go(tests.op('illness_entry', 163, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'symptom', 'at_utc', '2027-01-20T19:00:00Z', 'at_tz', 'Europe/Madrid', 'symptom', 'inventado')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S35n un sintoma fuera de la lista: rechazado');
+  r := tests.go(tests.op('illness_entry', 164, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'episode_id', tests.u(999), 'kind', 'note', 'at_utc', '2027-01-20T19:00:00Z', 'at_tz', 'Europe/Madrid', 'note', 'x')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S35o una anotacion de un episodio inexistente: rechazada');
+
+  -- fusion por campo: la temperatura y el lugar son campos distintos
+  r := tests.go(tests.op('illness_entry', 153, 1, '{"temp_dc":391}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S35p el primero corrige la temperatura');
+  perform tests.as_user('a0000000-0000-4000-8000-000000000002', 'papa@example.test');
+  r := tests.go(tests.op('illness_entry', 153, 1, '{"temp_site":"rectal"}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S35q otro campo con base obsoleta: se combina');
+  r := tests.go(tests.op('illness_entry', 153, 1, '{"temp_dc":385}'));
+  perform tests.assert(r ->> 'status' in ('merged', 'conflict'), 'S35r el mismo campo: no se rechaza, queda en conflicto');
+  perform tests.as_superuser();
+  select count(*) into n from app.sync_conflict where row_id = tests.u(153) and field_name = 'temp_dc' and status = 'open';
+  perform tests.assert(n = 1, 'S35s el conflicto de la temperatura queda abierto');
+  select temp_dc, temp_site into dc, t from app.illness_entry where id = tests.u(153);
+  perform tests.assert(dc = 391 and t = 'rectal', 'S35t vale el primero en la temperatura y se conserva el otro campo');
+
+  -- terminar el episodio
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('illness_episode', 150, 1, '{"end_utc":"2027-01-23T18:00:00Z"}'));
+  perform tests.assert(r ->> 'status' = 'applied', 'S35u terminar un episodio');
+
+  perform tests.as_user('b0000000-0000-4000-8000-000000000001', 'admin-b@example.test');
+  r := tests.go(tests.op('illness_entry', 165, null, jsonb_build_object(
+    'baby_id', tests.u(2), 'episode_id', tests.u(150), 'kind', 'note', 'at_utc', '2027-01-20T19:00:00Z', 'at_tz', 'Europe/Madrid', 'note', 'x')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S35v el episodio de otra familia no se puede usar');
+  select count(*) into n from app.illness_episode;
+  perform tests.assert(n = 0, 'S35w otra familia no ve los episodios');
+  select count(*) into n from app.illness_entry;
+  perform tests.assert(n = 0, 'S35x otra familia no ve las anotaciones');
+
+  perform tests.as_user('a0000000-0000-4000-8000-000000000003', 'lector@example.test');
+  begin
+    r := tests.go(tests.op('illness_entry', 166, null, jsonb_build_object(
+      'baby_id', tests.u(1), 'episode_id', tests.u(150), 'kind', 'note', 'at_utc', '2027-01-20T19:00:00Z', 'at_tz', 'Europe/Madrid', 'note', 'x')));
+    ok := false;
+  exception when others then ok := sqlerrm like '%not_allowed%'; end;
+  perform tests.assert(ok, 'S35y un lector no puede anotar');
+  select count(*) into n from app.illness_entry;
+  perform tests.assert(n = 5, 'S35z un lector si ve las anotaciones');
+  perform tests.as_superuser();
+end $$;
+
 rollback;

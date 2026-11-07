@@ -1,6 +1,6 @@
 # Módulo de Salud: plan por fases
 
-Estado (7 nov 2026): **fases 0, 1, 2, 3 y 4 hechas** (la migración 0013 debe aplicarse en Supabase antes de publicar la fase 4); el resto es propuesta.
+Estado (7 nov 2026): **fases 0 a 6 hechas** (las migraciones 0014 y 0015 y el nuevo despliegue de la función programada deben hacerse antes de publicar las fases 5 y 6); queda la fase 7 (cierre).
 
 ## Qué se quiere
 
@@ -102,19 +102,36 @@ Cada fase es publicable por sí sola, lleva sus tests y, si toca la base de dato
 - **Pendiente de averiguar:** si el Documento de Salud Infantil de Madrid usa las curvas de la OMS u otras (Orbegozo); hasta confirmarlo se cita la fuente OMS y se avisa de que la interpretación es del pediatra.
 - **Sincronización verificada** como pide la sección siguiente: escenarios de dos móviles, filas reales de PostgreSQL, operaciones reales del móvil reproducidas en PostgreSQL, pruebas SQL (S33) y acciones de crecimiento en la prueba aleatoria.
 
-### Fase 5: medicación con cronómetro
+### Fase 5: medicación con cronómetro — HECHA
 - Tratamiento: nombre, dosis **tal como la escribió el médico**, intervalo en horas, inicio y fin, notas; todo lo escribe la familia.
 - Registro de cada toma con hora y quién la dio. Cuenta atrás hasta la próxima.
 - **Aviso al móvil** cuando toca (mismo mecanismo que el aviso de tomas), con botón «Ya la di» en la notificación.
 - Protección contra dobles dosis entre cuidadores: si ya se registró una toma hace poco, la app lo dice **antes** de registrar otra.
 - Límite diario opcional que escribe la familia (de la receta); la app solo avisa de que se ha alcanzado, nunca lo propone.
-- Migración 0015 (y función programada análoga a la de tomas).
+- Migración 0014 (tablas `medication` y `medication_dose`, contrato 0.8.0; y la función `claim_due_medication_reminders`).
 
-### Fase 6: episodios de enfermedad e informe de síntomas
+**Lo que se hizo y lo que se decidió:**
+- **Dos tablas:** `medication` (el tratamiento: nombre, dosis en texto libre, intervalo en minutos o «a demanda» = null, inicio, fin opcional, máximo diario opcional, aviso sí/no) y `medication_dose` (cada dosis: hora, zona, texto solo si lo dado no fue lo pautado, notas; quién la dio es `created_by`). Terminar un tratamiento es poner su `end_utc`; eliminarlo oculta también sus dosis sin tocarlas (al restaurarlo vuelven).
+- **Cuenta atrás:** la última dosis + el intervalo; sin ninguna dosis, el inicio del tratamiento. A demanda, terminado o sin empezar no hay cuenta atrás. Lógica pura en `packages/core/src/health/medication.ts`.
+- **Protección contra dobles dosis:** antes de anotar se enseña, como hechos y sin recomendar nada, si ya hay una dosis hace menos del intervalo escrito (o menos de 30 min si es a demanda) y si ya se alcanzó el máximo diario escrito; hay que pulsar «Anotar de todos modos». Dos móviles sin conexión no pueden evitarlo: al sincronizar llegan las dos dosis (no se pierde ninguna) y la app señala las que quedan a menos de 30 min como posible duplicado, sin borrar nada.
+- **Aviso al móvil:** la función programada (`feed-reminders`) reclama de forma atómica cada dosis debida **una sola vez** y la envía por web push («Toca Medicamento · Lía», con la dosis y la pauta que escribió la familia). Solo sale si la hora debida cayó en las últimas 2 h y no se avisa de tratamientos terminados, sin aviso, a demanda ni cuando el máximo diario ya está alcanzado (no se empuja a pasarse). El botón «Ya la di» de la notificación **no registra nada solo**: abre la app en ese tratamiento con la hoja de registro para confirmar la hora (y ver si ya la dio la otra persona). Que iOS muestre el botón depende del sistema; tocar el aviso basta.
+- **Sincronización verificada** como pide la sección siguiente: escenarios de dos móviles (incluida la misma dosis anotada a la vez en los dos y el tratamiento borrado mientras el otro anota una dosis), filas reales de PostgreSQL, operaciones reales del móvil reproducidas en PostgreSQL, pruebas SQL (S34 y P06) y acciones de medicación en la prueba aleatoria.
+- Para el cruce con enfermedad (fase 6) no hace falta tabla de enlace: las dosis dadas durante un episodio se obtienen por la hora.
+
+### Fase 6: episodios de enfermedad e informe de síntomas — HECHA
 - Episodio (inicio, fin) con anotaciones: temperatura (hora y valor), síntomas (lista elegible), cuánto come, pañales, cómo duerme, medicación dada (enlazada con la fase 5).
 - Línea de tiempo del episodio y **informe para el pediatra** (misma tubería que el informe semanal): resumen, evolución de la temperatura, medicación dada con horas.
 - Cruce con sueño y tomas durante el episodio, con el mismo cuidado que «Contexto».
-- Migración 0016.
+- Migración 0015 (tablas `illness_episode` e `illness_entry`, contrato 0.9.0).
+
+**Lo que se hizo y lo que se decidió:**
+- **Dos tablas:** `illness_episode` (desde cuándo y hasta cuándo, `null` = en curso; título libre y opcional: la app no diagnostica ni propone nombres) e `illness_entry` (una anotación: según su tipo lleva UN único dato: temperatura en décimas de °C con dónde se midió, un síntoma de una lista cerrada, cuánto comió respecto a lo habitual, un pañal o una nota libre; cualquier tipo admite además una nota). La base de datos rechaza combinaciones imposibles (una temperatura con síntoma…) y el tipo nunca se edita, así que la fusión campo a campo no puede dejar una anotación incoherente.
+- **Un episodio en curso a la vez** por niña desde la app; si dos móviles sin conexión abren uno cada uno, al sincronizar quedan los dos (no se pierde nada) y se terminan a mano.
+- **Medicación enlazada por la hora:** no hay tabla de enlace; las dosis de la fase 5 dadas entre el inicio y el fin del episodio salen en la pantalla y en el informe, con la pauta que escribió la familia.
+- **Sueño y tomas:** «cómo duerme» no se vuelve a anotar: sale de los descansos y tomas ya registrados. El informe compara los 7 días completos anteriores al episodio con los días completos del episodio (sin el primero ni el último, que están a medias), con su n, y con menos de 3 días con datos dice que no se comparan. Es una descripción, no una causa (la misma cautela que «Contexto»).
+- **Informe para el pediatra** con la misma tubería que el semanal (texto, copiar, compartir, HTML): temperaturas (máxima, mínima, primera, última y la lista completa con hora y lugar de medida), síntomas con cuántas veces y desde cuándo, comida, pañales, tomas de la app, medicación dada con horas, notas y recuento de datos. Solo hechos: nunca dice «fiebre», «normal» ni «grave», y **el CIPA no sale nunca**.
+- **Sin avisos ni función programada:** es solo registro (no hay aviso de «toma la temperatura»: sería proponer una pauta).
+- **Sincronización verificada** como pide la sección siguiente: escenarios de dos móviles (anotaciones a la vez en el mismo episodio, campos distintos de una anotación, la misma temperatura cambiada a la vez, episodio borrado mientras el otro anota), filas reales de PostgreSQL, operaciones reales del móvil reproducidas en PostgreSQL, pruebas SQL (S35) y acciones de enfermedad en la prueba aleatoria.
 
 ### Fase 7: cierre
 - Bloqueo con PIN o biometría (ahora hay datos de salud, deja de ser opcional).

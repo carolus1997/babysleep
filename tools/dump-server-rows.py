@@ -59,13 +59,40 @@ select tests.go(tests.op('appointment', 111, null, jsonb_build_object(
 select tests.go(tests.op('growth_measure', 120, null, jsonb_build_object(
   'baby_id', tests.u(1), 'measured_on', '2027-01-05', 'weight_g', 5600, 'head_mm', 405, 'place', 'Centro de prueba', 'notes', 'en ayunas')));
 select tests.go(tests.op('growth_measure', 121, null, jsonb_build_object('baby_id', tests.u(1), 'measured_on', '2027-01-12', 'length_mm', 625)));
+select tests.go(tests.op('medication', 130, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'name', 'Medicamento de prueba', 'dose_text', '2,5 ml', 'interval_min', 360,
+  'start_utc', '2027-01-20T08:00:00.000Z', 'start_tz', 'Europe/Madrid', 'daily_max', 4, 'notes', E'con las comidas\\nsin leche')));
+select tests.go(tests.op('medication', 131, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'name', 'A demanda', 'dose_text', '1 comprimido', 'start_utc', '2027-01-20T08:00:00.000Z', 'start_tz', 'Europe/Madrid', 'remind', false)));
+select tests.go(tests.op('medication_dose', 132, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'medication_id', tests.u(130), 'given_utc', '2027-01-20T08:05:00.000Z', 'given_tz', 'Europe/Madrid')));
+select tests.go(tests.op('medication_dose', 133, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'medication_id', tests.u(130), 'given_utc', '2027-01-20T14:10:00.000Z', 'given_tz', 'Europe/Madrid', 'dose_text', '2 ml', 'notes', 'se durmio')));
+select tests.go(tests.op('illness_episode', 140, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'title', 'Resfriado de prueba', 'start_utc', '2027-01-20T18:00:00.000Z', 'start_tz', 'Europe/Madrid', 'notes', E'empezo con mocos\\ny tos')));
+select tests.go(tests.op('illness_episode', 141, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'start_utc', '2027-02-01T08:00:00.000Z', 'end_utc', '2027-02-03T08:00:00.000Z', 'start_tz', 'Europe/Madrid')));
+select tests.go(tests.op('illness_entry', 142, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'episode_id', tests.u(140), 'kind', 'temperature', 'at_utc', '2027-01-20T19:00:00.000Z', 'at_tz', 'Europe/Madrid', 'temp_dc', 384, 'temp_site', 'axillary')));
+select tests.go(tests.op('illness_entry', 143, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'episode_id', tests.u(140), 'kind', 'symptom', 'at_utc', '2027-01-20T19:05:00.000Z', 'at_tz', 'Europe/Madrid', 'symptom', 'cough', 'note', 'seca')));
+select tests.go(tests.op('illness_entry', 144, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'episode_id', tests.u(140), 'kind', 'intake', 'at_utc', '2027-01-20T19:10:00.000Z', 'at_tz', 'Europe/Madrid', 'intake', 'less')));
+select tests.go(tests.op('illness_entry', 145, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'episode_id', tests.u(140), 'kind', 'diaper', 'at_utc', '2027-01-20T19:15:00.000Z', 'at_tz', 'Europe/Madrid', 'diaper', 'both')));
+select tests.go(tests.op('illness_entry', 146, null, jsonb_build_object(
+  'baby_id', tests.u(1), 'episode_id', tests.u(140), 'kind', 'note', 'at_utc', '2027-01-20T19:20:00.000Z', 'at_tz', 'Europe/Madrid', 'note', 'Durmio inquieta')));
 select tests.as_superuser();
 select '@@JSON@@';
 select jsonb_pretty(jsonb_build_object(
   'baby', (select jsonb_agg(to_jsonb(b)) from app.baby b where b.id = tests.u(1)),
   'vaccination', (select jsonb_agg(to_jsonb(v) order by v.id) from app.vaccination v),
   'appointment', (select jsonb_agg(to_jsonb(a) order by a.id) from app.appointment a),
-  'growth_measure', (select jsonb_agg(to_jsonb(g) order by g.id) from app.growth_measure g)));
+  'growth_measure', (select jsonb_agg(to_jsonb(g) order by g.id) from app.growth_measure g),
+  'medication', (select jsonb_agg(to_jsonb(m) order by m.id) from app.medication m),
+  'medication_dose', (select jsonb_agg(to_jsonb(d) order by d.id) from app.medication_dose d),
+  'illness_episode', (select jsonb_agg(to_jsonb(e) order by e.id) from app.illness_episode e),
+  'illness_entry', (select jsonb_agg(to_jsonb(n) order by n.id) from app.illness_entry n)));
 rollback;
 """
 

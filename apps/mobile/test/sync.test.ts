@@ -7,6 +7,8 @@ import { mergeBabies } from '../src/domain/merge';
 import type { Ctx } from '../src/domain/context';
 import { addAppointment, deleteAppointment, editAppointment, listAppointments, restoreAppointment, setAppointmentStatus } from '../src/domain/appointments';
 import { addGrowth, deleteGrowth, editGrowth, listGrowth, restoreGrowth } from '../src/domain/growth';
+import { addEntry, deleteEntry, deleteEpisode, editEntry, editEpisode, endEpisode, listEntries, listEpisodes, reopenEpisode, restoreEntry, restoreEpisode, startEpisode } from '../src/domain/illness';
+import { addDose, addMedication, deleteDose, deleteMedication, editDose, editMedication, listDoses, listMedications, restoreDose, restoreMedication, stopMedication } from '../src/domain/medication';
 import { addExtraVaccine, deleteVaccination, editVaccination, listVaccinations, markNotApplicable, planFor, recordDoses, restoreVaccination } from '../src/domain/vaccines';
 import { addManualAwakening, deleteAwakening, editAwakening, finishAwakening, getOpenAwakening, startAwakening } from '../src/domain/awakening';
 import { deleteFeeding, editFeeding, finishFeeding as finishFeed, getOpenFeeding, listFeedings, nudgeFeedingStart, restoreFeeding, startFeeding as startFeed } from '../src/domain/feeding';
@@ -934,9 +936,314 @@ describe('crecimiento entre dos móviles', () => {
   });
 });
 
+describe('medicación entre dos móviles', () => {
+  const med = async (p: Phone, baby: string) => (await listMedications(p.ctx, baby)).map((m) => `${m.name}|${m.dose_text}|${m.interval_min}|${m.daily_max}|${m.end_utc === null ? 'abierto' : 'terminado'}`);
+  const doses = async (p: Phone, baby: string) => (await listDoses(p.ctx, baby)).map((d) => `${d.given_utc}|${d.dose_text}|${d.created_by === null ? '-' : 'quien'}`);
+
+  it('un tratamiento y sus dosis llegan al otro móvil con los mismos datos; «a demanda» sigue siendo null, nunca 0', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const m = await addMedication(A.ctx, { babyId: baby, name: 'Medicamento de prueba', doseText: '2,5 ml', intervalMin: 360, dailyMax: 4 });
+    await addMedication(A.ctx, { babyId: baby, name: 'A demanda', doseText: '1 ml' });
+    await addDose(A.ctx, { medicationId: m.id });
+    await settle(A, B);
+    expect(await med(B, baby)).toEqual(await med(A, baby));
+    expect((await med(B, baby)).sort()).toEqual(['A demanda|1 ml|null|null|abierto', 'Medicamento de prueba|2,5 ml|360|4|abierto']);
+    expect(await doses(B, baby)).toEqual(await doses(A, baby));
+    expect(await doses(B, baby)).toHaveLength(1);
+    expect(server.rows('medication')).toHaveLength(2);
+    expect(server.rows('medication_dose')).toHaveLength(1);
+    await expectConverged(server, A, B);
+  });
+
+  it('dos cuidadores dan «la misma» dosis sin conexión: llegan las dos (no se pierde ninguna) y se pueden señalar como seguidas', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const m = await addMedication(A.ctx, { babyId: baby, name: 'X', doseText: '1 ml', intervalMin: 360 });
+    await settle(A, B);
+    await addDose(A.ctx, { medicationId: m.id });
+    await addDose(B.ctx, { medicationId: m.id, confirmed: true });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    for (const p of [A, B]) expect(await listDoses(p.ctx, baby)).toHaveLength(2);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    expect(server.conflicts).toEqual([]);
+    await expectConverged(server, A, B);
+  });
+
+  it('campos distintos editados a la vez se fusionan; el mismo campo queda para decidir; terminar y reabrir se propagan', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const m = await addMedication(A.ctx, { babyId: baby, name: 'X', doseText: '1 ml', intervalMin: 360 });
+    await settle(A, B);
+    await editMedication(A.ctx, m.id, { intervalMin: 480 });
+    await editMedication(B.ctx, m.id, { notes: 'con las comidas', dailyMax: 3 });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    for (const p of [A, B]) expect((await listMedications(p.ctx, baby))[0]).toMatchObject({ interval_min: 480, daily_max: 3, notes: 'con las comidas' });
+    expect(server.conflicts.filter((c) => c.status === 'open')).toEqual([]);
+
+    await editMedication(A.ctx, m.id, { doseText: '2 ml' });
+    await editMedication(B.ctx, m.id, { doseText: '3 ml' });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    expect(server.conflicts.filter((c) => c.status === 'open' && c.field === 'dose_text')).toHaveLength(1);
+
+    await stopMedication(A.ctx, m.id);
+    await settle(A, B);
+    expect((await listMedications(B.ctx, baby))[0]!.end_utc).not.toBeNull();
+    await expectConverged(server, A, B);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+  });
+
+  it('editar, borrar y restaurar una dosis se propagan', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const m = await addMedication(A.ctx, { babyId: baby, name: 'X', doseText: '1 ml', intervalMin: 360 });
+    const d = await addDose(A.ctx, { medicationId: m.id });
+    await settle(A, B);
+    await editDose(B.ctx, d.id, { doseText: '0,5 ml', notes: 'escupió un poco' });
+    await settle(A, B);
+    expect((await listDoses(A.ctx, baby))[0]).toMatchObject({ dose_text: '0,5 ml', notes: 'escupió un poco' });
+    await deleteDose(A.ctx, d.id);
+    await settle(A, B);
+    expect(await listDoses(B.ctx, baby)).toEqual([]);
+    await restoreDose(B.ctx, d.id);
+    await settle(A, B);
+    expect(await listDoses(A.ctx, baby)).toHaveLength(1);
+    await expectConverged(server, A, B);
+  });
+
+  it('un móvil borra el tratamiento mientras el otro anota una dosis: nada se rechaza y, al restaurarlo, vuelve con su dosis', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const m = await addMedication(A.ctx, { babyId: baby, name: 'X', doseText: '1 ml', intervalMin: 360 });
+    await settle(A, B);
+    await deleteMedication(A.ctx, m.id);
+    await addDose(B.ctx, { medicationId: m.id });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    for (const p of [A, B]) {
+      expect(await listMedications(p.ctx, baby)).toEqual([]);
+      expect(await listDoses(p.ctx, baby)).toEqual([]);
+    }
+    await restoreMedication(B.ctx, m.id);
+    await settle(A, B);
+    for (const p of [A, B]) expect(await listDoses(p.ctx, baby)).toHaveLength(1);
+    await expectConverged(server, A, B);
+  });
+
+  it('un móvil nuevo que entra después recibe todo; lo anotado antes de conectar se sube tal cual (tratamiento antes que dosis)', async () => {
+    const { clock, server, A, B, baby } = await connectedPair();
+    const m = await addMedication(A.ctx, { babyId: baby, name: 'X', doseText: '1 ml', intervalMin: 360 });
+    await addDose(A.ctx, { medicationId: m.id });
+    await settle(A, B);
+    clock.tick(HOUR);
+    const C = await makePhone(server, clock, 'C', 0);
+    expect((await C.connect()).ok).toBe(true);
+    await settle(A, B, C);
+    expect(await med(C, baby)).toEqual(await med(A, baby));
+    expect(await doses(C, baby)).toEqual(await doses(A, baby));
+    await expectConverged(server, A, B, C);
+
+    const pre = await pair({
+      seedA: async (X) => {
+        const b = await createBaby(X.ctx, { alias: 'Lía', birthDate: '2026-07-01' });
+        const mm = await addMedication(X.ctx, { babyId: b.id, name: 'Y', doseText: '3 gotas', intervalMin: 480 });
+        await addDose(X.ctx, { medicationId: mm.id });
+      },
+    });
+    expect((await pre.A.connect()).ok).toBe(true);
+    expect((await pre.B.connect()).ok).toBe(true);
+    await settle(pre.A, pre.B);
+    expect(pre.server.rows('medication')).toHaveLength(1);
+    expect(pre.server.rows('medication_dose')).toHaveLength(1);
+    const nb = (await listBabies(pre.B.ctx))[0]!.id;
+    expect(await listMedications(pre.B.ctx, nb)).toHaveLength(1);
+    expect(await listDoses(pre.B.ctx, nb)).toHaveLength(1);
+  });
+
+  it('al fusionar dos perfiles duplicados pasan los tratamientos y sus dosis al que se conserva, en los dos móviles', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const other = await createBaby(A.ctx, { alias: 'Duplicado', birthDate: '2026-07-01' });
+    const m = await addMedication(A.ctx, { babyId: other.id, name: 'X', doseText: '1 ml', intervalMin: 360 });
+    await addDose(A.ctx, { medicationId: m.id });
+    await settle(A, B);
+    await mergeBabies(A.ctx, other.id, baby);
+    await settle(A, B);
+    for (const p of [A, B]) {
+      expect(await listMedications(p.ctx, baby)).toHaveLength(1);
+      expect(await listDoses(p.ctx, baby)).toHaveLength(1);
+      expect(await listMedications(p.ctx, other.id)).toEqual([]);
+    }
+    await expectConverged(server, A, B);
+  });
+});
+
+describe('enfermedad entre dos móviles', () => {
+  const eps = async (p: Phone, baby: string) => (await listEpisodes(p.ctx, baby)).map((e) => `${e.title}|${e.start_utc}|${e.end_utc === null ? 'en curso' : 'terminado'}`).sort();
+  const ents = async (p: Phone, baby: string) => (await listEntries(p.ctx, baby)).map((e) => `${e.kind}|${e.at_utc}|${e.temp_dc}|${e.temp_site}|${e.symptom}|${e.intake}|${e.diaper}|${e.note}`);
+
+  it('un episodio y sus anotaciones llegan al otro móvil con los mismos datos; lo que no corresponde al tipo sigue siendo null', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const ep = await startEpisode(A.ctx, { babyId: baby, title: 'Resfriado de prueba' });
+    await addEntry(A.ctx, { episodeId: ep.id, kind: 'temperature', tempDc: 384, site: 'axillary' });
+    await addEntry(A.ctx, { episodeId: ep.id, kind: 'temperature', tempDc: 371 });
+    await addEntry(A.ctx, { episodeId: ep.id, kind: 'symptom', symptom: 'cough', note: 'seca' });
+    await addEntry(A.ctx, { episodeId: ep.id, kind: 'intake', intake: 'less' });
+    await addEntry(A.ctx, { episodeId: ep.id, kind: 'diaper', diaper: 'both' });
+    await addEntry(A.ctx, { episodeId: ep.id, kind: 'note', note: 'Durmió inquieta' });
+    await settle(A, B);
+    expect(await eps(B, baby)).toEqual(await eps(A, baby));
+    expect(await ents(B, baby)).toEqual(await ents(A, baby));
+    expect(await ents(B, baby)).toHaveLength(6);
+    expect(server.rows('illness_episode')).toHaveLength(1);
+    expect(server.rows('illness_entry')).toHaveLength(6);
+    expect((await listEntries(B.ctx, baby)).filter((e) => e.kind === 'temperature').map((e) => e.temp_site).sort()).toEqual(['axillary', null]);
+    await expectConverged(server, A, B);
+  });
+
+  it('los dos cuidadores anotan a la vez en el mismo episodio: llegan todas las anotaciones, nada se rechaza', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const ep = await startEpisode(A.ctx, { babyId: baby });
+    await settle(A, B);
+    await addEntry(A.ctx, { episodeId: ep.id, kind: 'temperature', tempDc: 385 });
+    await addEntry(B.ctx, { episodeId: ep.id, kind: 'temperature', tempDc: 379 });
+    await addEntry(B.ctx, { episodeId: ep.id, kind: 'symptom', symptom: 'vomiting' });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    for (const p of [A, B]) expect(await listEntries(p.ctx, baby)).toHaveLength(3);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    expect(server.conflicts).toEqual([]);
+    await expectConverged(server, A, B);
+  });
+
+  it('campos distintos de una misma anotación se fusionan; la misma temperatura cambiada a la vez queda para decidir', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const ep = await startEpisode(A.ctx, { babyId: baby });
+    const t = await addEntry(A.ctx, { episodeId: ep.id, kind: 'temperature', tempDc: 384, site: 'axillary' });
+    await settle(A, B);
+    await editEntry(A.ctx, t.id, { tempDc: 391 });
+    await editEntry(B.ctx, t.id, { site: 'rectal', note: 'tras el baño' });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    for (const p of [A, B]) expect((await listEntries(p.ctx, baby))[0]).toMatchObject({ temp_dc: 391, temp_site: 'rectal', note: 'tras el baño' });
+    expect(server.conflicts.filter((c) => c.status === 'open')).toEqual([]);
+
+    await editEntry(A.ctx, t.id, { tempDc: 385 });
+    await editEntry(B.ctx, t.id, { tempDc: 386 });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    expect(server.conflicts.filter((c) => c.status === 'open' && c.field === 'temp_dc')).toHaveLength(1);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    await expectConverged(server, A, B);
+  });
+
+  it('terminar, reabrir, editar y borrar un episodio se propagan; borrar una anotación y restaurarla también', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const ep = await startEpisode(A.ctx, { babyId: baby, title: 'X' });
+    const n = await addEntry(A.ctx, { episodeId: ep.id, kind: 'note', note: 'a' });
+    await settle(A, B);
+    await endEpisode(B.ctx, ep.id);
+    await editEpisode(A.ctx, ep.id, { title: 'Y' });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    for (const p of [A, B]) expect((await listEpisodes(p.ctx, baby))[0]).toMatchObject({ title: 'Y' });
+    expect((await listEpisodes(A.ctx, baby))[0]!.end_utc).not.toBeNull();
+    await reopenEpisode(A.ctx, ep.id);
+    await settle(A, B);
+    expect((await listEpisodes(B.ctx, baby))[0]!.end_utc).toBeNull();
+
+    await deleteEntry(B.ctx, n.id);
+    await settle(A, B);
+    expect(await listEntries(A.ctx, baby)).toEqual([]);
+    await restoreEntry(A.ctx, n.id);
+    await settle(A, B);
+    expect(await listEntries(B.ctx, baby)).toHaveLength(1);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    await expectConverged(server, A, B);
+  });
+
+  it('un móvil borra el episodio mientras el otro anota: nada se rechaza y, al restaurarlo, vuelve con todo', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const ep = await startEpisode(A.ctx, { babyId: baby });
+    await settle(A, B);
+    await deleteEpisode(A.ctx, ep.id);
+    await addEntry(B.ctx, { episodeId: ep.id, kind: 'temperature', tempDc: 380 });
+    await A.sync();
+    await B.sync();
+    await settle(A, B);
+    expect(await rejectedEntries(A.ctx.db)).toEqual([]);
+    expect(await rejectedEntries(B.ctx.db)).toEqual([]);
+    for (const p of [A, B]) {
+      expect(await listEpisodes(p.ctx, baby)).toEqual([]);
+      expect(await listEntries(p.ctx, baby)).toEqual([]);
+    }
+    await restoreEpisode(B.ctx, ep.id);
+    await settle(A, B);
+    for (const p of [A, B]) expect(await listEntries(p.ctx, baby)).toHaveLength(1);
+    await expectConverged(server, A, B);
+  });
+
+  it('un móvil nuevo que entra después recibe todo; lo anotado antes de conectar se sube tal cual (episodio antes que anotaciones)', async () => {
+    const { clock, server, A, B, baby } = await connectedPair();
+    const ep = await startEpisode(A.ctx, { babyId: baby });
+    await addEntry(A.ctx, { episodeId: ep.id, kind: 'temperature', tempDc: 384 });
+    await settle(A, B);
+    clock.tick(HOUR);
+    const C = await makePhone(server, clock, 'C', 0);
+    expect((await C.connect()).ok).toBe(true);
+    await settle(A, B, C);
+    expect(await eps(C, baby)).toEqual(await eps(A, baby));
+    expect(await ents(C, baby)).toEqual(await ents(A, baby));
+    await expectConverged(server, A, B, C);
+
+    const pre = await pair({
+      seedA: async (X) => {
+        const b = await createBaby(X.ctx, { alias: 'Lía', birthDate: '2026-07-01' });
+        const e = await startEpisode(X.ctx, { babyId: b.id, title: 'Y' });
+        await addEntry(X.ctx, { episodeId: e.id, kind: 'symptom', symptom: 'cough' });
+      },
+    });
+    expect((await pre.A.connect()).ok).toBe(true);
+    expect((await pre.B.connect()).ok).toBe(true);
+    await settle(pre.A, pre.B);
+    expect(pre.server.rows('illness_episode')).toHaveLength(1);
+    expect(pre.server.rows('illness_entry')).toHaveLength(1);
+    const nb = (await listBabies(pre.B.ctx))[0]!.id;
+    expect(await listEntries(pre.B.ctx, nb)).toHaveLength(1);
+  });
+
+  it('al fusionar dos perfiles duplicados pasan los episodios y sus anotaciones al que se conserva, en los dos móviles', async () => {
+    const { server, A, B, baby } = await connectedPair();
+    const other = await createBaby(A.ctx, { alias: 'Duplicado', birthDate: '2026-07-01' });
+    const ep = await startEpisode(A.ctx, { babyId: other.id });
+    await addEntry(A.ctx, { episodeId: ep.id, kind: 'temperature', tempDc: 380 });
+    await settle(A, B);
+    await mergeBabies(A.ctx, other.id, baby);
+    await settle(A, B);
+    for (const p of [A, B]) {
+      expect(await listEpisodes(p.ctx, baby)).toHaveLength(1);
+      expect(await listEntries(p.ctx, baby)).toHaveLength(1);
+      expect(await listEpisodes(p.ctx, other.id)).toEqual([]);
+    }
+    await expectConverged(server, A, B);
+  });
+});
+
 describe('convergencia (prueba aleatoria)', () => {
   /** Cuánto de lo de salud acabó en el servidor a lo largo de todas las semillas: si fuera 0, la prueba no probaría nada. */
-  const exercised = { seeds: 0, growth: 0, vaccinations: 0, appointments: 0, healthProfiles: 0, withReminders: 0 };
+  const exercised = { seeds: 0, episodes: 0, illnessEntries: 0, medications: 0, doses: 0, growth: 0, vaccinations: 0, appointments: 0, healthProfiles: 0, withReminders: 0 };
   const rng = (seed: number) => () => {
     seed |= 0;
     seed = (seed + 0x6d2b79f5) | 0;
@@ -967,9 +1274,15 @@ describe('convergencia (prueba aleatoria)', () => {
       const vacs = (await p.ctx.db.vaccination.toArray()).filter((x) => x.baby_id === baby);
       const appts = (await p.ctx.db.appointment.toArray()).filter((x) => x.baby_id === baby);
       const grows = (await p.ctx.db.growth_measure.toArray()).filter((x) => x.baby_id === baby);
+      const episodes = (await p.ctx.db.illness_episode.toArray()).filter((x) => x.baby_id === baby);
+      const liveEpisodes = episodes.filter((x) => x.deleted_at === null);
+      const illEntries = (await p.ctx.db.illness_entry.toArray()).filter((x) => x.baby_id === baby);
+      const meds = (await p.ctx.db.medication.toArray()).filter((x) => x.baby_id === baby);
+      const liveMeds = meds.filter((x) => x.deleted_at === null);
+      const medDoses = (await p.ctx.db.medication_dose.toArray()).filter((x) => x.baby_id === baby);
       clock.tick((1 + Math.floor(rand() * 25)) * MIN);
 
-      const action = pick(['start', 'finish', 'cancel', 'edit', 'delete', 'restore', 'manual', 'note', 'profile', 'feedStart', 'feedFinish', 'feedEdit', 'feedNote', 'feedDelete', 'awStart', 'awManual', 'awFinish', 'awEdit', 'awDelete', 'hProfile', 'vRecord', 'vEdit', 'vDelete', 'vRestore', 'aAdd', 'aEdit', 'aStatus', 'aDelete', 'aRestore', 'gAdd', 'gEdit', 'gDelete', 'gRestore', 'sync', 'sync', 'sync', 'fail']);
+      const action = pick(['start', 'finish', 'cancel', 'edit', 'delete', 'restore', 'manual', 'note', 'profile', 'feedStart', 'feedFinish', 'feedEdit', 'feedNote', 'feedDelete', 'awStart', 'awManual', 'awFinish', 'awEdit', 'awDelete', 'hProfile', 'vRecord', 'vEdit', 'vDelete', 'vRestore', 'aAdd', 'aEdit', 'aStatus', 'aDelete', 'aRestore', 'gAdd', 'gEdit', 'gDelete', 'gRestore', 'mAdd', 'mEdit', 'mStop', 'mDelete', 'mRestore', 'dAdd', 'dAdd', 'dEdit', 'dDelete', 'dRestore', 'iStart', 'iStart', 'iEnd', 'iReopen', 'iEdit', 'iDelete', 'iRestore', 'eAdd', 'eAdd', 'eAdd', 'eAdd', 'eEdit', 'eDelete', 'eRestore', 'sync', 'sync', 'sync', 'fail']);
       trace.push(`${step} ${p.name} ${action} open=${open?.id.slice(-6) ?? '-'} live=[${live.map((x) => x.id.slice(-6))}] trash=[${trashed.map((x) => x.id.slice(-6))}]`);
       try {
         if (action === 'start' && !open) await startSleep(p.ctx, baby);
@@ -1035,6 +1348,38 @@ describe('convergencia (prueba aleatoria)', () => {
           await editGrowth(p.ctx, g.id, rand() < 0.5 ? { weightG: 4000 + Math.floor(rand() * 2000) } : { place: `Lugar ${step}`, notes: rand() < 0.3 ? '' : `nota ${step}` });
         } else if (action === 'gDelete' && grows.some((x) => x.deleted_at === null)) await deleteGrowth(p.ctx, pick(grows.filter((x) => x.deleted_at === null)).id);
         else if (action === 'gRestore' && grows.some((x) => x.deleted_at !== null)) await restoreGrowth(p.ctx, pick(grows.filter((x) => x.deleted_at !== null)).id);
+        else if (action === 'mAdd') await addMedication(p.ctx, { babyId: baby, name: `Med ${step}`, doseText: `${1 + Math.floor(rand() * 5)} ml`, intervalMin: rand() < 0.3 ? null : pick([240, 360, 480]), dailyMax: rand() < 0.5 ? null : 4, remind: rand() < 0.7 });
+        else if (action === 'mEdit' && liveMeds.length > 0) {
+          const m = pick(liveMeds);
+          await editMedication(p.ctx, m.id, pick([{ doseText: `${step} gotas` }, { intervalMin: pick([240, 360, null]) }, { notes: rand() < 0.3 ? '' : `nota ${step}` }, { remind: rand() < 0.5 }, { dailyMax: pick([3, 5, null]) }]));
+        } else if (action === 'mStop' && liveMeds.length > 0) await stopMedication(p.ctx, pick(liveMeds).id);
+        else if (action === 'mDelete' && liveMeds.length > 0) await deleteMedication(p.ctx, pick(liveMeds).id);
+        else if (action === 'mRestore' && meds.some((x) => x.deleted_at !== null)) await restoreMedication(p.ctx, pick(meds.filter((x) => x.deleted_at !== null)).id);
+        else if (action === 'dAdd' && liveMeds.length > 0) await addDose(p.ctx, { medicationId: pick(liveMeds).id, confirmed: true, doseText: rand() < 0.3 ? `${step} ml` : null });
+        else if (action === 'dEdit' && medDoses.some((x) => x.deleted_at === null)) await editDose(p.ctx, pick(medDoses.filter((x) => x.deleted_at === null)).id, rand() < 0.5 ? { notes: `nota ${step}` } : { doseText: rand() < 0.3 ? '' : `${step} ml` });
+        else if (action === 'dDelete' && medDoses.some((x) => x.deleted_at === null)) await deleteDose(p.ctx, pick(medDoses.filter((x) => x.deleted_at === null)).id);
+        else if (action === 'dRestore' && medDoses.some((x) => x.deleted_at !== null)) await restoreDose(p.ctx, pick(medDoses.filter((x) => x.deleted_at !== null)).id);
+        else if (action === 'iStart') await startEpisode(p.ctx, { babyId: baby, title: rand() < 0.3 ? null : `Episodio ${step}` });
+        else if (action === 'iEnd' && liveEpisodes.length > 0) await endEpisode(p.ctx, pick(liveEpisodes).id);
+        else if (action === 'iReopen' && liveEpisodes.length > 0) await reopenEpisode(p.ctx, pick(liveEpisodes).id);
+        else if (action === 'iEdit' && liveEpisodes.length > 0) await editEpisode(p.ctx, pick(liveEpisodes).id, pick([{ title: `Título ${step}` }, { notes: rand() < 0.3 ? '' : `notas ${step}` }, { title: null }]));
+        else if (action === 'iDelete' && liveEpisodes.length > 0) await deleteEpisode(p.ctx, pick(liveEpisodes).id);
+        else if (action === 'iRestore' && episodes.some((x) => x.deleted_at !== null)) await restoreEpisode(p.ctx, pick(episodes.filter((x) => x.deleted_at !== null)).id);
+        else if (action === 'eAdd' && liveEpisodes.length > 0) {
+          const e = pick(liveEpisodes);
+          const k = pick(['temperature', 'symptom', 'intake', 'diaper', 'note'] as const);
+          if (k === 'temperature') await addEntry(p.ctx, { episodeId: e.id, kind: k, tempDc: 365 + Math.floor(rand() * 40), site: rand() < 0.5 ? null : pick(['axillary', 'rectal', 'ear'] as const) });
+          else if (k === 'symptom') await addEntry(p.ctx, { episodeId: e.id, kind: k, symptom: pick(['cough', 'runny_nose', 'vomiting', 'rash'] as const) });
+          else if (k === 'intake') await addEntry(p.ctx, { episodeId: e.id, kind: k, intake: pick(['usual', 'less', 'much_less', 'almost_none'] as const) });
+          else if (k === 'diaper') await addEntry(p.ctx, { episodeId: e.id, kind: k, diaper: pick(['wet', 'dirty', 'both'] as const) });
+          else await addEntry(p.ctx, { episodeId: e.id, kind: k, note: `nota ${step}` });
+        } else if (action === 'eEdit' && illEntries.some((x) => x.deleted_at === null)) {
+          const e = pick(illEntries.filter((x) => x.deleted_at === null));
+          if (e.kind === 'temperature') await editEntry(p.ctx, e.id, rand() < 0.5 ? { tempDc: 365 + Math.floor(rand() * 40) } : { site: pick(['axillary', 'rectal', null] as const) });
+          else if (e.kind === 'note') await editEntry(p.ctx, e.id, { note: `editada ${step}` });
+          else await editEntry(p.ctx, e.id, { note: rand() < 0.3 ? '' : `detalle ${step}` });
+        } else if (action === 'eDelete' && illEntries.some((x) => x.deleted_at === null)) await deleteEntry(p.ctx, pick(illEntries.filter((x) => x.deleted_at === null)).id);
+        else if (action === 'eRestore' && illEntries.some((x) => x.deleted_at !== null)) await restoreEntry(p.ctx, pick(illEntries.filter((x) => x.deleted_at !== null)).id);
         else if (action === 'sync') await p.sync();
         else if (action === 'fail') {
           p.transport[rand() < 0.5 ? 'dropNextResponse' : 'offline'] = true;
@@ -1055,6 +1400,10 @@ describe('convergencia (prueba aleatoria)', () => {
     exercised.vaccinations += server.rows('vaccination').length;
     exercised.appointments += server.rows('appointment').length;
     exercised.growth += server.rows('growth_measure').length;
+    exercised.episodes += server.rows('illness_episode').length;
+    exercised.illnessEntries += server.rows('illness_entry').length;
+    exercised.medications += server.rows('medication').length;
+    exercised.doses += server.rows('medication_dose').length;
     exercised.withReminders += server.rows('appointment').filter((a) => ((a['remind_before_min'] as number[] | undefined) ?? []).length > 0).length;
     exercised.healthProfiles += server.rows('baby').filter((b) => b['pediatrician'] != null || b['health_center_name'] != null || b['cipa'] != null).length;
     try {
@@ -1070,6 +1419,10 @@ describe('convergencia (prueba aleatoria)', () => {
     expect(exercised.vaccinations).toBeGreaterThan(0);
     expect(exercised.appointments).toBeGreaterThan(0);
     expect(exercised.growth).toBeGreaterThan(0);
+    expect(exercised.episodes).toBeGreaterThan(0);
+    expect(exercised.illnessEntries).toBeGreaterThan(0);
+    expect(exercised.medications).toBeGreaterThan(0);
+    expect(exercised.doses).toBeGreaterThan(0);
     expect(exercised.withReminders).toBeGreaterThan(0);
     expect(exercised.healthProfiles).toBeGreaterThan(0);
   });

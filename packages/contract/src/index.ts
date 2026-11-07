@@ -7,7 +7,7 @@ import { z } from 'zod';
  * de PostgreSQL (database/migrations). Los instantes son siempre UTC ISO-8601
  * con sufijo `Z`; la zona IANA y el offset viajan aparte en cada evento.
  */
-export const CONTRACT_VERSION = '0.7.0';
+export const CONTRACT_VERSION = '0.9.0';
 
 // ---------------------------------------------------------------- primitivos
 
@@ -173,6 +173,110 @@ export const GrowthMeasure = SyncedRow.extend({
   place: z.string().max(160).nullable().default(null),
   notes: z.string().max(500).nullable().default(null),
 }).refine((g) => g.weight_g !== null || g.length_mm !== null || g.head_mm !== null, { message: 'Anota al menos una medida' });
+
+// ----------------------------------------------------------------- medicación
+
+/** Límites de lo que la familia puede anotar de un tratamiento (evitan teclear mal una cifra). Desde 0.8.0. */
+export const MEDICATION_LIMITS = {
+  /** Intervalo entre dosis, en minutos (de 30 min a 1 semana). */
+  interval_min: { min: 30, max: 10080 },
+  /** Dosis como máximo por 24 h que indica la receta. */
+  daily_max: { min: 1, max: 24 },
+} as const;
+
+/**
+ * Un tratamiento tal y como lo pautó el médico. El nombre, la dosis (`dose_text`, texto libre) y el intervalo los
+ * escribe la familia: la app nunca los propone. `interval_min = null` es «a demanda» (sin intervalo fijo: no hay cuenta
+ * atrás ni aviso). `end_utc = null` es un tratamiento sin fin previsto; terminarlo es poner ahí la hora. `daily_max` es el
+ * límite por 24 h de la receta (opcional). `remind` activa el aviso al móvil cuando toca la siguiente dosis.
+ */
+export const Medication = SyncedRow.extend({
+  baby_id: Uuid,
+  name: z.string().min(1).max(120),
+  dose_text: z.string().min(1).max(160),
+  interval_min: z.number().int().min(MEDICATION_LIMITS.interval_min.min).max(MEDICATION_LIMITS.interval_min.max).nullable().default(null),
+  start_utc: InstantUtc,
+  start_tz: IanaZone,
+  end_utc: InstantUtc.nullable().default(null),
+  daily_max: z.number().int().min(MEDICATION_LIMITS.daily_max.min).max(MEDICATION_LIMITS.daily_max.max).nullable().default(null),
+  remind: z.boolean().default(true),
+  notes: z.string().max(500).nullable().default(null),
+}).refine((m) => m.end_utc === null || Date.parse(m.end_utc) > Date.parse(m.start_utc), { message: 'El fin del tratamiento debe ser posterior al inicio' });
+
+/**
+ * Una dosis dada. `dose_text` solo se rellena si lo dado no fue lo habitual del tratamiento (`null` = lo pautado).
+ * Quién la dio es `created_by`. Desde 0.8.0.
+ */
+export const MedicationDose = SyncedRow.extend({
+  baby_id: Uuid,
+  medication_id: Uuid,
+  given_utc: InstantUtc,
+  given_tz: IanaZone,
+  dose_text: z.string().max(160).nullable().default(null),
+  notes: z.string().max(300).nullable().default(null),
+});
+
+// ------------------------------------------------------ episodios de enfermedad
+
+/** Límites de plausibilidad de la temperatura, en décimas de grado (34,0 a 43,0 °C). Desde 0.9.0. */
+export const ILLNESS_LIMITS = { temp_dc: { min: 340, max: 430 } } as const;
+
+export const TempSite = z.enum(['axillary', 'rectal', 'ear', 'forehead', 'oral', 'other']);
+export const IllnessEntryKind = z.enum(['temperature', 'symptom', 'intake', 'diaper', 'note']);
+/** Lista cerrada para elegir con un toque; lo demás va en la nota. La app no los interpreta. */
+export const Symptom = z.enum(['cough', 'runny_nose', 'congestion', 'sneezing', 'vomiting', 'diarrhea', 'rash', 'fussy', 'drowsy', 'pain', 'other']);
+/** Cuánto ha comido respecto a lo habitual, según la familia. */
+export const Intake = z.enum(['usual', 'less', 'much_less', 'almost_none']);
+export const DiaperKind = z.enum(['wet', 'dirty', 'both']);
+
+/**
+ * Un episodio de enfermedad: desde cuándo (y hasta cuándo, `null` = en curso). El título es texto libre de la familia
+ * («Resfriado», «Fiebre tras la vacuna»…): la app no diagnostica ni propone nombres. Desde 0.9.0.
+ */
+export const IllnessEpisode = SyncedRow.extend({
+  baby_id: Uuid,
+  title: z.string().min(1).max(120).nullable().default(null),
+  start_utc: InstantUtc,
+  start_tz: IanaZone,
+  end_utc: InstantUtc.nullable().default(null),
+  notes: z.string().max(1000).nullable().default(null),
+}).refine((e) => e.end_utc === null || Date.parse(e.end_utc) > Date.parse(e.start_utc), { message: 'El fin del episodio debe ser posterior al inicio' });
+
+/**
+ * Una anotación dentro de un episodio. Según `kind` va un único dato: la temperatura (`temp_dc`, décimas de °C, y dónde se
+ * midió), un síntoma, cuánto comió, un pañal o una nota libre. `kind` no cambia nunca después de crearla. Desde 0.9.0.
+ */
+export const IllnessEntry = SyncedRow.extend({
+  baby_id: Uuid,
+  episode_id: Uuid,
+  kind: IllnessEntryKind,
+  at_utc: InstantUtc,
+  at_tz: IanaZone,
+  temp_dc: z.number().int().min(ILLNESS_LIMITS.temp_dc.min).max(ILLNESS_LIMITS.temp_dc.max).nullable().default(null),
+  temp_site: TempSite.nullable().default(null),
+  symptom: Symptom.nullable().default(null),
+  intake: Intake.nullable().default(null),
+  diaper: DiaperKind.nullable().default(null),
+  note: z.string().max(300).nullable().default(null),
+}).refine(
+  (e) => {
+    const only = (k: IllnessKindFields) => (['temp_dc', 'symptom', 'intake', 'diaper'] as const).every((f) => (f === k ? e[f] !== null : e[f] === null));
+    switch (e.kind) {
+      case 'temperature':
+        return only('temp_dc');
+      case 'symptom':
+        return only('symptom') && e.temp_site === null;
+      case 'intake':
+        return only('intake') && e.temp_site === null;
+      case 'diaper':
+        return only('diaper') && e.temp_site === null;
+      case 'note':
+        return e.note !== null && e.temp_dc === null && e.temp_site === null && e.symptom === null && e.intake === null && e.diaper === null;
+    }
+  },
+  { message: 'Los datos de la anotación no corresponden a su tipo' },
+);
+type IllnessKindFields = 'temp_dc' | 'symptom' | 'intake' | 'diaper';
 
 // ---------------------------------------------------------------------- tomas
 
@@ -358,6 +462,15 @@ export type AwakeningT = z.infer<typeof Awakening>;
 export type VaccinationT = z.infer<typeof Vaccination>;
 export type AppointmentT = z.infer<typeof Appointment>;
 export type GrowthMeasureT = z.infer<typeof GrowthMeasure>;
+export type MedicationT = z.infer<typeof Medication>;
+export type MedicationDoseT = z.infer<typeof MedicationDose>;
+export type IllnessEpisodeT = z.infer<typeof IllnessEpisode>;
+export type IllnessEntryT = z.infer<typeof IllnessEntry>;
+export type IllnessEntryKindT = z.infer<typeof IllnessEntryKind>;
+export type TempSiteT = z.infer<typeof TempSite>;
+export type SymptomT = z.infer<typeof Symptom>;
+export type IntakeT = z.infer<typeof Intake>;
+export type DiaperKindT = z.infer<typeof DiaperKind>;
 export type AppointmentKindT = z.infer<typeof AppointmentKind>;
 export type AppointmentStatusT = z.infer<typeof AppointmentStatus>;
 export type VaccinationStatusT = z.infer<typeof VaccinationStatus>;

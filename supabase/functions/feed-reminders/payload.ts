@@ -29,6 +29,21 @@ export interface DueAppointmentReminder {
   minutes_before: number;
 }
 
+/** Un aviso de medicación que ya toca (lo devuelve `claim_due_medication_reminders`). */
+export interface DueMedicationReminder {
+  subscription_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  medication_id: string;
+  baby_id: string;
+  baby_alias: string;
+  name: string;
+  dose_text: string;
+  interval_min: number;
+  due_utc: string;
+}
+
 export interface PushPayload {
   title: string;
   body: string;
@@ -37,8 +52,10 @@ export interface PushPayload {
   /** Qué abrir al tocar el aviso (relativo a la app). */
   url: string;
   babyId: string;
-  /** `feed` lleva los botones Pecho/Biberón; `appointment` no lleva botones. */
-  kind: 'feed' | 'appointment';
+  /** `feed` lleva los botones Pecho/Biberón; `medication` lleva «Ya la di»; `appointment` no lleva botones. */
+  kind: 'feed' | 'appointment' | 'medication';
+  /** Solo en `medication`: el tratamiento al que se refiere el aviso. */
+  medicationId?: string;
 }
 
 /** «hace 3 h 10 min» a partir de minutos. */
@@ -94,6 +111,22 @@ export function buildAppointmentPayload(r: DueAppointmentReminder): PushPayload 
     url: './?go=health',
     babyId: r.baby_id,
     kind: 'appointment',
+  };
+}
+
+/**
+ * «Toca Medicamento · Lía». Solo repite lo que la familia escribió (nombre, dosis, intervalo): la app no propone nada.
+ * Una etiqueta por tratamiento: el aviso nuevo sustituye al anterior del mismo tratamiento.
+ */
+export function buildMedicationPayload(r: DueMedicationReminder): PushPayload {
+  return {
+    title: `Toca ${r.name} · ${r.baby_alias}`,
+    body: `${r.dose_text}. Pauta: cada ${sinceText(r.interval_min)}.`,
+    tag: `med-${r.medication_id}`,
+    url: `./?med=${r.medication_id}`,
+    babyId: r.baby_id,
+    kind: 'medication',
+    medicationId: r.medication_id,
   };
 }
 

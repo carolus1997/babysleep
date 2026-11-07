@@ -1,4 +1,4 @@
-import { AggregatePeriod, Appointment, Awakening, Baby, Feeding, GrowthMeasure, LifeEvent, SettlingAttempt, SleepSession, Vaccination } from '@babysleep/contract';
+import { AggregatePeriod, Appointment, Awakening, Baby, Feeding, GrowthMeasure, IllnessEntry, IllnessEpisode, LifeEvent, Medication, MedicationDose, SettlingAttempt, SleepSession, Vaccination } from '@babysleep/contract';
 import type { Table } from 'dexie';
 import { getActiveBabyId, setActiveBabyId } from './bootstrap';
 import type { Ctx } from './context';
@@ -35,6 +35,10 @@ export async function mergeBabies(ctx: Ctx, fromId: string, intoId: string): Pro
     moved += await moveAll(ctx, db.vaccination, Vaccination, fromId, intoId);
     moved += await moveAll(ctx, db.appointment, Appointment, fromId, intoId);
     moved += await moveAll(ctx, db.growth_measure, GrowthMeasure, fromId, intoId);
+    moved += await moveAll(ctx, db.medication, Medication, fromId, intoId);
+    moved += await moveAll(ctx, db.medication_dose, MedicationDose, fromId, intoId);
+    moved += await moveAll(ctx, db.illness_episode, IllnessEpisode, fromId, intoId);
+    moved += await moveAll(ctx, db.illness_entry, IllnessEntry, fromId, intoId);
     moved += await moveAll(ctx, db.aggregate_period, AggregatePeriod, fromId, intoId);
     // Los acontecimientos de la familia entera (baby_id nulo) no se tocan
     for (const e of await db.life_event.where('baby_id').equals(fromId).toArray()) {
