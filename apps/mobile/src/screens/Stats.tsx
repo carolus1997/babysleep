@@ -10,7 +10,6 @@ import { useLive, useNow } from '../ui/hooks';
 import { Card, Chip, EmptyState, Inset, Tabs } from '../ui/primitives';
 import { Context } from './Context';
 import { FeedStats } from './FeedStats';
-import { Forecast } from './Forecast';
 import { Report } from './Report';
 import { Rhythm } from './Rhythm';
 import { Timeline } from './Timeline';
@@ -30,7 +29,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 /** Estadísticas con dos vistas: el resumen de siempre y el análisis de ritmo. */
 export function Stats() {
-  const [view, setView] = useState<'summary' | 'rhythm' | 'timeline' | 'feeds' | 'trends' | 'report' | 'forecast' | 'context'>('summary');
+  const [view, setView] = useState<'summary' | 'rhythm' | 'timeline' | 'feeds' | 'trends' | 'report' | 'context'>('summary');
   return (
     <div className="space-y-4">
       <Tabs label={t('stats.title')}>
@@ -52,9 +51,6 @@ export function Stats() {
         <Chip active={view === 'report'} onClick={() => setView('report')}>
           {t('stats.view.report')}
         </Chip>
-        <Chip active={view === 'forecast'} onClick={() => setView('forecast')}>
-          {t('stats.view.forecast')}
-        </Chip>
         <Chip active={view === 'context'} onClick={() => setView('context')}>
           {t('stats.view.context')}
         </Chip>
@@ -71,8 +67,6 @@ export function Stats() {
         <Trends />
       ) : view === 'report' ? (
         <Report />
-      ) : view === 'forecast' ? (
-        <Forecast />
       ) : (
         <Context />
       )}

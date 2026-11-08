@@ -106,7 +106,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
       {open ? (
         <>
           <Card className="flex flex-col items-center pb-14 text-center">
-            <Ring progress={0}>
+            <Ring tour="ring" progress={0}>
               <p className="text-[12px] font-bold text-muted">{t('home.sleeping', { time: fmtClock(parseInstant(open.sleep_start_utc), ctx.zone) })}</p>
               <p className="my-1 text-[34px] font-extrabold leading-none tabular-nums" aria-live="off">
                 {fmtElapsed(now - parseInstant(open.sleep_start_utc))}
@@ -122,7 +122,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
             </div>
           </Card>
           <div className="-mt-[58px] flex justify-center">
-            <Round icon="sun" label={t('home.roundWake')} aria-label={t('home.roundWakeName')} onClick={finish} />
+            <Round data-tour="round" icon="sun" label={t('home.roundWake')} aria-label={t('home.roundWakeName')} onClick={finish} />
           </div>
 
           <Inset className="flex flex-wrap items-center justify-center gap-2">
@@ -164,7 +164,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
           <Card className="flex flex-col items-center pb-14 text-center" aria-label={t('wakeTime.title')}>
             {awake.state === 'awake' ? (
               <>
-                <Ring progress={awake.usual !== null ? awake.elapsedMs / awake.usual.toMs : 0}>
+                <Ring tour="ring" progress={awake.usual !== null ? awake.elapsedMs / awake.usual.toMs : 0}>
                   <p className="text-[12px] font-bold text-muted">{t('wakeTime.title')}</p>
                   <p className="my-1 text-[34px] font-extrabold leading-none tabular-nums">{fmtDur(awake.elapsedMs)}</p>
                   <p className="text-[12px] font-semibold text-muted">
@@ -184,7 +184,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
             )}
           </Card>
           <div className="-mt-[58px] flex flex-col items-center gap-1">
-            <Round icon="moon" label={t('home.roundSleep')} aria-label={t('home.roundSleepName')} onClick={() => run(() => startSleep(ctx, baby.id))} />
+            <Round data-tour="round" icon="moon" label={t('home.roundSleep')} aria-label={t('home.roundSleepName')} onClick={() => run(() => startSleep(ctx, baby.id))} />
             <p className="max-w-[16rem] text-center text-[12px] text-muted">{t('home.startSleepHint')}</p>
           </div>
 

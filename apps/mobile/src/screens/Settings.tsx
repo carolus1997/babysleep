@@ -15,6 +15,7 @@ import { getThemePref, setThemePref, useLive, type ThemePref } from '../ui/hooks
 import { resizeImage } from '../ui/image';
 import { Avatar, useBabyPhotoUrl, useBlobUrl } from '../ui/photo';
 import { Btn, Card, Chip, Field, inputCls, Sheet } from '../ui/primitives';
+import { resetTutorial } from '../tutorial/seen';
 import { SyncCard } from './SyncCard';
 
 const THEMES: ThemePref[] = ['auto', 'light', 'dark', 'night'];
@@ -361,7 +362,21 @@ function EventSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function Settings() {
+/** Compartir la app con el menú nativo; sin él, copia el enlace. */
+async function shareApp(toast: (m: string) => void) {
+  const url = window.location.origin + window.location.pathname;
+  try {
+    if (navigator.share) await navigator.share({ title: 'BabySleep', text: t('help.shareText'), url });
+    else {
+      await navigator.clipboard.writeText(url);
+      toast(t('help.shareCopied'));
+    }
+  } catch (e) {
+    if (!(e instanceof DOMException && e.name === 'AbortError')) toast(t('help.shareFail'));
+  }
+}
+
+export function Settings({ onReplayTour }: { onReplayTour: () => void }) {
   const { ctx, babies, baby, run, toast } = useApp();
   const [babySheet, setBabySheet] = useState<BabyT | null | 'new'>(null);
   const [eventSheet, setEventSheet] = useState(false);
@@ -502,6 +517,20 @@ export function Settings() {
               {t(`settings.theme.${p}` as 'settings.theme.auto')}
             </Chip>
           ))}
+        </div>
+      </Card>
+
+      <Card title={t('help.title')}>
+        <div className="flex flex-col gap-2">
+          <Btn
+            onClick={() => {
+              resetTutorial();
+              onReplayTour();
+            }}
+          >
+            {t('help.replay')}
+          </Btn>
+          <Btn onClick={() => void shareApp(toast)}>{t('help.share')}</Btn>
         </div>
       </Card>
 
