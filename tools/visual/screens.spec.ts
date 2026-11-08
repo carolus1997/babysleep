@@ -71,6 +71,7 @@ for (const theme of THEMES)
     await page.setViewportSize({ width: 390, height: 844 });
     await page.addInitScript((th) => {
       localStorage.setItem('bs-theme', th);
+      for (const k of ['tour', 'hint-today', 'hint-forecast', 'hint-feeds', 'hint-history', 'hint-stats', 'hint-health']) localStorage.setItem('bs-tut-' + k, '1');
       document.addEventListener('DOMContentLoaded', () => {
         const st = document.createElement('style');
         st.textContent = '.splash{display:none!important}';
@@ -141,7 +142,7 @@ test('hojas', async ({ page }) => {
     ['Salud', 'Crecimiento', '+ Nueva medida', 'medida'],
     ['Salud', 'Enfermedad', 'Empezar un episodio', 'enfermedad'],
     ['Salud', 'Ficha', 'Editar', 'ficha'],
-    ['Inicio', 'Historial', '+ Añadir descanso', 'descanso'],
+    ['Inicio', 'Sueño', '+ Añadir descanso', 'descanso'],
     ['Ajustes', '', '+ Añadir acontecimiento', 'acontecimiento'],
     ['Ajustes', '', '+ Añadir bebé', 'bebe'],
   ];
