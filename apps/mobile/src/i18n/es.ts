@@ -463,6 +463,7 @@ export const es = {
   'notes.optional': 'Todo es opcional y puedes añadirlo después.',
 
   'history.title': 'Historial',
+  'history.dayOpen': 'en curso',
   'history.add': 'Añadir descanso',
   'history.empty': 'Aún no hay descansos. Inicia un sueño o añade una manualmente.',
   'history.overlap': 'Solapado con otro descanso: revisar',
