@@ -8,6 +8,7 @@ export const es = {
   'tab.history': 'Historial',
   'tab.health': 'Salud',
   'home.sec.today': 'Hoy',
+  'home.sec.forecast': 'Previsión',
   'home.sec.feeds': 'Tomas',
   'home.sec.history': 'Historial',
   'wakeTime.title': 'Despierta desde hace',
@@ -517,7 +518,6 @@ export const es = {
   'stats.view.feeds': 'Tomas',
   'stats.view.trends': 'Semanas',
   'stats.view.report': 'Informe',
-  'stats.view.forecast': 'Previsión',
   'stats.view.context': 'Contexto',
 
   'context.intro':

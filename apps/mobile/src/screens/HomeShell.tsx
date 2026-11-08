@@ -1,12 +1,14 @@
 import { t, type I18nKey } from '../i18n/es';
 import { Chip, Tabs } from '../ui/primitives';
 import { Feeds } from './Feeds';
+import { Forecast } from './Forecast';
 import { History } from './History';
 import { Home } from './Home';
 
-export type HomeSection = 'today' | 'feeds' | 'history';
+export type HomeSection = 'today' | 'forecast' | 'feeds' | 'history';
 const SECTIONS: ReadonlyArray<{ id: HomeSection; label: I18nKey }> = [
   { id: 'today', label: 'home.sec.today' },
+  { id: 'forecast', label: 'home.sec.forecast' },
   { id: 'feeds', label: 'home.sec.feeds' },
   { id: 'history', label: 'home.sec.history' },
 ];
@@ -23,6 +25,7 @@ export function HomeShell({ section, onSection, goSettings }: { section: HomeSec
         ))}
       </Tabs>
       {section === 'today' && <Home goSettings={goSettings} />}
+      {section === 'forecast' && <Forecast />}
       {section === 'feeds' && <Feeds />}
       {section === 'history' && <History />}
     </div>
