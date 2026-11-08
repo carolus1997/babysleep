@@ -1,14 +1,15 @@
 import type { AwakeningT, EventCategoryT, LifeEventT, SleepSessionT } from '@babysleep/contract';
-import { buildSpans, findOverlaps, localDate, naturalDayTotals, parseInstant } from '@babysleep/core';
+import { buildSpans, findOverlaps, localDate, parseInstant, sleepDayTotals } from '@babysleep/core';
 import { useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { listLifeEvents } from '../domain/notes';
 import { listSessions, restoreSession } from '../domain/sleep';
+import { sleepDayOf } from '../domain/sleepDay';
 import { t } from '../i18n/es';
 import { fmtClock, fmtDayLabel, fmtDur } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
 import { Btn, Card } from '../ui/primitives';
-import { listAwakenings } from '../domain/awakening';
+import { listAwakenings, thresholdMs } from '../domain/awakening';
 import { AwakeningsSheet } from './AwakeningsSheet';
 import { NotesSheet } from './NotesSheet';
 import { ManualSheet, SessionSheet } from './SessionSheets';
@@ -40,7 +41,7 @@ export function History() {
   const groups = useMemo(() => {
     const m = new Map<string, SleepSessionT[]>();
     for (const s of [...sessions].reverse()) {
-      const d = localDate(parseInstant(s.sleep_start_utc), ctx.zone);
+      const d = sleepDayOf(s, ctx.zone);
       m.set(d, [...(m.get(d) ?? []), s]);
     }
     return [...m.entries()];
@@ -61,13 +62,17 @@ export function History() {
       {groups.length === 0 && <p className="py-8 text-center text-muted">{t('history.empty')}</p>}
 
       {groups.map(([date, list]) => {
-        const total = naturalDayTotals(sessions, date, ctx.zone, { nowMs: now }).totalMs;
+        // Siestas + noche del día (la noche entera, con los despertares largos descontados); con la noche en curso suma hasta ahora.
+        const day = sleepDayTotals(sessions, date, ctx.zone, { nowMs: now, awakenings, awakeningThresholdMs: thresholdMs(baby) });
         const dayEvents = events.filter((e) => date >= e.start_date && date <= (e.end_date ?? e.start_date));
         return (
           <Card key={date}>
             <div className="mb-2 flex items-baseline justify-between">
               <h2 className="font-semibold capitalize">{fmtDayLabel(date)}</h2>
-              <span className="text-sm text-muted">{fmtDur(total)}</span>
+              <span className="text-sm text-muted">
+                {fmtDur(day.totalMs)}
+                {!day.complete && ` · ${t('history.dayOpen')}`}
+              </span>
             </div>
             {dayEvents.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-1" aria-label={t('history.events')}>
