@@ -5,20 +5,21 @@ import { useApp } from '../app/AppContext';
 import { addManualFeeding, deleteFeeding, editFeeding, finishFeeding, hasBottle, hasBreast, restoreFeeding, FEED_TYPES } from '../domain/feeding';
 import { localToMs } from '../domain/sleep';
 import { t, type I18nKey } from '../i18n/es';
-import { feedIcon, toLocalInput } from '../ui/format';
+import { toLocalInput } from '../ui/format';
+import { Icon, type IconName } from '../ui/Icon';
 import { Btn, Chip, Field, inputCls, Sheet } from '../ui/primitives';
 import { TimeField, timeReady, type Choice } from './TimeField';
 
 const SIDES: readonly BreastSideT[] = ['left', 'right', 'both'];
 const QUICK_ML = [60, 90, 120, 150];
 
+export const FEED_ICON: Record<FeedTypeT, IconName> = { breast: 'drop', bottle: 'milk', mixed: 'drops', solids: 'solids' };
+
 /** Texto con un icono pequeño al lado: el texto es lo principal, el icono ayuda a reconocerlo de un vistazo. */
 export function FeedLabel({ type }: { type: FeedTypeT }) {
   return (
     <>
-      <span aria-hidden className="mr-1">
-        {feedIcon(type)}
-      </span>
+      <Icon name={FEED_ICON[type]} size={16} className="mr-1.5 inline-block align-[-3px]" />
       {t(`feed.type.${type}` as I18nKey)}
     </>
   );

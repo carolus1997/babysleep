@@ -38,17 +38,17 @@ function Row({ c }: { c: MetricComparison }) {
         <div>
           <p className="text-xs text-muted">{t('context.before')}</p>
           <p className="font-semibold">{fmtValue(c.key, c.before)}</p>
-          <p className="text-[10px] text-muted">n={c.nBefore}</p>
+          <p className="text-[11px] text-muted">n={c.nBefore}</p>
         </div>
         <div>
           <p className="text-xs text-muted">{t('context.after')}</p>
           <p className="font-semibold">{fmtValue(c.key, c.after)}</p>
-          <p className="text-[10px] text-muted">n={c.nAfter}</p>
+          <p className="text-[11px] text-muted">n={c.nAfter}</p>
         </div>
         <div>
           <p className="text-xs text-muted">{t('context.change')}</p>
           <p className="font-semibold">{fmtDelta(c.key, c.delta)}</p>
-          <p className="text-[10px] text-muted">
+          <p className="text-[11px] text-muted">
             {c.baselineDelta === null ? t('context.noBase') : t('context.base', { d: fmtDelta(c.key, c.baselineDelta) })}
           </p>
         </div>

@@ -125,7 +125,7 @@ export function History() {
       })}
 
       {trashed.length > 0 && (
-        <details className="rounded-3xl border border-line bg-surface p-4">
+        <details className="rounded-3xl border border-(--card-border) bg-surface p-4 shadow-card">
           <summary className="cursor-pointer font-medium">
             {t('history.trash')} ({trashed.length})
           </summary>

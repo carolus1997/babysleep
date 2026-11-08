@@ -63,7 +63,7 @@ export function ConflictsSection() {
 
   return (
     <div className="mt-4 border-t border-line pt-3">
-      <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-danger">{t('conflicts.title', { n: items.length })}</h3>
+      <h3 className="mb-1 text-[13px] font-bold text-danger">{t('conflicts.title', { n: items.length })}</h3>
       <p className="mb-2 text-xs text-muted">{t('conflicts.help')}</p>
       <ul className="space-y-3">
         {items.map(({ c, title }) => {

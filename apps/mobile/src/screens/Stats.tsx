@@ -7,7 +7,7 @@ import { listSessions } from '../domain/sleep';
 import { t } from '../i18n/es';
 import { fmtDayShort, fmtDur } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
-import { Card, Chip } from '../ui/primitives';
+import { Card, Chip, EmptyState, Inset, Tabs } from '../ui/primitives';
 import { Context } from './Context';
 import { FeedStats } from './FeedStats';
 import { Forecast } from './Forecast';
@@ -22,8 +22,8 @@ const MIN_DAYS_FOR_CONFIDENCE = 3;
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xl font-bold">{value}</p>
-      <p className="text-sm text-muted">{label}</p>
+      <p className="text-xl font-extrabold tabular-nums">{value}</p>
+      <p className="text-[13px] font-semibold text-muted">{label}</p>
     </div>
   );
 }
@@ -33,7 +33,7 @@ export function Stats() {
   const [view, setView] = useState<'summary' | 'rhythm' | 'timeline' | 'feeds' | 'trends' | 'report' | 'forecast' | 'context'>('summary');
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-1" role="group" aria-label={t('stats.title')}>
+      <Tabs label={t('stats.title')}>
         <Chip active={view === 'summary'} onClick={() => setView('summary')}>
           {t('stats.view.summary')}
         </Chip>
@@ -58,7 +58,7 @@ export function Stats() {
         <Chip active={view === 'context'} onClick={() => setView('context')}>
           {t('stats.view.context')}
         </Chip>
-      </div>
+      </Tabs>
       {view === 'summary' ? (
         <Summary />
       ) : view === 'rhythm' ? (
@@ -101,8 +101,8 @@ function Summary() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t('stats.title')}</h1>
-        <div className="flex gap-1" role="group" aria-label={t('stats.title')}>
+        <h1 className="text-2xl font-extrabold">{t('stats.title')}</h1>
+        <div className="flex gap-1.5" role="group" aria-label={t('stats.title')}>
           {RANGES.map((r) => (
             <Chip key={r} active={days === r} onClick={() => setDays(r)}>
               {r}d
@@ -111,19 +111,30 @@ function Summary() {
         </div>
       </div>
 
-      <p className="text-sm text-muted">
+      <p className="text-[13px] text-muted">
         {t('stats.range', { n: days })} · {t('stats.coverage', { d: o.daysWithData, n: days })}
       </p>
-      {o.daysWithData < MIN_DAYS_FOR_CONFIDENCE && <p className="rounded-2xl bg-surface2 p-3 text-sm">{t('stats.notEnough')}</p>}
+      {o.daysWithData < MIN_DAYS_FOR_CONFIDENCE && <Inset className="text-sm">{t('stats.notEnough')}</Inset>}
 
       <Card>
-        <div className="grid grid-cols-2 gap-4">
-          <Stat label={t('stats.meanDaily')} value={o.meanDailyTotalMs === null ? '—' : fmtDur(o.meanDailyTotalMs)} />
-          <Stat label={t('stats.meanNaps', { n: o.napDays })} value={o.meanNapTotalMs === null ? '—' : fmtDur(o.meanNapTotalMs)} />
-          <Stat label={t('stats.meanNight', { n: o.nightDays })} value={o.meanNightTotalMs === null ? '—' : fmtDur(o.meanNightTotalMs)} />
-          <Stat label={t('stats.napsPerDay')} value={o.meanNapsPerDay === null ? '—' : o.meanNapsPerDay.toFixed(1)} />
-          <Stat label={t('stats.napMedian')} value={o.medianNapMs === null ? '—' : fmtDur(o.medianNapMs)} />
-          <Stat label={t('stats.nightMedian')} value={o.medianNightMs === null ? '—' : fmtDur(o.medianNightMs)} />
+        <p className="text-[13px] font-bold text-muted">{t('stats.meanDaily')}</p>
+        <p className="mt-1 text-[40px] font-extrabold leading-none tabular-nums">{o.meanDailyTotalMs === null ? '—' : fmtDur(o.meanDailyTotalMs)}</p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Inset>
+            <Stat label={t('stats.meanNaps', { n: o.napDays })} value={o.meanNapTotalMs === null ? '—' : fmtDur(o.meanNapTotalMs)} />
+          </Inset>
+          <Inset>
+            <Stat label={t('stats.meanNight', { n: o.nightDays })} value={o.meanNightTotalMs === null ? '—' : fmtDur(o.meanNightTotalMs)} />
+          </Inset>
+          <Inset>
+            <Stat label={t('stats.napsPerDay')} value={o.meanNapsPerDay === null ? '—' : o.meanNapsPerDay.toFixed(1)} />
+          </Inset>
+          <Inset>
+            <Stat label={t('stats.napMedian')} value={o.medianNapMs === null ? '—' : fmtDur(o.medianNapMs)} />
+          </Inset>
+          <Inset className="col-span-2">
+            <Stat label={t('stats.nightMedian')} value={o.medianNightMs === null ? '—' : fmtDur(o.medianNightMs)} />
+          </Inset>
         </div>
       </Card>
 
@@ -141,28 +152,45 @@ function Summary() {
       </Card>
 
       <Card title={t('stats.chart')}>
-        <div className="flex h-36 items-end gap-1" role="img" aria-label={t('stats.chart')}>
-          {o.series.map((d) => (
-            <div key={d.date} className="flex h-full flex-1 flex-col justify-end" title={`${d.date}: ${fmtDur(d.totalMs)}`}>
-              <div className="w-full overflow-hidden rounded-t-md bg-surface2" style={{ height: `${(d.totalMs / max) * 100}%` }}>
-                <div className="bg-nap" style={{ height: `${d.totalMs === 0 ? 0 : (d.napMs / d.totalMs) * 100}%` }} />
-                <div className="bg-night" style={{ height: `${d.totalMs === 0 ? 0 : (d.nightMs / d.totalMs) * 100}%` }} />
+        {o.daysWithData === 0 ? (
+          <EmptyState icon="chart" title={t('stats.chartEmpty')} hint={t('stats.chartEmptyHint')} />
+        ) : (
+          <>
+            <div className="relative">
+              {o.meanDailyTotalMs !== null && (
+                <div
+                  aria-hidden
+                  className="absolute inset-x-0 border-t-2 border-dashed border-muted/60"
+                  style={{ bottom: `calc(${days <= 14 ? '1.25rem + ' : ''}${(o.meanDailyTotalMs / max) * 100}% * ${days <= 14 ? 0.8 : 1})` }}
+                />
+              )}
+              <div className={`flex h-44 items-end ${days <= 14 ? 'gap-1.5' : 'gap-0.5'}`} role="img" aria-label={t('stats.chart')}>
+                {o.series.map((d) => (
+                  <div key={d.date} className="flex h-full flex-1 flex-col justify-end" title={`${d.date}: ${fmtDur(d.totalMs)}`}>
+                    {days <= 14 && d.totalMs > 0 && <span className="mb-0.5 text-center text-[11px] font-bold tabular-nums">{(d.totalMs / 3_600_000).toFixed(1).replace('.', ',')}</span>}
+                    <div className="flex w-full flex-col-reverse overflow-hidden rounded-t-lg" style={{ height: `${days <= 14 ? (d.totalMs / max) * 80 : (d.totalMs / max) * 100}%` }}>
+                      <div className="bg-nap" style={{ height: `${d.totalMs === 0 ? 0 : (d.napMs / d.totalMs) * 100}%` }} />
+                      <div className="bg-night" style={{ height: `${d.totalMs === 0 ? 0 : (d.nightMs / d.totalMs) * 100}%` }} />
+                    </div>
+                    {days <= 14 && <span className="mt-1 h-4 text-center text-[11px] font-semibold text-muted">{fmtDayShort(d.date)}</span>}
+                  </div>
+                ))}
               </div>
-              {days <= 14 && <span className="mt-1 text-center text-[10px] text-muted">{fmtDayShort(d.date)}</span>}
             </div>
-          ))}
-        </div>
-        <p className="mt-2 flex gap-3 text-xs text-muted">
-          <span>
-            <span className="mr-1 inline-block size-2 rounded-sm bg-nap" />
-            {t('home.type.nap')}
-          </span>
-          <span>
-            <span className="mr-1 inline-block size-2 rounded-sm bg-night" />
-            {t('home.type.night')}
-          </span>
-        </p>
-        <p className="mt-1 text-xs text-muted">{t('stats.chartHint')}</p>
+            <p className="mt-2 flex gap-4 text-[12px] font-semibold text-muted">
+              <span>
+                <span className="mr-1.5 inline-block size-2.5 rounded-sm bg-nap" />
+                {t('home.type.nap')}
+              </span>
+              <span>
+                <span className="mr-1.5 inline-block size-2.5 rounded-sm bg-night" />
+                {t('home.type.night')}
+              </span>
+              <span>- - {t('stats.meanLine')}</span>
+            </p>
+            <p className="mt-1 text-[12px] text-muted">{t('stats.chartHint')}</p>
+          </>
+        )}
       </Card>
 
       <Card title={t('stats.latency')}>
@@ -182,7 +210,7 @@ function Summary() {
       <Card title={t('stats.quality')}>
         <ul className="space-y-1 text-sm">
           <li>{t('stats.q.open', { n: q.openSessions })}</li>
-          <li className={q.overlapsPending > 0 ? 'text-danger' : ''}>{t('stats.q.overlap', { n: q.overlapsPending })}</li>
+          <li className={q.overlapsPending > 0 ? 'font-bold text-danger' : ''}>{t('stats.q.overlap', { n: q.overlapsPending })}</li>
           <li>{t('stats.q.approx', { n: q.approxTimes, t: q.sessionsInRange })}</li>
           <li>{t('stats.q.awakenings', { n: q.awakeningsUnknown, t: q.sessionsInRange })}</li>
         </ul>

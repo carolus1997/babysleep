@@ -11,23 +11,24 @@ import { Onboarding } from './screens/Onboarding';
 import { Settings } from './screens/Settings';
 import { Stats } from './screens/Stats';
 import { fmtAges } from './ui/format';
-import { Avatar, useBabyPhotoUrl } from './ui/photo';
+import { Icon, type IconName } from './ui/Icon';
+import { Avatar } from './ui/photo';
 import { Sheet } from './ui/primitives';
 import { Splash } from './ui/Splash';
 
 type Tab = 'home' | 'health' | 'stats' | 'settings';
-const TABS: ReadonlyArray<{ id: Tab; label: I18nKey; icon: string }> = [
-  { id: 'home', label: 'tab.home', icon: '☾' },
-  { id: 'health', label: 'tab.health', icon: '✚' },
-  { id: 'stats', label: 'tab.stats', icon: '▥' },
-  { id: 'settings', label: 'tab.settings', icon: '⚙' },
+const TABS: ReadonlyArray<{ id: Tab; label: I18nKey; icon: IconName }> = [
+  { id: 'home', label: 'tab.home', icon: 'moon' },
+  { id: 'health', label: 'tab.health', icon: 'health' },
+  { id: 'stats', label: 'tab.stats', icon: 'chart' },
+  { id: 'settings', label: 'tab.settings', icon: 'settings' },
 ];
 
 /** Edad real y, en prematuros menores de 24 meses, la corregida. */
 function AgeLabel({ baby }: { baby: BabyT }) {
   const { age, corrected } = fmtAges(baby.birth_date, baby.gestational_weeks, Date.now());
   return (
-    <span className="text-sm text-muted">
+    <span className="text-[13px] font-semibold text-muted">
       {age}
       {corrected !== null && <span title="Edad corregida: descuenta lo que faltó hasta las 40 semanas"> · corregida: {corrected}</span>}
     </span>
@@ -48,7 +49,6 @@ export function App() {
   const [switching, setSwitching] = useState(false);
   // Aviso de medicación: abre Salud → Medicación en ese tratamiento (y, con «Ya la di», la hoja de registro).
   const [medIntent, setMedIntent] = useState<MedIntent | null>(null);
-  const photo = useBabyPhotoUrl(baby?.id ?? '');
   const { ctx, run, toast } = useApp();
   const babyId = baby?.id ?? null;
 
@@ -106,11 +106,10 @@ export function App() {
     return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
   }, [ctx, babyId, run, toast]);
 
-  // La hoja de estilos sabe si hay foto para volver translúcidas las tarjetas (solo tema claro).
+  // Al cambiar de pestaña se empieza arriba (antes Salud se abría a mitad de la lista de la pantalla anterior).
   useEffect(() => {
-    document.documentElement.toggleAttribute('data-photo', photo !== null);
-    return () => document.documentElement.removeAttribute('data-photo');
-  }, [photo]);
+    window.scrollTo(0, 0);
+  }, [tab]);
 
   // La bienvenida va siempre la primera de un fragmento, en la misma posición en ambas ramas, para que no se
   // reinicie cuando el bebé activo termina de cargar. Se monta una vez por carga de la página.
@@ -126,28 +125,31 @@ export function App() {
     <>
       <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />
       <div className="relative mx-auto flex min-h-dvh max-w-md flex-col">
-      {photo && <div aria-hidden className="photo-bg" style={{ backgroundImage: `url(${photo})` }} />}
-      <header
-        className="sticky top-0 z-30 border-b-4 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]"
-        style={{ borderBottomColor: baby.color ?? 'var(--accent)' }}
-      >
+      <header className="sticky top-0 z-30 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <button
-          className="flex min-h-12 w-full items-center justify-between rounded-2xl px-1 text-left"
+          className="flex min-h-12 w-full items-center justify-between rounded-2xl text-left"
           onClick={() => setSwitching(true)}
           aria-label={`${baby.alias}. Cambiar de bebé`}
         >
-          <span className="flex items-center gap-2">
-            <Avatar baby={baby} size={32} />
-            <span className="text-xl font-bold">{baby.alias}</span>
-            <AgeLabel baby={baby} />
+          <span className="flex items-center gap-3">
+            <Avatar baby={baby} size={40} />
+            <span className="flex flex-col leading-tight">
+              <span className="text-xl font-extrabold">{baby.alias}</span>
+              <AgeLabel baby={baby} />
+            </span>
           </span>
-          {babies.length > 1 && <span className="text-muted">⇅</span>}
+          {babies.length > 1 && (
+            <span className="flex min-h-9 items-center gap-1 rounded-full bg-surface2 px-3 text-xs font-bold">
+              <Icon name="swap" size={15} />
+              {t('app.switchBaby')}
+            </span>
+          )}
         </button>
       </header>
 
       {/* `relative` sin `z-*`: sube el contenido por encima del fondo de foto SIN crear un contexto de
           apilamiento; con `z-10` las hojas (z-40) quedaban atrapadas debajo de la cabecera y la barra. */}
-      <main className="relative flex-1 px-4 pb-28 pt-4">
+      <main className="relative flex-1 px-4 pb-28 pt-2">
         {tab === 'home' && <HomeShell section={homeSection} onSection={setHomeSection} goSettings={() => setTab('settings')} />}
         {tab === 'health' && <Health medIntent={medIntent} onMedIntentUsed={() => setMedIntent(null)} />}
         {tab === 'stats' && <Stats />}
@@ -156,19 +158,19 @@ export function App() {
 
       <nav
         aria-label="Principal"
-        className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-md grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
+        className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-md grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
       >
         {TABS.map((x) => (
           <button
             key={x.id}
             aria-current={tab === x.id ? 'page' : undefined}
             onClick={() => setTab(x.id)}
-            className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-xs font-medium ${
+            className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-[12px] font-bold ${
               tab === x.id ? 'text-accent' : 'text-muted'
             }`}
           >
-            <span aria-hidden className="text-xl leading-none">
-              {x.icon}
+            <span className={`grid h-7 w-12 place-items-center rounded-full ${tab === x.id ? 'bg-accent-soft' : ''}`}>
+              <Icon name={x.icon} size={22} />
             </span>
             {t(x.label)}
           </button>
@@ -181,8 +183,8 @@ export function App() {
             {babies.map((b) => (
               <li key={b.id}>
                 <button
-                  className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border px-4 text-left ${
-                    b.id === baby.id ? 'border-accent bg-surface2' : 'border-line bg-surface'
+                  className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 px-4 text-left ${
+                    b.id === baby.id ? 'border-accent bg-surface2' : 'border-transparent bg-surface'
                   }`}
                   onClick={() => {
                     selectBaby(b.id);

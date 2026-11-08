@@ -1,4 +1,5 @@
 import type { AwakeningT, DiaperKindT, FeedingT, IllnessEntryKindT, IllnessEntryT, IllnessEpisodeT, IntakeT, MedicationDoseT, MedicationT, SleepSessionT, SymptomT, TempSiteT } from '@babysleep/contract';
+import { Icon, type IconName } from '../ui/Icon';
 import { episodeDayCount, episodeEndMs, fmtTemp, localDate, parseInstant, temperatureSeries } from '@babysleep/core';
 import { useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
@@ -40,7 +41,7 @@ const KIND_KEY: Record<IllnessEntryKindT, I18nKey> = {
   diaper: 'illness.kind.diaper',
   note: 'illness.kind.note',
 };
-const KIND_ICON: Record<IllnessEntryKindT, string> = { temperature: '🌡', symptom: '😷', intake: '🍼', diaper: '🧷', note: '✎' };
+const KIND_ICON: Record<IllnessEntryKindT, IconName> = { temperature: 'thermo', symptom: 'alert', intake: 'milk', diaper: 'baby', note: 'pencil' };
 const SITE_KEY: Record<TempSiteT, I18nKey> = {
   axillary: 'illness.site.axillary',
   rectal: 'illness.site.rectal',
@@ -374,7 +375,7 @@ export function Illness() {
         </Card>
       ) : (
         <Card>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{current.end_utc === null ? t('illness.current') : t('illness.viewing')}</p>
+          <p className="text-[13px] font-bold text-muted">{current.end_utc === null ? t('illness.current') : t('illness.viewing')}</p>
           <h3 className="text-lg font-bold">{label(current)}</h3>
           <p className="text-sm text-muted">{rangeText(current)}</p>
           {current.notes && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{current.notes}</p>}
@@ -387,7 +388,7 @@ export function Illness() {
           <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label={t('illness.addTitle')}>
             {(['temperature', 'symptom', 'intake', 'diaper', 'note'] as const).map((k) => (
               <Btn key={k} className="min-h-12 justify-start px-3 text-left" onClick={() => setEntrySheet({ kind: k, edit: null })}>
-                <span aria-hidden>{KIND_ICON[k]} </span>
+                <Icon name={KIND_ICON[k]} size={16} className="mr-1.5 inline-block align-[-3px]" />
                 {t(KIND_KEY[k])}
               </Btn>
             ))}
@@ -435,10 +436,10 @@ export function Illness() {
                 const prev = i > 0 ? dayLabel(parseInstant(newestFirst[i - 1]!.at_utc), newestFirst[i - 1]!.at_tz) : null;
                 return (
                   <li key={e.id} className="py-2">
-                    {day !== prev && <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">{day}</p>}
+                    {day !== prev && <p className="mb-1 text-[13px] font-bold text-muted">{day}</p>}
                     <div className="flex items-baseline justify-between gap-2">
                       <span>
-                        <span aria-hidden>{KIND_ICON[e.kind]} </span>
+                        <Icon name={KIND_ICON[e.kind]} size={16} className="mr-1.5 inline-block align-[-3px]" />
                         <span className="font-semibold">{entryText(e)}</span>
                       </span>
                       <span className="shrink-0 text-muted">{clockOf(at, e.at_tz)}</span>

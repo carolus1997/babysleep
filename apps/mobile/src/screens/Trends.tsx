@@ -34,7 +34,7 @@ function WeekBars({ title, rows, pick, fmt, hint }: { title: string; rows: WeekR
           );
         })}
       </div>
-      <div className="mt-1 flex gap-1 text-[10px] text-muted" aria-hidden>
+      <div className="mt-1 flex gap-1 text-[11px] text-muted" aria-hidden>
         {rows.map((r) => (
           <span key={r.endMs} className="flex-1 text-center leading-tight">
             {r.ageWeeks}

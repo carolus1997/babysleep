@@ -7,8 +7,8 @@ import type { ObservationTarget } from '../domain/notes';
 import { t, type I18nKey } from '../i18n/es';
 import { fmtClock, fmtDur, fmtElapsed } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
-import { Btn, Card, Chip } from '../ui/primitives';
-import { FeedLabel, FinishFeedingSheet } from './FeedingSheets';
+import { Btn, Card, Chip, Inset, Tile } from '../ui/primitives';
+import { FEED_ICON, FeedLabel, FinishFeedingSheet } from './FeedingSheets';
 import { NotesSheet } from './NotesSheet';
 
 /** «3 tomas · 420 ml» (los ml solo si hay biberones con cantidad). */
@@ -51,17 +51,17 @@ export function FeedingCard() {
       <Card title={t('feed.title')}>
         {open ? (
           <div className="text-center">
-            <p className="text-sm text-muted">
+            <p className="text-[13px] font-bold text-muted">
               <FeedLabel type={open.feed_type} /> · {t('feed.running', { time: fmtClock(parseInstant(open.start_utc), ctx.zone) })}
             </p>
-            <p className="my-2 font-mono text-4xl font-bold tabular-nums" aria-live="off">
+            <p className="my-2 text-4xl font-extrabold tabular-nums" aria-live="off">
               {fmtElapsed(now - parseInstant(open.start_utc))}
             </p>
-            <Btn variant="primary" className="h-16 w-full text-xl" onClick={() => finish(open)}>
+            <Btn variant="primary" className="h-14 w-full text-lg" onClick={() => finish(open)}>
               {t('feed.finish')}
             </Btn>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <span className="text-sm text-muted">{t('feed.fixStart')}</span>
+              <span className="text-[13px] font-bold text-muted">{t('feed.fixStart')}</span>
               {[5, 10, 15].map((m) => (
                 <Chip key={m} onClick={() => run(() => nudgeFeedingStart(ctx, open.id, -m))}>
                   −{m} min
@@ -70,7 +70,7 @@ export function FeedingCard() {
             </div>
             <Btn
               variant="ghost"
-              className="mt-1 w-full text-muted"
+              className="mt-1 w-full"
               onClick={async () => {
                 if (await run(async () => (await cancelFeeding(ctx, open.id), true))) {
                   toast(t('feed.cancelDone'), { label: t('home.undo'), run: () => void run(() => restoreFeeding(ctx, open.id)) });
@@ -82,17 +82,17 @@ export function FeedingCard() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {FEED_TYPES.map((ty: FeedTypeT) => (
-                <Btn key={ty} className="flex min-h-16 flex-col items-center justify-center gap-0.5 px-1 text-sm leading-tight" onClick={() => run(() => startFeeding(ctx, baby.id, ty))}>
-                  <FeedLabel type={ty} />
-                </Btn>
+                <Tile key={ty} icon={FEED_ICON[ty]} className="!shadow-none bg-surface2" onClick={() => run(() => startFeeding(ctx, baby.id, ty))}>
+                  {t(`feed.type.${ty}` as I18nKey)}
+                </Tile>
               ))}
             </div>
-            <p className="mt-2 text-center text-xs text-muted">{t('feed.startHint')}</p>
+            <p className="mt-2 text-center text-[12px] text-muted">{t('feed.startHint')}</p>
           </>
         )}
-        <div className="mt-3 space-y-0.5 text-center text-sm text-muted">
+        <div className="mt-3 space-y-0.5 text-center text-[13px] text-muted">
           {last && !open && (
             <p>
               {t('feed.last', { type: t(`feed.type.${last.feeding.feed_type}` as I18nKey).toLowerCase(), dur: fmtDur(last.sinceMs) })}

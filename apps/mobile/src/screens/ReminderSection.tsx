@@ -77,7 +77,7 @@ export function ReminderSection() {
 
   return (
     <div className="mt-4 border-t border-line pt-3">
-      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{t('remind.title')}</h3>
+      <h3 className="mb-2 text-[13px] font-bold text-muted">{t('remind.title')}</h3>
       {!support.ok ? (
         <p className="text-sm text-muted">{t(`remind.unsupported.${support.reason}` as 'remind.unsupported.no_key')}</p>
       ) : (

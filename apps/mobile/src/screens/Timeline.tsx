@@ -57,7 +57,7 @@ export function Timeline() {
           <p className="text-sm text-muted">{t('timeline.empty')}</p>
         ) : (
           <>
-            <div className="mb-1 flex pl-14 text-[10px] text-muted" aria-hidden>
+            <div className="mb-1 flex pl-14 text-[11px] text-muted" aria-hidden>
               <div className="relative h-3 flex-1">
                 {HOURS.map((h) => (
                   <span key={h} className="absolute -translate-x-1/2" style={{ left: `${(h / 24) * 100}%` }}>

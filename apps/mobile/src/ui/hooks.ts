@@ -33,7 +33,7 @@ export function applyTheme(pref: ThemePref): void {
   const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
   const theme = pref === 'auto' ? (dark ? 'dark' : 'light') : pref;
   document.documentElement.dataset.theme = theme;
-  const color = { light: '#4f46e5', dark: '#0e1020', night: '#000000' }[theme];
+  const color = { light: '#f7f0e6', dark: '#181226', night: '#050304' }[theme];
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
 }
 

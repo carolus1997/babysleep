@@ -1,4 +1,5 @@
 import type { BabyT, EventCategoryT, LifeEventT } from '@babysleep/contract';
+import { Icon } from '../ui/Icon';
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { BUILD_ID, BUILD_TIME } from '../build-info';
@@ -136,7 +137,7 @@ function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void 
         <input className={inputCls} type="date" value={birth} onChange={(e) => setBirth(e.target.value)} />
       </Field>
 
-      <p className="mb-2 mt-1 text-sm font-semibold uppercase tracking-wide text-muted">{t('baby.more')}</p>
+      <p className="mb-2 mt-1 text-[13px] font-bold text-muted">{t('baby.more')}</p>
       <div className="mb-3" role="group" aria-label={t('baby.sex')}>
         <span className="mb-1 block text-sm font-medium text-muted">{t('baby.sex')}</span>
         <div className="flex flex-wrap gap-2">
@@ -446,7 +447,7 @@ export function Settings() {
                 {e.description ? ` · ${e.description}` : ''}
               </span>
               <Btn variant="ghost" aria-label={t('common.delete')} onClick={() => run(() => deleteLifeEvent(ctx, e.id))}>
-                ✕
+                <Icon name="close" size={18} />
               </Btn>
             </li>
           ))}

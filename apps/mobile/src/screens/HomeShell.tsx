@@ -1,5 +1,5 @@
 import { t, type I18nKey } from '../i18n/es';
-import { Chip } from '../ui/primitives';
+import { Chip, Tabs } from '../ui/primitives';
 import { Feeds } from './Feeds';
 import { History } from './History';
 import { Home } from './Home';
@@ -15,13 +15,13 @@ const SECTIONS: ReadonlyArray<{ id: HomeSection; label: I18nKey }> = [
 export function HomeShell({ section, onSection, goSettings }: { section: HomeSection; onSection: (s: HomeSection) => void; goSettings: () => void }) {
   return (
     <div className="space-y-4">
-      <div className="flex gap-1" role="group" aria-label={t('tab.home')}>
+      <Tabs label={t('tab.home')}>
         {SECTIONS.map((s) => (
           <Chip key={s.id} active={section === s.id} onClick={() => onSection(s.id)}>
             {t(s.label)}
           </Chip>
         ))}
-      </div>
+      </Tabs>
       {section === 'today' && <Home goSettings={goSettings} />}
       {section === 'feeds' && <Feeds />}
       {section === 'history' && <History />}
