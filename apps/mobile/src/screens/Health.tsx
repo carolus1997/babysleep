@@ -1,21 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { t } from '../i18n/es';
-import { Chip } from '../ui/primitives';
+import { Chip, Tabs } from '../ui/primitives';
 import { Appointments, suggestStart, type AppointmentDraft } from './Appointments';
 import type { MedIntent } from '../domain/medIntent';
 import { Growth } from './Growth';
+import { HealthOverview } from './HealthOverview';
 import { HealthProfile } from './HealthProfile';
 import { Illness } from './Illness';
 import { Medication } from './Medication';
 import { Vaccines } from './Vaccines';
 
-type Section = 'vaccines' | 'appointments' | 'growth' | 'medication' | 'illness' | 'profile';
+type Section = 'overview' | 'vaccines' | 'appointments' | 'growth' | 'medication' | 'illness' | 'profile';
 
 /** Salud: vacunas, citas, crecimiento, medicación, enfermedad y ficha (docs/development/salud-plan.md). */
 export function Health({ medIntent = null, onMedIntentUsed = () => {} }: { medIntent?: MedIntent | null; onMedIntentUsed?: () => void }) {
   const { ctx } = useApp();
-  const [section, setSection] = useState<Section>('vaccines');
+  const [section, setSection] = useState<Section>('overview');
   const [draft, setDraft] = useState<AppointmentDraft | null>(null);
   // El aviso de una dosis abre directamente Medicación.
   useEffect(() => {
@@ -23,8 +24,11 @@ export function Health({ medIntent = null, onMedIntentUsed = () => {} }: { medIn
   }, [medIntent]);
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">{t('health.title')}</h1>
-      <div className="flex flex-wrap gap-1" role="group" aria-label={t('health.title')}>
+      <h1 className="text-2xl font-extrabold">{t('health.title')}</h1>
+      <Tabs label={t('health.title')}>
+        <Chip active={section === 'overview'} onClick={() => setSection('overview')}>
+          {t('health.sec.overview')}
+        </Chip>
         <Chip active={section === 'vaccines'} onClick={() => setSection('vaccines')}>
           {t('health.sec.vaccines')}
         </Chip>
@@ -43,7 +47,8 @@ export function Health({ medIntent = null, onMedIntentUsed = () => {} }: { medIn
         <Chip active={section === 'profile'} onClick={() => setSection('profile')}>
           {t('health.sec.profile')}
         </Chip>
-      </div>
+      </Tabs>
+      {section === 'overview' && <HealthOverview onGo={setSection} />}
       {section === 'vaccines' && (
         <Vaccines
           onSchedule={(m) => {

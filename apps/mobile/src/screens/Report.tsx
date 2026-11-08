@@ -64,7 +64,7 @@ export function ReportView({ rep, filenameBase, nowMs }: { rep: ReportData; file
         <p className="mb-3 text-sm text-muted">{rep.subtitle}</p>
         {rep.sections.map((s) => (
           <div key={s.title} className="mb-3">
-            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">{s.title}</h3>
+            <h3 className="mb-1 text-[13px] font-bold text-muted">{s.title}</h3>
             <ul className="space-y-1 text-sm">
               {s.lines.map((l, i) => (
                 <li key={`${i}-${l}`}>{l}</li>

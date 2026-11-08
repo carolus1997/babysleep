@@ -49,10 +49,11 @@ for (const size of SIZES)
           await page.evaluate(() => window.scrollTo(0, 0));
           await page.waitForTimeout(250);
           await page.screenshot({ path: `${OUT}/${size.n}-${theme}-${scenario}-${id}.png` });
+          if (id === 'stats') await page.screenshot({ path: `${OUT}/${size.n}-${theme}-${scenario}-stats-full.png`, fullPage: true });
           if (theme === 'light' || theme === 'night') {
             const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
             const bad = r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
-            if (bad.length) appendFileSync(`${OUT}/axe.txt`, `${size.n} ${theme} ${scenario} ${id}: ` + bad.map((v) => `${v.id}(${v.nodes.length})`).join(', ') + '\n');
+            if (bad.length) appendFileSync(`${OUT}/axe.txt`, `${size.n} ${theme} ${scenario} ${id}: ` + bad.map((v) => `${v.id}(${v.nodes.length}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ") + " " + (n.any[0]?.message ?? "").slice(0, 120)).join(" | ")})`).join(', ') + '\n');
             if (process.env.VISUAL_STRICT) expect(bad, bad.map((v) => v.id).join()).toEqual([]);
           }
         }

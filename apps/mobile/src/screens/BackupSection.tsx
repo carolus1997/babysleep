@@ -26,7 +26,7 @@ export function BackupSection() {
   const h: BackupHealth = backupHealth(status, now);
   return (
     <div className="mt-4 border-t border-line pt-3">
-      <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">{t('backups.title')}</h3>
+      <h3 className="mb-1 text-[13px] font-bold text-muted">{t('backups.title')}</h3>
       <p className={`text-sm font-medium ${h.level === 'ok' ? 'text-ok' : 'text-danger'}`} role={h.level === 'ok' ? undefined : 'alert'}>
         {h.headline}
       </p>

@@ -38,13 +38,14 @@
   --surface2: #efe5d6;
   --fg: #2b2038;
   --muted: #675b74;
-  --accent: #b9531f;
+  --accent: #a84817;
   --accent-fg: #ffffff;
   --line: #e3d7c4;
   --danger: #b3261e;
   --ok: #2f7a4f;
   --seg-night: #4a3a7a;
   --seg-nap: #b5760f;
+  --card-border: transparent;
   --shadow-card-v: 0 2px 0 #e3d7c4, 0 12px 24px -16px rgb(43 32 56 / 0.4);
   color-scheme: light;
 }
@@ -62,6 +63,7 @@
   --ok: #7fd1a0;
   --seg-night: #9c88e8;
   --seg-nap: #f0b855;
+  --card-border: #3a2f55;
   --shadow-card-v: none;
   color-scheme: dark;
 }
@@ -80,6 +82,7 @@
   --ok: #8fbf8a;
   --seg-night: #c27a3e;
   --seg-nap: #9c7a4a;
+  --card-border: #2a1d14;
   --shadow-card-v: none;
   color-scheme: dark;
 }
@@ -90,25 +93,16 @@
   --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-/*
- * Foto del bebé como fondo: solo en el tema claro y muy tenue. En oscuro y noche no se
- * muestra (no debe deslumbrar). Con foto, las tarjetas se vuelven ligeramente translúcidas.
- */
-.photo-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-size: cover;
-  background-position: center;
-  opacity: 0;
+/* Sub-navegación con desplazamiento lateral: sin barra y con degradado a la derecha que avisa de que hay más. */
+.tabs-fade {
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
 }
-[data-theme='light'] .photo-bg {
-  opacity: 0.16;
+.tabs-fade::-webkit-scrollbar {
+  display: none;
 }
-[data-theme='light'][data-photo] {
-  --surface: rgb(255 250 243 / 0.82);
-  --surface2: rgb(239 229 214 / 0.82);
+.tabs-fade > * {
+  flex: none;
 }
 
 html,

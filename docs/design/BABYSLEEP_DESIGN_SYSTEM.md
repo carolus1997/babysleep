@@ -29,7 +29,7 @@ Se mantienen los nombres existentes de `index.css` (`--bg --surface --surface2 -
 | `--surface2` | `#efe5d6` | `#2e2445` | `#1a120d` | campos, chips, tiles secundarios |
 | `--fg` | `#2b2038` | `#f2e9ff` | `#d8b48a` | texto |
 | `--muted` | `#675b74` | `#b3a6c9` | `#a38660` | texto secundario |
-| `--accent` | `#b9531f` | `#f0955a` | `#c27a3e` | acción principal, anillo, foco |
+| `--accent` | `#a84817` | `#f0955a` | `#c27a3e` | acción principal (texto y fondo; ≥4,5:1 sobre las tres superficies), anillo, foco |
 | `--accent-fg` | `#ffffff` | `#2a1406` | `#140a03` | texto sobre acento |
 | `--line` | `#e3d7c4` | `#3a2f55` | `#2a1d14` | bordes, separadores |
 | `--seg-nap` | `#b5760f` | `#f0b855` | `#9c7a4a` | siesta en gráficos |
@@ -210,3 +210,5 @@ Los pasos 1–3 son aprobables y desplegables de forma independiente; el 4 es el
 - **Paso 0 (hecho):** `npm run visual` (Playwright, `tools/visual/`) siembra a «Leo» con 8 días de datos usando las funciones de dominio de la app y captura 390×844 y 360×800 en claro/oscuro/noche (vacío, con datos, sesión activa) en `docs/design/screens/<VISUAL_TAG>/`; pasa axe (WCAG 2.2 AA, `axe.txt`; `VISUAL_STRICT=1` lo convierte en fallo). `npm run check:contrast` lee los colores de `index.css` y forma parte de `npm run check`. Capturas: `screens/antes` y `screens/despues`.
 - **Paso 1 (hecho):** tokens de las tres paletas, `--surface3`, `--accent-soft`, `--shadow-card`, Manrope empaquetada (solo subconjunto latino) y colores de `theme-color`/manifest. Sin cambios en componentes.
 - **Pendiente conocido del paso 1:** el color por defecto del bebé (índigo, guardado en datos) sigue pintando el avatar y el borde de la cabecera; se resuelve en el paso 2–4 sin tocar datos (usar `--accent` cuando el color sea el valor por defecto).
+- **Pasos 2–7 (hechos en `rediseno-ui`):** iconos Lucide (`ui/Icon.tsx`), barra inferior y cabecera nuevas, reinicio de scroll al cambiar de pestaña, primitivas D (`Btn`, `Round`, `Tile`, `Chip`, `Tabs`, `Card`, `Inset`, `Banner`, `EmptyState`, `Skeleton`, `Ring`, `Sheet` con grabber, `Field`), Hoy (anillo + botón circular + tomas en mosaico + estado vacío), Estadísticas (cifra héroe, gráfico con valores y línea de media, `Tabs`), Salud (pestaña «Resumen» / Lo próximo) y limpieza (sin `uppercase`, sin `text-[10px]`, sin emoji ni Unicode como icono, sin foto de fondo). El acento claro pasó a `#a84817` para cumplir 4,5:1 como texto sobre las tres superficies.
+- **Pendiente (paso 8):** formularios largos y hojas de Medicación/Enfermedad/Vacunas solo heredan tokens (revisarlos uno a uno), Splash/Onboarding, prueba en móvil real, texto del sistema al 130 %.

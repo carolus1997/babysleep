@@ -21,7 +21,7 @@ const block = (theme) => {
   return Object.fromEntries(Object.entries(map).map(([k, n]) => [k, v(n)]));
 };
 export const THEMES = { light: block('light'), dark: block('dark'), night: block('night') };
-const CHECKS = [['fg', 'bg', 4.5], ['fg', 's1', 4.5], ['mu', 'bg', 4.5], ['mu', 's1', 4.5], ['mu', 's2', 4.5], ['acfg', 'ac', 4.5], ['ac', 'bg', 3], ['ac', 's1', 3], ['ok', 's1', 4.5], ['danger', 's1', 4.5], ['nap', 's1', 3], ['nt', 's1', 3], ['nap', 's2', 3], ['nt', 's2', 3]];
+const CHECKS = [['fg', 'bg', 4.5], ['fg', 's1', 4.5], ['mu', 'bg', 4.5], ['mu', 's1', 4.5], ['mu', 's2', 4.5], ['acfg', 'ac', 4.5], ['ac', 'bg', 4.5], ['ac', 's1', 4.5], ['ac', 's2', 4.5], ['ok', 's1', 4.5], ['danger', 's1', 4.5], ['nap', 's1', 3], ['nt', 's1', 3], ['nap', 's2', 3], ['nt', 's2', 3]];
 let fail = 0;
 for (const [name, t] of Object.entries(THEMES))
   for (const [a, b, min] of CHECKS) {

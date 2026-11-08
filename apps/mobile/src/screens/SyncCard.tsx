@@ -50,7 +50,7 @@ function FamilySection() {
 
   return (
     <div className="mt-4 border-t border-line pt-3">
-      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{t('family.title')}</h3>
+      <h3 className="mb-2 text-[13px] font-bold text-muted">{t('family.title')}</h3>
       <ul className="divide-y divide-line">
         {members.map((m) => (
           <li key={m.id} className="py-2 text-sm">
