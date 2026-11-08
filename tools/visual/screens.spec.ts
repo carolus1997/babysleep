@@ -24,6 +24,7 @@ async function boot(page: Page, theme: string, scenario: 'empty' | 'data' | 'act
   await page.evaluate(() => indexedDB.deleteDatabase('babysleep'));
   await page.reload();
   if (scenario === 'empty') {
+    await page.getByRole('button', { name: 'Empezar de cero' }).click();
     await page.getByRole('textbox').first().fill('Leo');
     await page.locator('input[type=date]').fill(new Date(Date.now() - 158 * 86_400_000).toISOString().slice(0, 10));
     await page.getByRole('button', { name: 'Crear perfil' }).click();
@@ -62,3 +63,44 @@ for (const size of SIZES)
         await page.screenshot({ path: `${OUT}/${size.n}-${theme}-${scenario}-home-full.png`, fullPage: true });
       });
     }
+
+// Acceso: bienvenida, registro del bebé y entrada con correo (sin red: el código y la vinculación necesitan servidor).
+for (const theme of THEMES)
+  test(`acceso ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript((th) => {
+      localStorage.setItem('bs-theme', th);
+      document.addEventListener('DOMContentLoaded', () => {
+        const st = document.createElement('style');
+        st.textContent = '.splash{display:none!important}';
+        document.head.append(st);
+      });
+    }, theme);
+    await page.goto('/?go=today');
+    await page.evaluate(() => indexedDB.deleteDatabase('babysleep'));
+    await page.reload();
+    const shots: Array<[string, () => Promise<void>]> = [
+      ['1-bienvenida', async () => {}],
+      ['2-registro', async () => {
+        await page.getByRole('button', { name: 'Empezar de cero' }).click();
+        await page.getByRole('textbox').first().fill('Leo');
+        await page.locator('input[type=date]').fill('2026-05-10');
+      }],
+      ['3-correo', async () => {
+        await page.getByRole('button', { name: 'Volver' }).click();
+        await page.getByRole('button', { name: 'Ya tengo cuenta' }).click();
+        await page.getByRole('textbox').first().fill('ana@correo.com');
+      }],
+    ];
+    for (const [name, act] of shots) {
+      await act();
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: `${OUT}/390-${theme}-acceso-${name}.png` });
+      if (theme !== 'dark') {
+        const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
+        const bad = r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+        if (bad.length) appendFileSync(`${OUT}/axe.txt`, `acceso ${theme} ${name}: ` + bad.map((v) => v.id).join(', ') + '\n');
+        if (process.env.VISUAL_STRICT) expect(bad, bad.map((v) => v.id).join()).toEqual([]);
+      }
+    }
+  });

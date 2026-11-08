@@ -1,3 +1,5 @@
+import { CodeInput } from '../ui/CodeInput';
+import { Icon } from '../ui/Icon';
 import { useEffect, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { t } from '../i18n/es';
@@ -255,13 +257,23 @@ function SignOutSheet({ onClose, onSignedOut }: { onClose: () => void; onSignedO
 }
 
 /** Cuenta y sincronización. Con el móvil sin conectar, no descarga nada de la librería hasta que se necesita. */
-export function SyncCard({ fresh = false }: { fresh?: boolean }) {
+export function SyncCard({ fresh = false, page = false }: { fresh?: boolean; page?: boolean }) {
   const { ctx, run, toast, replaceCtx } = useApp();
   const [phase, setPhase] = useState<Phase>(ctx.db.syncEnabled || hasStoredSession() ? 'checking' : 'signed_out');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [claim, setClaim] = useState('');
   const [busy, setBusy] = useState(false);
+  const [codeError, setCodeError] = useState(false);
+  // Espera antes de poder pedir otro código (el servidor limita los envíos seguidos).
+  const [resendAt, setResendAt] = useState(0);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (resendAt <= Date.now()) return;
+    const id = setInterval(() => setTick(Date.now()), 1000);
+    setTick(Date.now());
+    return () => clearInterval(id);
+  }, [resendAt]);
   const status = useLive(async () => (await ctx.db.meta.get('sync_status'))?.value as SyncStatus | undefined, [ctx], undefined as SyncStatus | undefined);
   const pending = useLive(() => ctx.db.outbox.count(), [ctx], 0);
   const rejected = useLive(async () => (await rejectedEntries(ctx.db)).length, [ctx], 0);
@@ -299,18 +311,24 @@ export function SyncCard({ fresh = false }: { fresh?: boolean }) {
   const send = () =>
     guarded(async () => {
       await requestCode(await getSupabaseClient(), email);
+      setCode('');
+      setCodeError(false);
+      setResendAt(Date.now() + 45_000);
       setPhase('code_sent');
     });
 
-  const verify = () =>
-    guarded(async () => {
+  const verify = async () => {
+    const ok = await guarded(async () => {
       const client = await getSupabaseClient();
       await verifyCode(client, email, code);
       setCode('');
       const s = await currentSession(client);
       if (s === null) throw new Error('No se pudo iniciar la sesión');
       setPhase(ctx.db.syncEnabled ? 'connected' : (await isLinked(client, s.userId)) ? 'linked' : 'needs_claim');
+      return true;
     });
+    if (ok === undefined) setCodeError(true);
+  };
 
   const doClaim = () =>
     guarded(async () => {
@@ -338,63 +356,105 @@ export function SyncCard({ fresh = false }: { fresh?: boolean }) {
 
   const [signOutOpen, setSignOutOpen] = useState(false);
 
-  return (
-    <Card title={t('sync.title')}>
+  // Cabecera de cada fase: en pantalla completa (alta), título grande + texto; dentro de Ajustes, solo el texto.
+  const head = (title: string, body: string) =>
+    page ? (
+      <>
+        <h1 className="text-[26px] font-extrabold leading-tight">{title}</h1>
+        <p className="mb-5 mt-2 text-sm font-medium text-muted">{body}</p>
+      </>
+    ) : (
+      <p className="mb-3 text-sm text-muted">{body}</p>
+    );
+  const actions = `${page ? 'mt-auto pt-6' : 'mt-3'} flex flex-col gap-1.5`;
+  const big = page ? 'h-14 w-full text-base' : 'w-full';
+  const left = Math.max(0, Math.ceil((resendAt - tick) / 1000));
+
+  const body = (
+    <>
       {phase === 'checking' && <p className="text-sm text-muted">{t('common.loading')}</p>}
 
       {phase === 'signed_out' && (
         <>
-          {status?.sessionExpired && <p role="alert" className="mb-2 text-sm text-danger">{t('sync.expired')}</p>}
-          <p className="mb-3 text-sm text-muted">{t('sync.intro')}</p>
+          {status?.sessionExpired && (
+            <p role="alert" className="mb-2 text-sm font-bold text-danger">
+              {t('sync.expired')}
+            </p>
+          )}
+          {head(t('auth.emailTitle'), fresh ? t('onboarding.accountIntro') : t('sync.intro'))}
           <Field label={t('sync.email')}>
-            <input className={inputCls} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input className={inputCls} type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <span className="mt-1.5 block text-[12px] font-semibold text-muted">{t('auth.noPassword')}</span>
           </Field>
-          <Btn variant="primary" className="w-full" disabled={busy || !email.includes('@')} onClick={send}>
-            {t('sync.sendCode')}
-          </Btn>
+          <div className={actions}>
+            <Btn variant="primary" className={big} disabled={busy || !email.includes('@')} onClick={send}>
+              {t('sync.sendCode')}
+            </Btn>
+          </div>
         </>
       )}
 
       {phase === 'code_sent' && (
         <>
-          <p className="mb-3 text-sm text-muted">{t('sync.codeSent', { email })}</p>
-          <Field label={t('sync.code')}>
-            <input
-              className={`${inputCls} text-center font-mono text-2xl tracking-[0.4em]`}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={8}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-            />
-          </Field>
-          <Btn variant="primary" className="w-full" disabled={busy || code.length < 6} onClick={verify}>
-            {t('sync.enter')}
-          </Btn>
-          <Btn variant="ghost" className="mt-1 w-full" onClick={() => setPhase('signed_out')}>
-            {t('sync.changeEmail')}
-          </Btn>
+          {head(t('auth.codeTitle'), t('sync.codeSent', { email }))}
+          <CodeInput label={t('sync.code')} value={code} onChange={(v) => { setCode(v); setCodeError(false); }} error={codeError ? t('auth.codeWrong') : null} onEnter={verify} />
+          <p className="mt-3 text-[13px] font-semibold text-muted">
+            {left > 0 ? (
+              t('auth.resendIn', { time: `0:${String(left).padStart(2, '0')}` })
+            ) : (
+              <button className="font-bold text-accent underline underline-offset-2" disabled={busy} onClick={send}>
+                {t('auth.resend')}
+              </button>
+            )}
+          </p>
+          <div className={actions}>
+            <Btn variant="primary" className={big} disabled={busy || code.length < 6} onClick={verify}>
+              {t('sync.enter')}
+            </Btn>
+            <Btn variant="ghost" className="w-full" onClick={() => setPhase('signed_out')}>
+              {t('sync.changeEmail')}
+            </Btn>
+          </div>
         </>
       )}
 
       {phase === 'needs_claim' && (
         <>
-          <p className="mb-3 text-sm text-muted">{t('sync.claimHelp')}</p>
+          {head(t('auth.claimTitle'), t('sync.claimHelp'))}
           <Field label={t('sync.claimCode')}>
             <input className={`${inputCls} font-mono`} autoComplete="off" autoCapitalize="none" spellCheck={false} value={claim} onChange={(e) => setClaim(e.target.value)} />
+            <span className="mt-1.5 block text-[12px] font-semibold text-muted">{t('auth.claimHint')}</span>
           </Field>
-          <Btn variant="primary" className="w-full" disabled={busy || claim.trim().length < 20} onClick={doClaim}>
-            {t('sync.claim')}
-          </Btn>
+          <div className={actions}>
+            <Btn variant="primary" className={big} disabled={busy || claim.trim().length < 20} onClick={doClaim}>
+              {t('sync.claim')}
+            </Btn>
+          </div>
         </>
       )}
 
       {phase === 'linked' && (
         <>
-          <p className="mb-3 text-sm text-muted">{t(fresh ? 'sync.connectFresh' : 'sync.connectHelp')}</p>
-          <Btn variant="primary" className="w-full" disabled={busy} onClick={connect}>
-            {t(fresh ? 'sync.connectFreshBtn' : 'sync.connect')}
-          </Btn>
+          {page && (
+            <div className="mb-4 mt-8 flex justify-center">
+              <span className="grid size-24 place-items-center rounded-full bg-accent-soft text-ok">
+                <Icon name="check" size={48} />
+              </span>
+            </div>
+          )}
+          {page ? (
+            <div className="text-center">
+              <h1 className="text-[26px] font-extrabold leading-tight">{t('auth.linkedTitle')}</h1>
+              <p className="mt-2 text-sm font-medium text-muted">{t('sync.connectFresh')}</p>
+            </div>
+          ) : (
+            <p className="mb-3 text-sm text-muted">{t(fresh ? 'sync.connectFresh' : 'sync.connectHelp')}</p>
+          )}
+          <div className={actions}>
+            <Btn variant="primary" className={big} disabled={busy} onClick={connect}>
+              {t(fresh ? 'sync.connectFreshBtn' : 'sync.connect')}
+            </Btn>
+          </div>
         </>
       )}
 
@@ -436,6 +496,8 @@ export function SyncCard({ fresh = false }: { fresh?: boolean }) {
         </>
       )}
       {signOutOpen && <SignOutSheet onClose={() => setSignOutOpen(false)} onSignedOut={() => setPhase('signed_out')} />}
-    </Card>
+    </>
   );
+
+  return page ? <div className="flex flex-1 flex-col">{body}</div> : <Card title={t('sync.title')}>{body}</Card>;
 }
