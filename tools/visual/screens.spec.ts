@@ -104,3 +104,54 @@ for (const theme of THEMES)
       }
     }
   });
+
+// Todas las secciones (Salud, Estadísticas, Inicio) a pantalla completa, para revisar cada una.
+test('secciones', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await boot(page, process.env.VISUAL_THEME ?? 'light', 'data');
+  const nav = page.getByRole('navigation', { name: 'Principal' });
+  const slug = (s: string) => s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
+  const groups: Array<[string, string, string]> = [['Salud', 'Salud', 'Salud'], ['Estadísticas', 'Estadísticas', 'Estadísticas'], ['Inicio', 'Inicio', 'Inicio']];
+  for (const [tab, , label] of groups) {
+    await nav.getByRole('button', { name: tab }).click();
+    const tabs = page.getByRole('group', { name: label === 'Inicio' ? 'Inicio' : label }).first();
+    const names = (await tabs.getByRole('button').allTextContents()).map((s) => s.trim());
+    for (const n of names) {
+      await nav.getByRole('button', { name: tab }).click();
+      await tabs.getByRole('button', { name: n, exact: true }).click();
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: `${OUT}/sec-${slug(tab)}-${slug(n)}.png`, fullPage: true });
+    }
+  }
+  await nav.getByRole('button', { name: 'Ajustes' }).click();
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: `${OUT}/sec-ajustes.png`, fullPage: true });
+});
+
+// Hojas inferiores con formularios: se abren una a una y se capturan (la hoja ocupa la pantalla).
+test('hojas', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await boot(page, process.env.VISUAL_THEME ?? 'light', 'data');
+  const nav = page.getByRole('navigation', { name: 'Principal' });
+  const steps: Array<[string, string, string, string | null]> = [
+    ['Salud', 'Medicación', '+ Nuevo tratamiento', 'medicacion'],
+    ['Salud', 'Citas', '+ Nueva cita', 'cita'],
+    ['Salud', 'Vacunas', 'Registrar vacunas', 'vacunas'],
+    ['Salud', 'Crecimiento', '+ Nueva medida', 'medida'],
+    ['Salud', 'Enfermedad', 'Empezar un episodio', 'enfermedad'],
+    ['Salud', 'Ficha', 'Editar', 'ficha'],
+    ['Inicio', 'Historial', '+ Añadir descanso', 'descanso'],
+    ['Ajustes', '', '+ Añadir acontecimiento', 'acontecimiento'],
+    ['Ajustes', '', '+ Añadir bebé', 'bebe'],
+  ];
+  for (const [tab, sub, btn, name] of steps) {
+    await nav.getByRole('button', { name: tab }).click();
+    if (sub) await page.getByRole('group', { name: tab }).first().getByRole('button', { name: sub, exact: true }).click();
+    const b = page.getByRole('button', { name: btn }).first();
+    if ((await b.count()) === 0) { appendFileSync(`${OUT}/hojas-faltan.txt`, `${btn}\n`); continue; }
+    await b.click();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/hoja-${name}.png` });
+    await page.keyboard.press('Escape');
+  }
+});

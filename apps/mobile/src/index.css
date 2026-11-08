@@ -130,6 +130,14 @@ select,
 textarea {
   font-size: 16px;
 }
+/* Casillas y botones de opción con el acento de la paleta y un tamaño táctil razonable. */
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
 /* Safari de iOS da a los campos de fecha un ancho mínimo propio que ignora `width: 100%`. */
 input[type='date'] {
   -webkit-appearance: none;
