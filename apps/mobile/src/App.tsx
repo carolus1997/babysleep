@@ -15,6 +15,8 @@ import { Icon, type IconName } from './ui/Icon';
 import { Avatar } from './ui/photo';
 import { Sheet } from './ui/primitives';
 import { Splash } from './ui/Splash';
+import { Hint, Tour } from './ui/Tutorial';
+import { isSeen } from './tutorial/seen';
 
 type Tab = 'home' | 'health' | 'stats' | 'settings';
 const TABS: ReadonlyArray<{ id: Tab; label: I18nKey; icon: IconName }> = [
@@ -47,6 +49,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>('home');
   const [homeSection, setHomeSection] = useState<HomeSection>('today');
   const [switching, setSwitching] = useState(false);
+  const [touring, setTouring] = useState(() => !isSeen('tour'));
   // Aviso de medicación: abre Salud → Medicación en ese tratamiento (y, con «Ya la di», la hoja de registro).
   const [medIntent, setMedIntent] = useState<MedIntent | null>(null);
   const { ctx, run, toast } = useApp();
@@ -151,9 +154,11 @@ export function App() {
           apilamiento; con `z-10` las hojas (z-40) quedaban atrapadas debajo de la cabecera y la barra. */}
       <main className="relative flex-1 px-4 pb-28 pt-2">
         {tab === 'home' && <HomeShell section={homeSection} onSection={setHomeSection} goSettings={() => setTab('settings')} />}
+        {tab === 'health' && <Hint id="hint-health">{t('hint.health')}</Hint>}
+        {tab === 'stats' && <Hint id="hint-stats">{t('hint.stats')}</Hint>}
         {tab === 'health' && <Health medIntent={medIntent} onMedIntentUsed={() => setMedIntent(null)} />}
         {tab === 'stats' && <Stats />}
-        {tab === 'settings' && <Settings />}
+        {tab === 'settings' && <Settings onReplayTour={() => setTouring(true)} />}
       </main>
 
       <nav
@@ -176,6 +181,8 @@ export function App() {
           </button>
         ))}
       </nav>
+
+      {touring && <Tour onDone={() => setTouring(false)} />}
 
       {switching && (
         <Sheet title={t('settings.babies')} onClose={() => setSwitching(false)}>

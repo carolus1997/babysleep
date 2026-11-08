@@ -11,15 +11,16 @@ const TABS = [['home', 'Inicio'], ['stats', 'Estadísticas'], ['health', 'Salud'
 mkdirSync(OUT, { recursive: true });
 writeFileSync(`${OUT}/axe.txt`, '');
 
-async function boot(page: Page, theme: string, scenario: 'empty' | 'data' | 'active') {
-  await page.addInitScript((th) => {
-    localStorage.setItem('bs-theme', th);
+async function boot(page: Page, theme: string, scenario: 'empty' | 'data' | 'active', tour = false) {
+  await page.addInitScript(([th, withTour]) => {
+    localStorage.setItem('bs-theme', th!);
+    if (!withTour) localStorage.setItem('bs-tut-tour', '1');
     document.addEventListener('DOMContentLoaded', () => {
       const st = document.createElement('style');
       st.textContent = '.splash{display:none!important}';
       document.head.append(st);
     });
-  }, theme);
+  }, [theme, tour ? '1' : ''] as const);
   await page.goto('/?go=today'); // `go` desconocido: salta la pantalla de perfiles
   await page.evaluate(() => indexedDB.deleteDatabase('babysleep'));
   await page.reload();
@@ -33,7 +34,7 @@ async function boot(page: Page, theme: string, scenario: 'empty' | 'data' | 'act
     if (scenario === 'active') await page.evaluate(startOpenSleep);
     await page.reload();
   }
-  await page.getByRole('navigation', { name: 'Principal' }).waitFor();
+  if (!tour) await page.getByRole('navigation', { name: 'Principal' }).waitFor();
 }
 
 for (const size of SIZES)
@@ -155,3 +156,34 @@ test('hojas', async ({ page }) => {
     await page.keyboard.press('Escape');
   }
 });
+
+// Tutorial: el tour paso a paso y el centro de ayuda de Ajustes.
+for (const theme of THEMES)
+  test(`tutorial ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await boot(page, theme, 'data', true);
+    const dialog = page.getByRole('dialog', { name: 'Bienvenida a BabySleep' });
+    await dialog.waitFor();
+    for (let i = 1; i <= 5; i++) {
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: `${OUT}/tour-${theme}-${i}.png` });
+      if (theme !== 'dark') {
+        const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
+        const bad = r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+        if (bad.length) appendFileSync(`${OUT}/axe.txt`, `tour ${theme} ${i}: ` + bad.map((v) => v.id).join(', ') + '\n');
+        if (process.env.VISUAL_STRICT) expect(bad, bad.map((v) => v.id).join()).toEqual([]);
+      }
+      await dialog.getByRole('button', { name: i === 5 ? 'Empezar' : 'Siguiente' }).click();
+    }
+    await expect(dialog).toBeHidden();
+    await page.reload();
+    await page.getByRole('navigation', { name: 'Principal' }).waitFor();
+    await expect(dialog).toBeHidden(); // ya visto: no vuelve
+    await page.getByRole('navigation', { name: 'Principal' }).getByRole('button', { name: 'Ajustes' }).click();
+    await page.getByRole('button', { name: 'Ver el tutorial otra vez' }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${OUT}/ayuda-${theme}.png` });
+    await page.getByRole('button', { name: 'Ver el tutorial otra vez' }).click();
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Saltar' }).click();
+    await expect(dialog).toBeHidden();
+  });
