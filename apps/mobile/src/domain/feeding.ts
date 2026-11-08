@@ -94,6 +94,47 @@ export async function finishFeeding(
   });
 }
 
+/** Qué ha tomado → tipo guardado: pecho y biberón = «mixta»; los sólidos van solos. `null` si no se ha elegido nada. */
+export function composeFeedType(w: { breast: boolean; bottle: boolean; solids: boolean }): FeedTypeT | null {
+  if (w.solids) return 'solids';
+  if (w.breast && w.bottle) return 'mixed';
+  if (w.breast) return 'breast';
+  if (w.bottle) return 'bottle';
+  return null;
+}
+
+/** Pechos usados → lado guardado: los dos = «ambos». */
+export function composeSide(left: boolean, right: boolean): BreastSideT | null {
+  return left && right ? 'both' : left ? 'left' : right ? 'right' : null;
+}
+
+/**
+ * «Terminar toma» eligiendo a la vez qué ha tomado: cierra la toma en curso con su tipo, pecho y ml definitivos
+ * (el cronómetro se arranca sin preguntar nada). Lo que el tipo no admite se descarta.
+ */
+export async function finishFeedingAs(
+  ctx: Ctx,
+  id: string,
+  d: { type: FeedTypeT; side?: BreastSideT | null; amountMl?: number | null },
+): Promise<FeedingT> {
+  const f = await ctx.db.feeding.get(id);
+  if (f === undefined) throw new DomainError('not_found', 'Toma inexistente');
+  if (!isRunning(f)) return f;
+  const endMs = ctx.now();
+  if (endMs <= parseInstant(f.start_utc)) throw new DomainError('invalid_range', 'El fin debe ser posterior al inicio');
+  const side = hasBreast(d.type) ? (d.side ?? null) : null;
+  const amount = hasBottle(d.type) ? (d.amountMl ?? null) : null;
+  checkDetails(d.type, side, amount);
+  return updateRow(ctx, ctx.db.feeding, Feeding, id, {
+    feed_type: d.type,
+    end_utc: toIso(endMs),
+    end_tz: ctx.zone,
+    end_quality: 'exact',
+    breast_side: side,
+    amount_ml: amount,
+  });
+}
+
 /** Descarta una toma en curso que no llegó a ocurrir (papelera; se puede recuperar). */
 export async function cancelFeeding(ctx: Ctx, id: string): Promise<FeedingT> {
   const f = await ctx.db.feeding.get(id);

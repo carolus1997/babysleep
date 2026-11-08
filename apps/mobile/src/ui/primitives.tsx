@@ -30,13 +30,15 @@ export function Btn({
 }
 
 /** Botón circular dominante de Inicio («Dormir» / «Despierto»): una palabra, icono y halo. */
-export function Round({ icon, label, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon: IconName; label: string }) {
+export function Round({ icon, label, small = false, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon: IconName; label: string; small?: boolean }) {
   return (
     <button
       {...props}
-      className={`flex size-[92px] flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-full bg-accent text-[13px] font-extrabold text-accent-fg shadow-[0_0_0_8px_var(--accent-soft)] transition-transform active:scale-[0.95] disabled:opacity-45 ${className}`}
+      className={`flex flex-col items-center justify-center whitespace-nowrap rounded-full bg-accent font-extrabold text-accent-fg transition-transform active:scale-[0.95] disabled:opacity-45 ${
+        small ? 'size-[72px] shrink-0 gap-px text-[11px] shadow-[0_0_0_5px_var(--accent-soft)]' : 'size-[92px] gap-0.5 text-[13px] shadow-[0_0_0_8px_var(--accent-soft)]'
+      } ${className}`}
     >
-      <Icon name={icon} size={28} />
+      <Icon name={icon} size={small ? 22 : 28} />
       {label}
     </button>
   );
@@ -153,7 +155,22 @@ export function Skeleton({ className = '' }: { className?: string }) {
  * Anillo de progreso. Solo para indicar una ventana habitual o una duración; nunca un objetivo que cumplir
  * (principio 5 del sistema de diseño).
  */
-export function Ring({ size = 192, stroke = 14, progress = 0, tour, children }: { size?: number; stroke?: number; progress?: number; tour?: string; children?: ReactNode }) {
+export function Ring({
+  size = 192,
+  stroke = 14,
+  progress = 0,
+  tour,
+  neutral = false,
+  children,
+}: {
+  size?: number;
+  stroke?: number;
+  progress?: number;
+  tour?: string;
+  /** Trazo neutro: solo el anillo de sueño lleva el acento; el de toma, secundario, no compite con él. */
+  neutral?: boolean;
+  children?: ReactNode;
+}) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const p = Math.max(0, Math.min(1, progress));
@@ -162,16 +179,16 @@ export function Ring({ size = 192, stroke = 14, progress = 0, tour, children }: 
       <svg width={size} height={size} className="-rotate-90" aria-hidden>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface2)" strokeWidth={stroke} />
         {p > 0 && (
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--accent)" strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${c * p} ${c}`} />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={neutral ? 'color-mix(in srgb, var(--fg) 55%, transparent)' : 'var(--accent)'} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${c * p} ${c}`} />
         )}
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">{children}</div>
+      <div className={`absolute inset-0 flex flex-col items-center justify-center text-center ${neutral ? 'px-2' : 'px-6'}`}>{children}</div>
     </div>
   );
 }
 
 /** Hoja inferior accesible: se cierra con Escape o tocando fuera. */
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Sheet({ title, onClose, footer, children }: { title: string; onClose: () => void; /** Pie fijo (botón de guardar): se queda visible aunque el contenido se desplace. */ footer?: ReactNode; children: ReactNode }) {
   const id = useId();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -211,6 +228,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
           </button>
         </div>
         {children}
+        {footer && <div className="sticky bottom-[-1rem] -mx-4 mt-3 border-t border-line bg-bg px-4 pb-1 pt-3">{footer}</div>}
       </div>
     </div>
   );
