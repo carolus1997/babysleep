@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BabySleep — Prototipos Fase 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<style>
+:root{--z:.6}
+*{box-sizing:border-box}
+body{margin:0;background:#cfcbc2;font-family:system-ui,sans-serif;color:#222}
+.top{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:14px 24px}
+.top h1{font-size:18px;margin:0}
+.top button{border:1px solid #888;background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+.top button[aria-pressed=true]{background:#222;color:#fff}
+.grid{display:grid;grid-template-columns:150px repeat(var(--n,5),calc(320px*var(--z)));gap:14px;padding:0 24px 32px;align-items:start}
+.cap{font-size:12px;font-weight:600;color:#444;text-transform:uppercase;letter-spacing:.05em}
+.rl{font-size:13px;line-height:1.4}
+.rl b{display:block;font-size:16px;margin-bottom:4px}
+.sw{display:flex;gap:3px;margin-top:8px;flex-wrap:wrap}
+.sw i{width:18px;height:18px;border-radius:5px;border:1px solid #0002;display:block}
+.sc{width:calc(320px*var(--z));height:calc(660px*var(--z))}
+.p{width:320px;height:660px;zoom:var(--z);border-radius:38px;overflow:hidden;position:relative;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font-family:var(--fb);box-shadow:0 0 0 7px #151515,0 14px 30px #0004;font-size:14px;line-height:1.3}
+.p *{box-sizing:border-box}
+.sb{height:30px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:6px 26px 0;font-size:12px;font-weight:600;color:var(--fg)}
+.bd{flex:1;min-height:0;overflow:hidden;position:relative;padding:0 18px}
+svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mu{color:var(--mu)}.tn{font-variant-numeric:tabular-nums}
+.row{display:flex;align-items:center}
+.nav{flex:none;display:grid;grid-template-columns:repeat(4,1fr);padding:6px 6px 14px}
+.nav div{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-weight:600;color:var(--mu);padding:5px 0}
+.nav div.on{color:var(--ac)}
+.nav .i{font-size:22px}
+/* ===== tema claro/oscuro/noche ===== */
+.dA{--fd:'Fraunces',serif;--fb:'DM Sans',sans-serif}
+.dA.light{--bg:#f7f0e6;--s1:#fffaf3;--s2:#efe5d6;--fg:#2b2038;--mu:#675b74;--ac:#b9531f;--acfg:#fff;--ln:#e3d7c4;--nap:#e0a43a;--nt:#4a3a7a;--ok:#2f7a4f}
+.dA.dark{--bg:#181226;--s1:#231a36;--s2:#2e2445;--fg:#f2e9ff;--mu:#b3a6c9;--ac:#f0955a;--acfg:#2a1406;--ln:#3a2f55;--nap:#f0b855;--nt:#9c88e8;--ok:#7fd1a0}
+.dA.night{--bg:#050304;--s1:#0f0a08;--s2:#1a120d;--fg:#d8b48a;--mu:#a38660;--ac:#c27a3e;--acfg:#140a03;--ln:#2a1d14;--nap:#9c7a4a;--nt:#c27a3e;--ok:#8fbf8a}
+.dB{--fd:'Newsreader',serif;--fb:'Instrument Sans',sans-serif}
+.dB.light{--bg:#f5f0e4;--s1:#f5f0e4;--s2:#ebe4d2;--fg:#22241e;--mu:#5f6153;--ac:#3f6b4f;--acfg:#fff;--ln:#d5cdb8;--nap:#c98f2f;--nt:#35506e;--ok:#3f6b4f}
+.dB.dark{--bg:#14160f;--s1:#14160f;--s2:#1e2117;--fg:#ece8d6;--mu:#aaa68f;--ac:#8fbf9a;--acfg:#0f1a12;--ln:#2c3024;--nap:#e0b25a;--nt:#7ea3cc;--ok:#8fbf9a}
+.dB.night{--bg:#070604;--s1:#070604;--s2:#14110c;--fg:#cfae7e;--mu:#9a8159;--ac:#b98a45;--acfg:#120c05;--ln:#251e14;--nap:#8a6d3f;--nt:#b98a45;--ok:#8fbf8a}
+.dC{--fd:'Manrope',sans-serif;--fb:'Manrope',sans-serif}
+.dC.light{--bg:#e9f0f1;--s1:#fff;--s2:#dbe7ea;--fg:#0d2f38;--mu:#4c6a72;--ac:#14707f;--acfg:#fff;--ln:#cfdde0;--nap:#e8b45a;--nt:#1b5a8f;--ok:#1f7a4f}
+.dC.dark{--bg:#08171c;--s1:#0f2a31;--s2:#163a43;--fg:#e4f3f5;--mu:#9cbcc3;--ac:#5ec2d1;--acfg:#04181d;--ln:#1d414a;--nap:#f0c070;--nt:#6fa8e8;--ok:#7fd1a0}
+.dC.night{--bg:#020506;--s1:#0a1012;--s2:#111a1c;--fg:#c9ad82;--mu:#937e5d;--ac:#b8863f;--acfg:#120c05;--ln:#1d2528;--nap:#8a6d3f;--nt:#b8863f;--ok:#8fbf8a}
+.dC.dD.light{--bg:#f7f0e6;--s1:#fffaf3;--s2:#efe5d6;--fg:#2b2038;--mu:#675b74;--ac:#b9531f;--acfg:#fff;--ln:#e3d7c4;--nap:#e0a43a;--nt:#4a3a7a;--ok:#2f7a4f}
+.dC.dD.dark{--bg:#181226;--s1:#231a36;--s2:#2e2445;--fg:#f2e9ff;--mu:#b3a6c9;--ac:#f0955a;--acfg:#2a1406;--ln:#3a2f55;--nap:#f0b855;--nt:#9c88e8;--ok:#7fd1a0}
+.dC.dD.night{--bg:#050304;--s1:#0f0a08;--s2:#1a120d;--fg:#d8b48a;--mu:#a38660;--ac:#c27a3e;--acfg:#140a03;--ln:#2a1d14;--nap:#9c7a4a;--nt:#c27a3e;--ok:#8fbf8a}
+.dC.dD.light .card,.dC.dD.light .tile{box-shadow:0 2px 0 var(--ln),0 12px 24px -16px #2b203866}
+/* ===== A · Crepúsculo ===== */
+.dA .h1{font-family:var(--fd);font-weight:500;font-size:28px;letter-spacing:-.01em}
+.dA .av{width:36px;height:36px;border-radius:50%;background:var(--ac);color:var(--acfg);display:grid;place-items:center;font-family:var(--fd);font-weight:600;font-size:17px}
+.dA .big{font-family:var(--fd);font-weight:500;letter-spacing:-.02em;line-height:1}
+.dA .card{background:var(--s1);border-radius:22px;padding:14px}
+.dA .card2{background:var(--s2);border-radius:20px;padding:12px}
+.dA .btnP{height:62px;border-radius:31px;background:var(--ac);color:var(--acfg);font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 20px color-mix(in srgb,var(--ac) 35%,transparent)}
+.dA.night .btnP{box-shadow:none}
+.dA .pill{height:40px;border-radius:20px;background:var(--s1);display:flex;align-items:center;gap:7px;padding:0 13px;font-weight:600;font-size:13.5px}
+.dA .nav{background:var(--s1);margin:0 12px 12px;border-radius:26px;padding:6px 4px}
+.dA .seg{display:flex;background:var(--s2);border-radius:20px;padding:3px}
+.dA .seg span{flex:1;text-align:center;padding:7px 0;border-radius:17px;font-weight:600;font-size:13px;color:var(--mu)}
+.dA .seg span.on{background:var(--ac);color:var(--acfg)}
+.dA .lab{font-size:12px;font-weight:600;color:var(--mu)}
+.dA .lr{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--ln);font-weight:500}
+.dA .lr:last-child{border:0}
+.dA .lr .i{font-size:20px;color:var(--ac)}
+.dA .lr .ch{margin-left:auto;color:var(--mu)}
+/* ===== B · Cuaderno ===== */
+.dB .h1{font-family:var(--fd);font-weight:500;font-size:34px;letter-spacing:-.02em}
+.dB .big{font-family:var(--fd);font-weight:400;letter-spacing:-.03em;line-height:1}
+.dB .eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--mu)}
+.dB hr{border:0;border-top:1px solid var(--ln);margin:12px 0}
+.dB .btnP{height:54px;border-radius:12px;background:var(--ac);color:var(--acfg);font-weight:600;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px}
+.dB .btnO{height:42px;border:1.5px solid var(--fg);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:600;font-size:13px;padding:0 12px}
+.dB .tabs{display:flex;gap:18px;border-bottom:1px solid var(--ln);font-weight:600;font-size:14px;color:var(--mu);overflow:hidden;white-space:nowrap}
+.dB .tabs span{padding:9px 0}
+.dB .tabs span.on{color:var(--fg);border-bottom:2.5px solid var(--ac);margin-bottom:-1px}
+.dB .led{display:flex;align-items:baseline;gap:6px;padding:5px 0;font-size:14.5px}
+.dB .led u{flex:1;border-bottom:1.5px dotted var(--ln);text-decoration:none;transform:translateY(-3px)}
+.dB .led b{font-family:var(--fd);font-weight:500;font-size:19px}
+.dB .nav{border-top:1px solid var(--ln)}
+.dB .lr{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--ln);font-weight:500}
+.dB .lr .ch{margin-left:auto;color:var(--mu)}
+/* ===== C · Marea ===== */
+.dC .h1{font-weight:800;font-size:24px;letter-spacing:-.02em}
+.dC .big{font-weight:800;letter-spacing:-.04em;line-height:1}
+.dC .card{background:var(--s1);border-radius:26px;padding:14px;box-shadow:0 2px 0 var(--ln),0 12px 24px -16px #0a2a3366}
+.dC.night .card,.dC.dark .card{box-shadow:none;border:1px solid var(--ln)}
+.dC .tile{background:var(--s1);border-radius:22px;padding:12px;box-shadow:0 2px 0 var(--ln)}
+.dC.night .tile,.dC.dark .tile{box-shadow:none;border:1px solid var(--ln)}
+.dC .round{white-space:nowrap;width:92px;height:92px;border-radius:50%;background:var(--ac);color:var(--acfg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-weight:800;font-size:13px;box-shadow:0 0 0 8px color-mix(in srgb,var(--ac) 22%,transparent)}
+.dC .round .i{font-size:28px}
+.dC.night .round{box-shadow:0 0 0 8px color-mix(in srgb,var(--ac) 14%,transparent)}
+.dC .chip{height:36px;border-radius:18px;background:var(--s2);display:flex;align-items:center;gap:6px;padding:0 12px;font-weight:700;font-size:12.5px}
+.dC .chip.on{background:var(--fg);color:var(--bg)}
+.dC .lab{font-size:11.5px;font-weight:700;color:var(--mu);letter-spacing:.02em}
+.dC .nav{background:var(--s1);border-top:1px solid var(--ln)}
+.dC .nav div.on .i{background:color-mix(in srgb,var(--ac) 18%,transparent);width:44px;height:28px;border-radius:14px;padding:4px 10px;box-sizing:border-box}
+.dC .av{width:40px;height:40px;border-radius:50%;background:var(--s2);border:2.5px solid var(--ac);display:grid;place-items:center;font-weight:800}
+@media(max-width:700px){.grid{grid-template-columns:repeat(2,calc(320px*var(--z)))}.rl,.cap{grid-column:1/-1}.grid>div:empty{display:none}}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>BabySleep · Fase 2 — tres direcciones</h1>
+  <span class="cap">Tamaño</span>
+  <button data-z=".45" aria-pressed="false">S</button><button data-z=".6" aria-pressed="true">M</button><button data-z=".85" aria-pressed="false">L</button><button data-z="1" aria-pressed="false">1:1</button>
+  <span class="cap">Pantalla</span><button data-s="all" aria-pressed="true">Todas</button><button data-s="0" aria-pressed="false">Hoy</button><button data-s="1" aria-pressed="false">Activa</button><button data-s="2" aria-pressed="false">Stats</button><button data-s="3" aria-pressed="false">Salud</button><button data-s="4" aria-pressed="false">Noche</button>
+  <span class="cap">Filas</span>
+  <button data-r="all" aria-pressed="true">Todas</button><button data-r="A" aria-pressed="false">A</button><button data-r="B" aria-pressed="false">B</button><button data-r="C" aria-pressed="false">C</button><button data-r="D" aria-pressed="false">D</button>
+</div>
+<div class="grid" id="grid"></div>
+<script>
+const P={
+moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+heart:'<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>',
+chart:'<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+sliders:'<path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/>',
+chev:'<path d="m9 18 6-6-6-6"/>',
+down:'<path d="m6 9 6 6 6-6"/>',
+bottle:'<path d="M10 2h4M10 2v3M14 2v3M8 8a2 2 0 0 1 2-3h4a2 2 0 0 1 2 3v12a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2zM8 13h8"/>',
+drop:'<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
+shield:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+cal:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/>',
+pill:'<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>',
+trend:'<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
+therm:'<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>',
+user:'<circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+pen:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+check:'<path d="M20 6 9 17l-5-5"/>',
+sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+stop:'<rect x="6" y="6" width="12" height="12" rx="2"/>'};
+const I=(n,s)=>`<svg class="i" viewBox="0 0 24 24" ${s?`style="font-size:${s}px"`:''}>${P[n]}</svg>`;
+const sb=()=>`<div class="sb"><span>9:41</span><span class="row" style="gap:5px">${I('bell',12)}<b>78%</b></span></div>`;
+const nav=on=>`<div class="nav">${[['moon','Inicio'],['heart','Salud'],['chart','Estadísticas'],['sliders','Ajustes']].map((x,i)=>`<div class="${i==on?'on':''}">${I(x[0])}<span>${x[1]}</span></div>`).join('')}</div>`;
+const ring=(sz,pct,sw,col,track,inner)=>{const r=(sz-sw)/2,c=2*Math.PI*r;return `<div style="position:relative;width:${sz}px;height:${sz}px"><svg width="${sz}" height="${sz}" style="transform:rotate(-90deg)"><circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="${track}" stroke-width="${sw}"/><circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${c*pct} ${c}"/></svg><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">${inner}</div></div>`};
+const DAYS=[['L',3.2,10.1],['M',2.8,10.4],['X',3.5,9.8],['J',3.0,10.6],['V',2.5,10.2],['S',3.4,9.9],['D',1.7,0]];
+const F=n=>String(n).replace('.',',');
+const dr={A:{n:'A · Crepúsculo',t:'Cálida, serif suave, píldoras táctiles',sw:['#f7f0e6','#b9531f','#e0a43a','#4a3a7a','#181226','#f0955a','#050304','#c27a3e']},
+B:{n:'B · Cuaderno',t:'Editorial, papel y tinta, listas sin cajas',sw:['#f5f0e4','#3f6b4f','#c98f2f','#35506e','#14160f','#8fbf9a','#070604','#b98a45']},
+D:{n:'D · Marea Crepúsculo',t:'Estructura de Marea (anillo, mosaicos) con la paleta de Crepúsculo',sw:['#f7f0e6','#b9531f','#e0a43a','#4a3a7a','#181226','#f0955a','#050304','#c27a3e']},
+C:{n:'C · Marea',t:'Anillos y mosaicos, geométrica, aire nórdico',sw:['#e9f0f1','#14707f','#e8b45a','#1b5a8f','#08171c','#5ec2d1','#020506','#b8863f']}};
+/* ---------- A ---------- */
+const A={
+hdr:()=>`<div class="row" style="gap:10px;padding:6px 0 4px"><div class="av">L</div><div><div class="h1" style="font-size:22px;line-height:1.1">Leo</div><div class="mu" style="font-size:12px">5 meses · 4 sem</div></div><div style="margin-left:auto;width:40px;height:40px;border-radius:20px;background:var(--s1);display:grid;place-items:center;font-size:18px">${I('down')}</div></div>`,
+home:()=>`<div class="bd">${A.hdr()}
+<div style="text-align:center;margin-top:16px"><div class="lab">Despierto desde las 08:55</div><div class="big tn" style="font-size:66px;margin:10px 0 6px">1 h 25</div><div class="mu" style="font-size:13px">Ventana habitual · 1 h 30 – 2 h</div>
+<div style="position:relative;height:8px;border-radius:4px;background:var(--s2);margin:14px 6px 0"><div style="position:absolute;left:62%;width:22%;top:-2px;bottom:-2px;border-radius:5px;background:color-mix(in srgb,var(--ac) 28%,transparent)"></div><div style="width:70%;height:100%;border-radius:4px;background:var(--ac)"></div></div>
+<div class="row" style="justify-content:center;margin-top:14px"><div class="pill" style="height:34px">${I('sun',15)}Próxima siesta hacia las 10:40</div></div></div>
+<div style="margin-top:18px"><div class="lab" style="margin-bottom:8px">Tomas</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${[['drop','Pecho'],['bottle','Biberón'],['drop','Mixta'],['sun','Sólidos']].map(x=>`<div style="background:var(--s1);border-radius:18px;padding:11px 0 9px;text-align:center;font-size:11.5px;font-weight:600"><div style="font-size:21px;color:var(--ac);margin-bottom:4px">${I(x[0])}</div>${x[1]}</div>`).join('')}</div></div>
+<div class="card2 row" style="margin-top:14px;justify-content:space-between;text-align:center">${[['Siestas','1 h 40'],['Noche','10 h 05'],['Total','11 h 45']].map(x=>`<div style="flex:1"><div class="big tn" style="font-size:21px">${x[1]}</div><div class="mu" style="font-size:11.5px;margin-top:3px">${x[0]}</div></div>`).join('')}</div>
+<div style="position:absolute;left:18px;right:18px;bottom:6px"><div class="btnP">${I('moon',22)}Dormir</div><div style="text-align:center;margin-top:9px;font-weight:600;font-size:13px;color:var(--mu)">Empezar a dormirlo</div></div></div>`,
+active:night=>`<div class="bd">${A.hdr()}
+<div style="text-align:center;margin-top:12px"><div style="width:58px;height:58px;border-radius:50%;margin:0 auto;background:radial-gradient(circle,color-mix(in srgb,var(--nap) 45%,transparent),transparent 70%);display:grid;place-items:center;color:var(--nap);font-size:30px">${I('moon')}</div>
+<div class="lab" style="margin-top:6px">${night?'Duerme desde las 22:10':'Durmiendo desde las 10:19'}</div><div class="big tn" style="font-size:60px;margin:8px 0 12px">${night?'3:42:08':'1:12:08'}</div>
+<div class="seg" style="width:200px;margin:0 auto">${night?'<span>Siesta</span><span class="on">Noche</span>':'<span class="on">Siesta</span><span>Noche</span>'}</div>
+<div class="mu" style="font-size:12.5px;margin-top:10px">${night?'Mediana de noche · 10 h 10':'Siesta habitual · 45 min – 1 h 30'}</div></div>
+<div class="card2" style="margin-top:16px"><div class="row" style="justify-content:space-between"><span class="lab">Se durmió antes</span><div class="row" style="gap:6px">${[5,10,15].map(m=>`<span class="pill" style="height:34px;padding:0 12px">−${m}</span>`).join('')}</div></div></div>
+<div class="row" style="gap:8px;margin-top:10px">${night?`<div class="pill" style="flex:1;justify-content:center">${I('sun',16)}Despertó</div>`:''}<div class="pill" style="flex:1;justify-content:center">${I('pen',16)}Notas</div><div class="pill" style="width:44px;justify-content:center;padding:0">${I('more',18)}</div></div>
+<div style="position:absolute;left:18px;right:18px;bottom:6px"><div class="btnP" style="height:70px;border-radius:35px;font-size:19px">${I('sun',24)}Ha despertado</div></div></div>`,
+stats:()=>`<div class="bd"><div class="h1" style="padding:6px 0 10px">Estadísticas</div>
+<div class="seg"><span class="on">7 días</span><span>14 días</span><span>28 días</span></div>
+<div class="card" style="margin-top:12px"><div class="lab">Sueño medio por día</div><div class="row" style="align-items:flex-end;gap:10px;margin:6px 0 10px"><div class="big tn" style="font-size:42px">13 h 20</div><div style="color:var(--ok);font-weight:700;font-size:12.5px;padding-bottom:5px">↑ 25 min</div></div>
+<div style="position:relative;display:flex;gap:7px;align-items:flex-end;height:112px;border-bottom:1px solid var(--ln)"><div style="position:absolute;left:0;right:0;bottom:${13.3/16*100}%;border-top:1.5px dashed var(--mu);opacity:.5"></div>${DAYS.map(d=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%"><span class="tn" style="font-size:10.5px;font-weight:600;margin-bottom:2px">${d[2]?F((d[1]+d[2]).toFixed(1)):'…'}</span><div style="width:100%;height:${(d[1]+d[2])/16*88}px;border-radius:7px 7px 3px 3px;overflow:hidden;display:flex;flex-direction:column"><div style="flex:${d[1]};background:var(--nap)"></div><div style="flex:${d[2]||.001};background:var(--nt)"></div></div></div>`).join('')}</div>
+<div class="row mu" style="gap:7px;margin-top:5px">${DAYS.map(d=>`<span style="flex:1;text-align:center;font-size:11px">${d[0]}</span>`).join('')}</div>
+<div class="row" style="gap:14px;margin-top:8px;font-size:11.5px"><span class="row" style="gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:var(--nap)"></i>Siesta</span><span class="row" style="gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:var(--nt)"></i>Noche</span><span class="mu" style="margin-left:auto">- - media</span></div></div>
+<div class="row" style="gap:8px;margin-top:10px">${[['Siestas/día','3,1'],['Noche','10 h 10'],['Despert.','1,4']].map(x=>`<div class="card2" style="flex:1;padding:10px"><div class="big tn" style="font-size:19px">${x[1]}</div><div class="mu" style="font-size:11px;margin-top:3px">${x[0]}</div></div>`).join('')}</div>
+<div style="margin-top:8px">${[['trend','Ritmo y línea del día'],['chart','Tendencias e informe']].map(x=>`<div class="lr">${I(x[0])}${x[1]}<span class="ch">${I('chev',18)}</span></div>`).join('')}</div></div>`,
+health:()=>`<div class="bd"><div class="row" style="justify-content:space-between;padding:6px 0 10px"><div class="h1">Salud</div><div class="av" style="width:36px;height:36px;font-size:15px;background:var(--s1);color:var(--fg)">L</div></div>
+<div class="lab" style="margin-bottom:8px">Lo próximo</div>
+<div class="card" style="background:var(--ac);color:var(--acfg)"><div class="row" style="gap:8px;font-weight:600;font-size:12.5px;opacity:.9">${I('shield',17)}Vacunas · 4 meses</div><div class="big" style="font-size:25px;margin:8px 0 4px">Vence en 12 días</div><div style="font-size:12.5px;opacity:.85">7 vacunas pendientes de confirmar</div><div style="background:var(--acfg);color:var(--ac);height:40px;border-radius:20px;margin-top:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13.5px">Programar cita</div></div>
+<div class="row" style="gap:8px;margin-top:8px">${[['cal','Pediatra','14 nov · 10:30'],['pill','Vitamina D','Hoy · 1 de 1 ✓']].map(x=>`<div class="card2" style="flex:1;padding:11px"><div style="color:var(--ac);font-size:18px">${I(x[0])}</div><div style="font-weight:700;margin-top:6px;font-size:13.5px">${x[1]}</div><div class="mu" style="font-size:11.5px;margin-top:2px">${x[2]}</div></div>`).join('')}</div>
+<div class="lab" style="margin:14px 0 2px">Secciones</div>
+${[['shield','Vacunas'],['cal','Citas'],['trend','Crecimiento · 7,2 kg'],['pill','Medicación']].map(x=>`<div class="lr" style="padding:9px 0">${I(x[0])}${x[1]}<span class="ch">${I('chev',18)}</span></div>`).join('')}</div>`};
+/* ---------- B ---------- */
+const B={
+hdr:()=>`<div style="padding:6px 0 0"><div class="eyebrow">Domingo, 8 de noviembre</div><div class="row" style="align-items:baseline;gap:10px"><div class="h1">Leo</div><div class="mu" style="font-size:13px">5 meses y 4 sem</div><div style="margin-left:auto;color:var(--mu);font-size:20px">${I('down')}</div></div></div>`,
+strip:()=>{const seg=[[0,.38,'--nt'],[.4,.42,'--nap'],[.47,.52,'--nap']];return `<div style="margin-top:10px"><div style="position:relative;height:14px;background:var(--s2);border-radius:3px">${[[0,.27,'--nt'],[.40,.47,'--nap']].map(s=>`<i style="position:absolute;left:${s[0]*100}%;width:${(s[1]-s[0])*100}%;top:0;bottom:0;background:var(${s[2]});border-radius:3px"></i>`).join('')}<i style="position:absolute;left:37%;top:-4px;bottom:-4px;width:2px;background:var(--fg)"></i></div><div class="row mu" style="justify-content:space-between;font-size:10px;margin-top:3px"><span>0 h</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>`},
+home:()=>`<div class="bd">${B.hdr()}<hr style="margin:8px 0 14px">
+<div class="big" style="font-size:29px;line-height:1.1">Lleva <em style="font-style:italic;color:var(--ac)">1 h 25</em><br>despierto.</div>
+<div class="mu" style="font-size:13px;margin-top:8px">Su ventana habitual es de 1 h 30 a 2 h; la siesta toca hacia las 10:40.</div>
+${B.strip()}<div style="height:14px"></div>
+<div class="eyebrow" style="margin-bottom:8px">Registrar toma</div><div class="row" style="gap:8px">${['Pecho','Biberón','Mixta','Otros'].map(x=>`<div class="btnO" style="flex:1;padding:0;font-size:12.5px">${x}</div>`).join('')}</div><div style="height:12px"></div>
+<div class="eyebrow">Hoy</div>${[['Siestas · 1','1 h 40'],['Noche','10 h 05'],['Total','11 h 45']].map(x=>`<div class="led">${x[0]}<u></u><b class="tn">${x[1]}</b></div>`).join('')}
+<div style="position:absolute;left:18px;right:18px;bottom:6px"><div class="btnP">${I('moon',20)}Iniciar sueño</div><div style="text-align:center;margin-top:8px;font-size:13px;font-weight:600;color:var(--mu);text-decoration:underline">Empezar a dormirlo</div></div></div>`,
+active:night=>`<div class="bd">${B.hdr()}<hr style="margin:8px 0 14px">
+<div class="eyebrow">${night?'Noche · desde las 22:10':'Siesta · desde las 10:19'}</div>
+<div class="big tn" style="font-size:78px;margin:6px 0 8px;letter-spacing:-.04em">${night?'3:42':'1:12'}<span style="font-size:34px;color:var(--mu)">:${night?'08':'08'}</span></div>
+<div class="row" style="gap:16px;font-weight:600;font-size:14px"><span style="${night?'color:var(--mu)':'border-bottom:2.5px solid var(--ac);padding-bottom:3px'}">Siesta</span><span style="${night?'border-bottom:2.5px solid var(--ac);padding-bottom:3px':'color:var(--mu)'}">Noche</span></div><hr>
+<div class="eyebrow" style="margin-bottom:2px">Esta ${night?'noche':'siesta'}</div>
+<div class="led"><span class="mu tn" style="width:44px">${night?'22:10':'10:19'}</span>Empezó<u></u><span class="mu" style="font-size:12.5px">Corregir −5 −10 −15</span></div>
+${night?`<div class="led"><span class="mu tn" style="width:44px">00:40</span>Despertar<u></u><b>12 min</b></div>`:''}
+<div class="lr">${I('pen',18)}Añadir notas<span class="ch">${I('chev',18)}</span></div>
+<div class="lr">${I('more',18)}${night?'Despertar nocturno':'No llegó a dormirse'}<span class="ch">${I('chev',18)}</span></div>
+<div style="position:absolute;left:18px;right:18px;bottom:6px"><div class="btnP" style="height:64px;font-size:18px">${night?'Finalizar noche':'Finalizar siesta'}</div></div></div>`,
+stats:()=>`<div class="bd"><div style="padding:6px 0 2px" class="h1">Estadísticas</div>
+<div class="tabs"><span class="on">Resumen</span><span>Ritmo</span><span>Línea</span><span>Tomas</span><span>Tendencias</span><span>Más</span></div>
+<div class="row mu" style="gap:14px;font-weight:600;font-size:13px;margin:10px 0 4px"><span style="color:var(--fg);text-decoration:underline;text-underline-offset:4px">7 días</span><span>14 días</span><span>28 días</span></div>
+<div class="eyebrow" style="margin-top:8px">Sueño medio por día</div><div class="row" style="align-items:baseline;gap:8px"><div class="big tn" style="font-size:54px">13 h 20</div><span style="color:var(--ok);font-weight:600;font-size:13px">+25 min</span></div>
+<div style="margin-top:12px">${DAYS.map(d=>`<div class="row" style="gap:8px;height:22px"><span class="mu" style="width:12px;font-size:11px">${d[0]}</span><div style="flex:1;display:flex;height:11px;border-radius:2px;overflow:hidden"><i style="width:${d[1]/16*100}%;background:var(--nap)"></i><i style="width:${d[2]/16*100}%;background:var(--nt)"></i></div><span class="tn" style="width:34px;text-align:right;font-size:12px;font-weight:600">${d[2]?F((d[1]+d[2]).toFixed(1)):'…'}</span></div>`).join('')}
+<div class="row mu" style="gap:14px;font-size:11px;margin-top:6px"><span class="row" style="gap:5px"><i style="width:8px;height:8px;background:var(--nap)"></i>Siesta</span><span class="row" style="gap:5px"><i style="width:8px;height:8px;background:var(--nt)"></i>Noche</span><span style="margin-left:auto">horas</span></div></div><hr>
+${[['Siestas por día','3,1'],['Mediana de noche','10 h 10'],['Despertares por noche','1,4']].map(x=>`<div class="led">${x[0]}<u></u><b class="tn">${x[1]}</b></div>`).join('')}</div>`,
+health:()=>`<div class="bd"><div style="padding:6px 0 2px" class="h1">Salud</div>
+<div class="tabs"><span class="on">Agenda</span><span>Vacunas</span><span>Citas</span><span>Crecim.</span><span>Medic.</span><span>Más</span></div>
+<div class="eyebrow" style="margin:14px 0 4px">Próximamente</div>
+${[['HOY','Vitamina D','1 de 1 dada',1],['14 NOV','Cita con la pediatra','10:30 · Centro de salud',0],['20 NOV','Vacunas de los 4 meses','7 pendientes · vencen en 12 días',0]].map(x=>`<div class="row" style="gap:14px;padding:12px 0;border-bottom:1px solid var(--ln);align-items:flex-start"><div class="eyebrow" style="width:46px;padding-top:3px;color:${x[0]=='HOY'?'var(--ac)':'var(--mu)'}">${x[0]}</div><div style="flex:1"><div style="font-family:var(--fd);font-size:19px;font-weight:500">${x[1]}</div><div class="mu" style="font-size:12.5px;margin-top:2px">${x[2]}</div></div>${x[3]?`<div style="color:var(--ok);font-size:20px">${I('check')}</div>`:`<div class="mu" style="font-size:20px">${I('chev')}</div>`}</div>`).join('')}
+<div class="eyebrow" style="margin:16px 0 4px">Último control</div>
+<div class="row" style="gap:24px"><div><div class="big tn" style="font-size:36px">7,2 kg</div><div class="mu" style="font-size:12px;margin-top:2px">percentil 58</div></div><div><div class="big tn" style="font-size:36px">64 cm</div><div class="mu" style="font-size:12px;margin-top:2px">percentil 49</div></div></div>
+<div class="btnO" style="margin-top:14px">Añadir medición</div></div>`};
+/* ---------- C ---------- */
+const C={
+hdr:()=>`<div class="row" style="gap:10px;padding:6px 0 8px"><div class="av">L</div><div><div class="h1" style="font-size:20px;line-height:1.1">Leo</div><div class="mu" style="font-size:12px;font-weight:600">5 meses · 4 sem</div></div><div class="chip" style="margin-left:auto">${I('down',15)}Cambiar</div></div>`,
+home:()=>`<div class="bd">${C.hdr()}
+<div class="card" style="padding:16px 14px 52px;display:flex;flex-direction:column;align-items:center">${ring(172,.7,13,'var(--ac)','var(--s2)',`<div class="lab">Despierto</div><div class="big tn" style="font-size:38px;margin:4px 0">1 h 25</div><div class="mu" style="font-size:11.5px;font-weight:600">de 1 h 30 – 2 h</div>`)}<div class="chip" style="margin-top:12px">${I('sun',15)}Próxima siesta · 10:40</div></div>
+<div style="display:flex;justify-content:center;margin-top:-46px;position:relative"><div class="round">${I('moon')}Dormir</div></div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:12px">${[['drop','Pecho'],['bottle','Biberón'],['drop','Mixta'],['sun','Sólidos']].map(x=>`<div class="tile" style="padding:10px 0 8px;text-align:center;font-size:11px;font-weight:700"><div style="font-size:20px;color:var(--ac);margin-bottom:3px">${I(x[0])}</div>${x[1]}</div>`).join('')}</div>
+<div class="tile" style="margin-top:8px;padding:11px"><div class="row" style="justify-content:space-between"><span class="lab">Hoy</span><span class="big tn" style="font-size:18px">11 h 45</span></div><div style="display:flex;height:9px;border-radius:5px;overflow:hidden;margin:8px 0 6px"><i style="width:14%;background:var(--nap)"></i><i style="width:86%;background:var(--nt)"></i></div><div class="row mu" style="justify-content:space-between;font-size:11px;font-weight:600"><span>Siestas 1 h 40</span><span>Noche 10 h 05</span></div></div></div>`,
+active:night=>`<div class="bd">${C.hdr()}
+<div class="card" style="padding:16px 14px 52px;display:flex;flex-direction:column;align-items:center">${ring(190,night?.37:.55,14,'var(--ac)','var(--s2)',`<div class="lab">${night?'Noche':'Siesta'} · desde ${night?'22:10':'10:19'}</div><div class="big tn" style="font-size:34px;margin:5px 0">${night?'3:42:08':'1:12:08'}</div><div class="mu" style="font-size:11.5px;font-weight:600">${night?'mediana 10 h 10':'habitual 45 min – 1 h 30'}</div>`)}<div class="row" style="gap:6px;margin-top:12px"><span class="chip ${night?'':'on'}">Siesta</span><span class="chip ${night?'on':''}">Noche</span></div></div>
+<div style="display:flex;justify-content:center;margin-top:-46px;position:relative"><div class="round">${I('sun')}Despierto</div></div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px">${[['clock','Se durmió antes'],['pen','Notas'],['more',night?'Despertar':'Más']].map(x=>`<div class="tile" style="padding:10px 0 8px;text-align:center;font-size:11px;font-weight:700"><div style="font-size:20px;color:var(--ac);margin-bottom:3px">${I(x[0])}</div>${x[1]}</div>`).join('')}</div>
+<div class="row" style="gap:6px;margin-top:8px;justify-content:center">${[5,10,15].map(m=>`<span class="chip">−${m} min</span>`).join('')}</div></div>`,
+stats:()=>`<div class="bd"><div class="row" style="justify-content:space-between;padding:6px 0 10px"><div class="h1">Estadísticas</div><div class="row" style="gap:5px"><span class="chip on">7d</span><span class="chip">14d</span><span class="chip">28d</span></div></div>
+<div class="card"><div class="row" style="justify-content:space-between"><div><div class="lab">Sueño medio por día</div><div class="big tn" style="font-size:36px;margin-top:6px">13 h 20</div></div><div class="chip" style="color:var(--ok)">↑ 25 min</div></div>
+<div style="display:flex;gap:8px;align-items:flex-end;height:104px;margin-top:12px">${DAYS.map(d=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"><span class="tn" style="font-size:10px;font-weight:700;margin-bottom:2px">${d[2]?F((d[1]+d[2]).toFixed(1)):'…'}</span><div style="width:100%;height:${(d[1]+d[2])/16*84}px;border-radius:9px;overflow:hidden;display:flex;flex-direction:column"><i style="flex:${d[1]};background:var(--nap)"></i><i style="flex:${d[2]||.001};background:var(--nt)"></i></div><span class="mu" style="font-size:10.5px;font-weight:700;margin-top:4px">${d[0]}</span></div>`).join('')}</div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">${[['Siestas/día','3,1','var(--nap)'],['Noche','10 h 10','var(--nt)'],['Despertares','1,4','var(--ac)'],['Latencia','12 min','var(--ok)']].map(x=>`<div class="tile"><div class="row" style="gap:6px"><i style="width:8px;height:8px;border-radius:50%;background:${x[2]}"></i><span class="lab">${x[0]}</span></div><div class="big tn" style="font-size:22px;margin-top:6px">${x[1]}</div></div>`).join('')}</div>
+<div class="row" style="gap:6px;margin-top:10px;overflow:hidden;white-space:nowrap">${['Ritmo','Línea','Tomas','Tendencias','Informe'].map(x=>`<span class="chip">${x}</span>`).join('')}</div></div>`,
+health:()=>`<div class="bd"><div class="row" style="justify-content:space-between;padding:6px 0 10px"><div class="h1">Salud</div><div class="chip">${I('user',15)}Ficha</div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<div class="card" style="grid-row:span 2;padding:12px">${I('shield',20)}<div class="lab" style="margin:8px 0 6px">Vacunas</div><div style="display:flex;justify-content:center">${ring(96,.57,10,'var(--ac)','var(--s2)',`<div class="big tn" style="font-size:20px">8/14</div>`)}</div><div class="mu" style="font-size:11.5px;font-weight:600;margin-top:8px;text-align:center">Próxima en 12 días</div></div>
+<div class="tile"><div style="color:var(--ac);font-size:19px">${I('cal')}</div><div class="lab" style="margin-top:6px">Próxima cita</div><div style="font-weight:800;font-size:14px;margin-top:2px">14 nov · 10:30</div></div>
+<div class="tile"><div style="color:var(--ac);font-size:19px">${I('pill')}</div><div class="lab" style="margin-top:6px">Medicación hoy</div><div style="font-weight:800;font-size:14px;margin-top:2px;color:var(--ok)">1/1 dada ✓</div></div>
+<div class="card" style="grid-column:span 2;padding:12px"><div class="row" style="justify-content:space-between"><div class="row" style="gap:8px">${I('trend',20)}<span class="lab">Crecimiento</span></div><span class="big tn" style="font-size:19px">7,2 kg · p58</span></div><svg viewBox="0 0 280 54" style="width:100%;height:54px;margin-top:6px"><path d="M0 46 C50 40 90 34 140 26 S230 12 280 8" fill="none" stroke="var(--s2)" stroke-width="10" stroke-linecap="round"/><path d="M0 48 C50 42 90 36 140 29 S200 20 240 16" fill="none" stroke="var(--ac)" stroke-width="3" stroke-linecap="round"/><circle cx="240" cy="16" r="5" fill="var(--ac)"/></svg></div>
+<div class="tile row" style="gap:8px;font-weight:700;font-size:13px"><span style="color:var(--ac);font-size:20px">${I('therm')}</span>Enfermedad</div><div class="tile row" style="gap:8px;font-weight:700;font-size:13px"><span style="color:var(--ac);font-size:20px">${I('cal')}</span>Citas</div></div></div>`};
+const SCA=[['Hoy · sin sesión','home',0,0],['Hoy · sesión activa','active',0,0],['Estadísticas','stats',2,0],['Salud','health',1,0],['Noche · sesión activa','active',0,1]];
+const M={A,B,C,D:C};
+function phone(d,sc,theme){const [,k,navOn,night]=sc;const th=night?'night':theme;const f=M[d][k];const body=k=='active'?f(!!night):f();const dark=th!='light';return `<div class="sc"><div class="p ${d=='D'?'dC dD':'d'+d} ${th}">${sb()}${body}${nav(navOn)}</div></div>`}
+function render(rows,z){const SC=SCA.filter((_,i)=>sc=='all'||i==+sc);document.documentElement.style.setProperty('--n',SC.length);document.documentElement.style.setProperty('--z',z);const g=document.getElementById('grid');let h='<div></div>'+SC.map(s=>`<div class="cap">${s[0]}</div>`).join('');for(const d of rows){const m=dr[d];h+=`<div class="rl"><b>${m.n}</b>${m.t}<div class="sw">${m.sw.map(c=>`<i style="background:${c}"></i>`).join('')}</div></div>`;SC.forEach(s=>{h+=phone(d,s,'light')})}
+g.innerHTML=h}
+let z='.6',r='all',sc='all';
+const go=()=>render(r=='all'?['A','B','C','D']:[r],z);
+document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>{z=b.dataset.z;document.querySelectorAll('[data-z]').forEach(x=>x.setAttribute('aria-pressed',x==b));go()});
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{sc=b.dataset.s;document.querySelectorAll('[data-s]').forEach(x=>x.setAttribute('aria-pressed',x==b));go()});
+document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{r=b.dataset.r;document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{sc=b.dataset.s;document.querySelectorAll('[data-s]').forEach(x=>x.setAttribute('aria-pressed',x==b));go()});
+document.querySelectorAll('[data-r]').forEach(x=>x.setAttribute('aria-pressed',x==b));go()});
+go();
+</script>
+</body>
+</html>

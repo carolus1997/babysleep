@@ -21,6 +21,7 @@
   "dependencies": {
     "@babysleep/contract": "*",
     "@babysleep/core": "*",
+    "@fontsource-variable/manrope": "^5.3.0",
     "@fontsource/baloo-2": "^5.3.0",
     "@supabase/supabase-js": "^2.118.0",
     "dexie": "^4.4.7",
