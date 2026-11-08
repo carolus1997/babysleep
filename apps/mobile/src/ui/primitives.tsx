@@ -153,12 +153,12 @@ export function Skeleton({ className = '' }: { className?: string }) {
  * Anillo de progreso. Solo para indicar una ventana habitual o una duración; nunca un objetivo que cumplir
  * (principio 5 del sistema de diseño).
  */
-export function Ring({ size = 192, stroke = 14, progress = 0, children }: { size?: number; stroke?: number; progress?: number; children?: ReactNode }) {
+export function Ring({ size = 192, stroke = 14, progress = 0, tour, children }: { size?: number; stroke?: number; progress?: number; tour?: string; children?: ReactNode }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const p = Math.max(0, Math.min(1, progress));
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div data-tour={tour} className="relative" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90" aria-hidden>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface2)" strokeWidth={stroke} />
         {p > 0 && (

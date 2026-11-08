@@ -20,7 +20,7 @@ export function HomeShell({ section, onSection, goSettings }: { section: HomeSec
     <div className="space-y-4">
       <Tabs label={t('tab.home')}>
         {SECTIONS.map((s) => (
-          <Chip key={s.id} active={section === s.id} onClick={() => onSection(s.id)}>
+          <Chip key={s.id} data-tour={`chip-${s.id}`} active={section === s.id} onClick={() => onSection(s.id)}>
             {t(s.label)}
           </Chip>
         ))}

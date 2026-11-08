@@ -168,6 +168,7 @@ export function App() {
         {TABS.map((x) => (
           <button
             key={x.id}
+            data-tour={`tab-${x.id}`}
             aria-current={tab === x.id ? 'page' : undefined}
             onClick={() => setTab(x.id)}
             className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-[12px] font-bold ${
@@ -182,7 +183,13 @@ export function App() {
         ))}
       </nav>
 
-      {touring && <Tour onDone={() => setTouring(false)} />}
+      {touring && <Tour
+          onDone={() => setTouring(false)}
+          onGo={(g) => {
+            setTab(g.tab);
+            if (g.section) setHomeSection(g.section);
+          }}
+        />}
 
       {switching && (
         <Sheet title={t('settings.babies')} onClose={() => setSwitching(false)}>

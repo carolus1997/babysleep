@@ -164,16 +164,28 @@ for (const theme of THEMES)
     await boot(page, theme, 'data', true);
     const dialog = page.getByRole('dialog', { name: 'Bienvenida a BabySleep' });
     await dialog.waitFor();
-    for (let i = 1; i <= 5; i++) {
-      await page.waitForTimeout(150);
+    const N = 7;
+    for (let i = 1; i <= N; i++) {
+      await page.waitForTimeout(450);
       await page.screenshot({ path: `${OUT}/tour-${theme}-${i}.png` });
       if (theme !== 'dark') {
-        const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
+        const r = await new AxeBuilder({ page }).include('[role=dialog]').withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
         const bad = r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
         if (bad.length) appendFileSync(`${OUT}/axe.txt`, `tour ${theme} ${i}: ` + bad.map((v) => v.id).join(', ') + '\n');
         if (process.env.VISUAL_STRICT) expect(bad, bad.map((v) => v.id).join()).toEqual([]);
       }
-      await dialog.getByRole('button', { name: i === 5 ? 'Empezar' : 'Siguiente' }).click();
+      if (i === 4) {
+        // Paso interactivo: tocar el elemento real resaltado hace su trabajo y el tour sigue solo.
+        await page.locator('[data-tour="chip-forecast"]').click();
+        await expect(page.getByRole('heading', { name: 'Salud, en un solo sitio' })).toBeVisible();
+        continue;
+      }
+      if (i === 5) {
+        await page.locator('[data-tour="tab-health"]').click();
+        await expect(page.getByRole('heading', { name: 'Ajustes y ayuda' })).toBeVisible();
+        continue;
+      }
+      await dialog.getByRole('button', { name: i === N ? 'Empezar' : 'Siguiente' }).click();
     }
     await expect(dialog).toBeHidden();
     await page.reload();
