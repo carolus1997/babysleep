@@ -14,7 +14,7 @@ const SECTIONS: ReadonlyArray<{ id: HomeSection; label: I18nKey }> = [
   { id: 'history', label: 'home.sec.history' },
 ];
 
-/** Inicio: «Hoy» (cronómetro y resumen), «Tomas» e «Historial» en un solo sitio, para dejar la barra inferior libre. */
+/** Inicio: «Hoy» (cronómetro y resumen), «Tomas» y «Sueño» (el historial de descansos) en un solo sitio, para dejar la barra inferior libre. */
 export function HomeShell({ section, onSection, goSettings }: { section: HomeSection; onSection: (s: HomeSection) => void; goSettings: () => void }) {
   return (
     <div className="space-y-4">
