@@ -3,6 +3,7 @@ import { useApp } from '../app/AppContext';
 import { createBaby } from '../domain/bootstrap';
 import { t } from '../i18n/es';
 import { Icon } from '../ui/Icon';
+import { Logo } from '../ui/Logo';
 import { Btn, Field, inputCls } from '../ui/primitives';
 import { SyncCard } from './SyncCard';
 
@@ -38,8 +39,8 @@ export function Onboarding() {
     return (
       <main className={shell}>
         <div className="flex flex-1 flex-col items-center justify-center text-center">
-          <span className="mb-4 grid size-28 place-items-center rounded-full text-seg-nap [background:radial-gradient(circle,color-mix(in_srgb,var(--seg-nap)_35%,transparent),transparent_68%)]">
-            <Icon name="moon" size={56} />
+          <span className="mb-4 grid size-32 place-items-center rounded-full [background:radial-gradient(circle,color-mix(in_srgb,var(--seg-nap)_28%,transparent),transparent_68%)]">
+            <Logo size={104} />
           </span>
           <h1 className="text-[44px] font-extrabold leading-tight" style={{ fontFamily: "'Baloo 2', var(--font-sans)" }}>
             BabySleep

@@ -1,5 +1,6 @@
 import type { BabyT } from '@babysleep/contract';
 import { useEffect, useState } from 'react';
+import { Logo } from './Logo';
 import { Avatar } from './photo';
 
 /** Posiciones fijas (en %) de las estrellas; el retraso y el tamaño se reparten en CSS con `--i`. */
@@ -70,15 +71,7 @@ export function Splash({ babies, activeId, pick, onPick }: { babies: readonly Ba
 
       {phase === 'intro' && (
         <div className="splash-center">
-          <svg aria-hidden className="splash-moon" viewBox="0 0 64 64" width="72" height="72">
-            <path
-              d="M44 8a26 26 0 1 0 12 40A22 22 0 0 1 44 8Z"
-              fill="var(--seg-nap)"
-              stroke="var(--seg-nap)"
-              strokeWidth="3"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <Logo size={96} className="splash-moon" />
           <h1 className="splash-logo">BabySleep</h1>
           <span aria-hidden className="splash-glint" />
         </div>

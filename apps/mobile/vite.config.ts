@@ -39,7 +39,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.png', 'apple-touch-icon.png'],
+      includeAssets: ['icon-192.png', 'icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'BabySleep',
         short_name: 'BabySleep',
