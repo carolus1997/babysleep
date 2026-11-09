@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <title>BabySleep</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a2b57"/>
+      <stop offset="1" stop-color="#181226"/>
+    </linearGradient>
+    <mask id="cut">
+      <rect width="100" height="100" fill="#fff"/>
+      <circle cx="58" cy="43" r="13" fill="#000"/>
+    </mask>
+  </defs>
+  <!-- Fondo a sangre: el sistema aplica la máscara (redondeada o circular). Todo el dibujo cabe en el 80 % central. -->
+  <rect width="100" height="100" fill="url(#bg)"/>
+  <!-- El anillo de sueño de «Hoy»: pista y arco de acento (72 %). -->
+  <circle cx="50" cy="50" r="31" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="9"/>
+  <circle cx="50" cy="50" r="31" fill="none" stroke="#f0955a" stroke-width="9" stroke-linecap="round" stroke-dasharray="140.25 999" transform="rotate(-90 50 50)"/>
+  <!-- La luna dentro del anillo. -->
+  <circle cx="50" cy="50" r="16" fill="#ffe7b8" mask="url(#cut)"/>
+</svg>

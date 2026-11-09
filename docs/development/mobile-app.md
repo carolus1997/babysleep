@@ -10,7 +10,7 @@ npm run dev -w @babysleep/mobile     # http://localhost:5173
 npm run build:mobile                 # genera apps/mobile/dist
 ```
 
-Para volver a generar los iconos: `node tools/make-icons.mjs`.
+Para volver a generar los iconos: `node tools/make-icons.mjs` (rasteriza `apps/mobile/public/icon.svg`, la única fuente del logo: anillo de sueño con la luna dentro; necesita Playwright, ya instalado como dependencia de desarrollo).
 
 ## Estructura
 
