@@ -108,6 +108,9 @@ svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.75;strok
 .bd.scr{overflow-y:auto;scrollbar-width:none;padding-bottom:16px}.bd.scr::-webkit-scrollbar{display:none}
 .dC.dD{--dg:#b3261e}.dC.dD.dark,.dC.dD.night{--dg:#ff8f85}
 .note button{border:1px solid #888;background:#fff;border-radius:8px;padding:4px 10px;font:inherit;cursor:pointer}
+.lg{background:#fff9;border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:16px}
+.lgh b{display:block;font-size:17px;margin-bottom:4px}.lgh span{font-size:13px;line-height:1.5;color:#333}
+.lgr{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}.lgc{display:flex;flex-direction:column;gap:6px;align-items:flex-start}.lgc small{font-size:11px;color:#555;font-weight:600}
 .sc.sm{height:calc(570px*var(--z))}.p.sm{height:570px}
 .note{grid-column:1/-1;max-width:980px;font-size:13.5px;line-height:1.5;background:#fff8;border-radius:12px;padding:12px 16px}
 .note h2{font-size:15px;margin:0 0 6px}.note ul{margin:6px 0 0;padding-left:18px}
@@ -117,7 +120,7 @@ svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.75;strok
 <body>
 <div class="top">
   <h1>BabySleep · Fase 2 — tres direcciones</h1>
-  <span class="cap">Vista</span><button data-v="screens" aria-pressed="true">Pantallas</button><button data-v="access" aria-pressed="false">Acceso (D)</button><button data-v="flow" aria-pressed="false">Tomas y sueño (D)</button><button data-v="review" aria-pressed="false">Revisión UX</button><button data-v="app" aria-pressed="false">App actual (D)</button>
+  <span class="cap">Vista</span><button data-v="screens" aria-pressed="true">Pantallas</button><button data-v="access" aria-pressed="false">Acceso (D)</button><button data-v="flow" aria-pressed="false">Tomas y sueño (D)</button><button data-v="review" aria-pressed="false">Revisión UX</button><button data-v="app" aria-pressed="false">App actual (D)</button><button data-v="logo" aria-pressed="false">Logo</button>
   <span class="cap">Tamaño</span>
   <button data-z=".45" aria-pressed="false">S</button><button data-z=".6" aria-pressed="true">M</button><button data-z=".85" aria-pressed="false">L</button><button data-z="1" aria-pressed="false">1:1</button>
   <span class="cap">Pantalla</span><button data-s="all" aria-pressed="true">Todas</button><button data-s="0" aria-pressed="false">Hoy</button><button data-s="1" aria-pressed="false">Activa</button><button data-s="2" aria-pressed="false">Stats</button><button data-s="3" aria-pressed="false">Salud</button><button data-s="4" aria-pressed="false">Noche</button>
@@ -411,8 +414,41 @@ let h=`<div class="note"><h2>La app tal y como está hoy (dirección D)</h2>Recr
 for(const [grp,list] of QS){h+=`<div class="note" style="background:none;padding:6px 0;font-weight:800;font-size:16px">${grp}</div>`+list.map(([cap,f,navOn])=>`<div><div class="cap" style="margin-bottom:8px">${cap}</div><div class="sc"><div class="p dC dD ${appTheme}">${sb()}<div class="bd scr">${f()}</div>${nav(navOn)}</div></div></div>`).join('')}
 g.innerHTML=h;g.style.gridTemplateColumns='repeat(auto-fill,calc(320px*var(--z)))'}
 
+/* ---------- Logo: propuestas coherentes con la app (dirección D) ---------- */
+let LGID=0;
+const LGV={
+ dark:{bg:['#3a2b57','#181226'],ac:'#f0955a',acfg:'#2a1406',moon:'#ffe7b8',track:'rgba(255,255,255,.14)',fg:'#f2e9ff'},
+ light:{bg:['#fffaf3','#efe5d6'],ac:'#b9531f',acfg:'#fff',moon:'#4a3a7a',track:'#e3d7c4',fg:'#2b2038'},
+ night:{bg:['#150e0a','#050304'],ac:'#c27a3e',acfg:'#140a03',moon:'#d8b48a',track:'rgba(216,180,138,.14)',fg:'#d8b48a'}};
+const lgCres=(id,cx,cy,r,ox,oy,or,fill)=>`<mask id="${id}"><rect width="100" height="100" fill="#fff"/><circle cx="${ox}" cy="${oy}" r="${or}" fill="#000"/></mask><circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" mask="url(#${id})"/>`;
+const LGK={
+ act:(c,id)=>lgCres(id,48,50,34,62,42,30,'#fff3dc'),
+ A:(c,id)=>`<circle cx="50" cy="50" r="31" fill="none" stroke="${c.track}" stroke-width="9"/><circle cx="50" cy="50" r="31" fill="none" stroke="${c.ac}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(2*Math.PI*31*.72).toFixed(1)} 999" transform="rotate(-90 50 50)"/>${lgCres(id,50,50,16,58,43,13,c.moon)}`,
+ B:(c,id)=>`<circle cx="50" cy="50" r="41" fill="${c.ac}" opacity=".22"/><circle cx="50" cy="50" r="31" fill="${c.ac}"/>${lgCres(id,49,51,15,57,44,12,c.acfg)}`,
+ C:(c,id)=>`${lgCres(id,50,47,31,50,35,27,c.moon)}<circle cx="50" cy="48" r="9.5" fill="${c.ac}"/>`,
+ D:(c,id)=>`${lgCres(id,44,50,27,55,41,22,c.moon)}<path d="M64 46C64 46 54.5 56 54.5 62.5a9.5 9.5 0 0 0 19 0C73.5 56 64 46 64 46Z" fill="${c.ac}"/>`};
+function lg(k,size,v,shape){const c=LGV[v];const id='lg'+(++LGID);const rad=shape=='circle'?'50%':shape=='full'?'0':'22.4%';
+ return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="display:block;border-radius:${rad};flex:none" role="img" aria-label="Logo BabySleep"><defs><linearGradient id="g${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${k=='act'?'#4f46e5':c.bg[0]}"/><stop offset="1" stop-color="${k=='act'?'#4338ca':c.bg[1]}"/></linearGradient></defs><rect width="100" height="100" fill="url(#g${id})"/>${LGK[k](c,id)}</svg>`};
+const lgWord=(v,sz)=>{const c=LGV[v];return `<span style="font-family:'Baloo 2',Manrope,sans-serif;font-weight:800;font-size:${sz}px;line-height:1;color:${c.fg};letter-spacing:-.01em">Baby<span style="color:${c.ac}">Sleep</span></span>`};
+const lgLock=(k,v,bg)=>`<div style="background:${bg};border-radius:16px;padding:16px 20px;display:flex;align-items:center;gap:12px">${lg(k,44,v)}${lgWord(v,30)}</div>`;
+const lgHome=(k)=>{const ap=[['#7aa6c2','Mapas'],['#9bbf7a','Notas'],['#d98a8a','Fotos'],['#c9a86a','Reloj'],['#8e8ac9','Correo'],['#6cb7a8','Salud']];return `<div style="width:230px;border-radius:22px;padding:16px 14px 12px;background:linear-gradient(160deg,#6b5b95,#d49a89);display:grid;grid-template-columns:repeat(4,1fr);gap:12px 8px;text-align:center;font-size:10px;color:#fff;font-weight:600">${lg(k,44,'dark')}${ap.slice(0,3).map(a=>`<div style="width:44px;height:44px;border-radius:10px;background:${a[0]}"></div>`).join('')}<div style="margin-top:-8px">BabySleep</div>${ap.slice(0,3).map(a=>`<div style="margin-top:-8px">${a[1]}</div>`).join('')}</div>`};
+const lgSplash=(k,v)=>{const c=LGV[v];const bg=v=='night'?'#050304':v=='dark'?'#181226':'#f7f0e6';return `<div style="width:130px;height:230px;border-radius:20px;background:${bg};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;box-shadow:0 0 0 4px #151515">${lg(k,64,v=='light'?'dark':v)}${lgWord(v,22)}</div>`};
+const LGP=[
+['act','Actual','Luna crema sobre degradado índigo. Es el único elemento de la app que usa índigo: no pertenece a la paleta (crema, terracota, ciruela, ámbar) y una luna sola es genérica; no cuenta nada de BabySleep.'],
+['A','A · Anillo y luna','El anillo de sueño de Hoy, con su arco de acento, y la luna dentro. Es lo primero que se ve al abrir la app, así que icono y pantalla se reconocen entre sí. Recomendada.'],
+['B','B · Botón «Dormir»','El botón circular dominante (círculo de acento con su halo) con la luna dentro. Mínima y legible a 16 px; el icono ES la acción principal de la app. Pega: con la luna tan centrada puede leerse como un ojo.'],
+['C','C · Luna cuna','La luna creciente como cuna que acuna un círculo (el bebé, o la luna llena). Cálida y con una idea clara; algo más ilustrativa que el resto. Pega: con el círculo arriba recuerda a una figura con los brazos en alto.'],
+['D','D · Luna y gota','Luna (sueño) y gota (tomas): las dos cosas que se registran en Hoy. Cuenta más de la app, pero a 16 px la gota se pierde y recarga el símbolo.']];
+function renderLogo(z){const g=document.getElementById('grid');
+let h=`<div class="note"><h2>Logo: de la luna índigo a un símbolo de la propia app</h2><b>Por qué cambiar.</b> El icono actual (luna crema sobre índigo) usa un color que no existe en la app y es una luna cualquiera: en la pantalla de inicio del móvil no se parece a lo que se abre. <b>Criterios:</b> reconocible entre 16 y 512 px; usa solo colores de la paleta (ciruela, crema, terracota, ámbar); se entiende sin texto; aguanta el modo noche (sin blancos puros ni brillos) y el recorte circular de Android («maskable», con todo el dibujo dentro del 80 % central).<br><b>Recomendación:</b> A (anillo y luna) como icono; B como alternativa más simple. La palabra «BabySleep» se queda en Baloo 2 con «Sleep» en acento; en la app se usa Manrope para todo lo demás.</div>`;
+for(const [k,name,txt] of LGP){h+=`<div class="lg"><div class="lgh"><b>${name}</b><span>${txt}</span></div>
+<div class="lgr"><div class="lgc">${lg(k,160,'dark')}<small>Icono · 512</small></div><div class="lgc">${lg(k,80,'light')}<small>Fondo crema</small></div><div class="lgc">${lg(k,80,'night')}<small>Noche</small></div><div class="lgc">${lg(k,80,'dark','circle')}<small>Maskable</small></div><div class="lgc"><div class="row" style="gap:10px;align-items:flex-end">${[48,32,24,16].map(s=>lg(k,s,'dark')).join('')}</div><small>48 · 32 · 24 · 16 px</small></div></div>
+<div class="lgr">${lgLock(k,'light','#f7f0e6')}${lgLock(k,'dark','#181226')}</div>
+<div class="lgr"><div class="lgc">${lgHome(k)}<small>Pantalla de inicio</small></div><div class="lgc">${lgSplash(k,'dark')}<small>Arranque</small></div><div class="lgc">${lgSplash(k,'night')}<small>Arranque · noche</small></div></div></div>`}
+g.innerHTML=h;g.style.gridTemplateColumns='repeat(auto-fill,minmax(560px,1fr))'}
+
 let z='.6',r='all',sc='all',view='screens';
-const go=()=>{document.getElementById('grid').removeAttribute('style');view=='app'?renderApp(z):view=='review'?renderReview(z):view=='flow'?renderFlow(z):view=='access'?renderAccess(z):render(r=='all'?['A','B','C','D']:[r],z)};
+const go=()=>{document.getElementById('grid').removeAttribute('style');view=='logo'?renderLogo(z):view=='app'?renderApp(z):view=='review'?renderReview(z):view=='flow'?renderFlow(z):view=='access'?renderAccess(z):render(r=='all'?['A','B','C','D']:[r],z)};
 document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{view=b.dataset.v;document.querySelectorAll('[data-v]').forEach(x=>x.setAttribute('aria-pressed',x==b));go()});
 document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>{z=b.dataset.z;document.querySelectorAll('[data-z]').forEach(x=>x.setAttribute('aria-pressed',x==b));go()});
 document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{sc=b.dataset.s;document.querySelectorAll('[data-s]').forEach(x=>x.setAttribute('aria-pressed',x==b));go()});
