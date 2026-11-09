@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useApp } from '../app/AppContext';
 import { t } from '../i18n/es';
 import { HOME_TODAY, TOUR_STEPS, type TourGo } from '../tutorial/content';
 import { isSeen, markSeen, type TutorialKey } from '../tutorial/seen';
+import { shareApp } from '../tutorial/share';
+import { fmtElapsed } from './format';
 import { Icon } from './Icon';
-import { Btn } from './primitives';
+import { Btn, Ring, Round } from './primitives';
 
 type Box = { top: number; left: number; width: number; height: number };
 const PAD = 6;
@@ -38,11 +41,71 @@ function useTargetBox(target: string | null, stepKey: number): Box | null {
   return box;
 }
 
+
+/** Maqueta de práctica del botón Dormir/Despierto: misma pinta que la real, pero no toca ningún dato. */
+function Demo() {
+  const [phase, setPhase] = useState<'idle' | 'sleeping' | 'done'>('idle');
+  const [secs, setSecs] = useState(0);
+  const [result, setResult] = useState(0);
+  useEffect(() => {
+    if (phase !== 'sleeping') return;
+    const id = window.setInterval(() => setSecs((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [phase]);
+  const start = () => {
+    setSecs(0);
+    setPhase('sleeping');
+  };
+  const stop = () => {
+    setResult(secs);
+    setPhase('done');
+  };
+  return (
+    <div className="flex flex-col items-center" aria-live="polite">
+      <Ring size={176} progress={phase === 'sleeping' ? (secs % 60) / 60 : phase === 'done' ? 1 : 0.5}>
+        {phase === 'idle' && (
+          <>
+            <p className="text-[12px] font-bold text-muted">{t('tour.demo.idle')}</p>
+            <p className="my-1 text-[26px] font-extrabold leading-none">{t('tour.demo.idleTime')}</p>
+          </>
+        )}
+        {phase === 'sleeping' && (
+          <>
+            <p className="text-[12px] font-bold text-muted">{t('tour.demo.sleeping')}</p>
+            <p className="my-1 text-[30px] font-extrabold leading-none tabular-nums">{fmtElapsed(secs * 1000)}</p>
+            <Icon name="moon" size={18} className="text-seg-nap" />
+          </>
+        )}
+        {phase === 'done' && (
+          <>
+            <Icon name="check" size={28} className="text-accent" />
+            <p className="mt-1 text-sm font-extrabold">{t('tour.demo.done')}</p>
+            <p className="text-[12px] font-semibold tabular-nums text-muted">{fmtElapsed(result * 1000)}</p>
+          </>
+        )}
+      </Ring>
+      <div className="-mt-6 flex flex-col items-center gap-2">
+        {phase === 'idle' && <Round icon="moon" label={t('home.roundSleep')} onClick={start} />}
+        {phase === 'sleeping' && <Round icon="sun" label={t('home.roundWake')} onClick={stop} />}
+        {phase === 'done' && (
+          <>
+            <p className="mt-8 max-w-[16rem] text-center text-[12px] font-medium text-muted">{t('tour.demo.doneBody')}</p>
+            <Btn variant="ghost" onClick={() => setPhase('idle')}>
+              {t('tour.demo.again')}
+            </Btn>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Tour interactivo: tarjetas a pantalla completa y focos sobre la app real. En los pasos con `tap` basta tocar el
  * elemento resaltado para seguir; en las tarjetas se desliza hacia los lados. Escape o «Saltar» lo cierran.
  */
 export function Tour({ onDone, onGo }: { onDone: () => void; onGo: (g: TourGo) => void }) {
+  const { toast } = useApp();
   const [i, setI] = useState(0);
   const dir = useRef(1);
   const step = TOUR_STEPS[i]!;
@@ -111,10 +174,8 @@ export function Tour({ onDone, onGo }: { onDone: () => void; onGo: (g: TourGo) =
 
   const controls = (
     <>
-      <div aria-hidden className="mb-4 flex justify-center gap-2">
-        {TOUR_STEPS.map((_, k) => (
-          <span key={k} className={`h-2 rounded-full transition-all duration-200 ${k === i ? 'w-6 bg-accent' : 'w-2 bg-line'}`} />
-        ))}
+      <div aria-hidden className="mb-4 h-1.5 overflow-hidden rounded-full bg-line">
+        <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${((i + 1) / TOUR_STEPS.length) * 100}%` }} />
       </div>
       <div className="flex items-center gap-2">
         {i > 0 && (
@@ -135,7 +196,7 @@ export function Tour({ onDone, onGo }: { onDone: () => void; onGo: (g: TourGo) =
 
   const motion = { '--dx': `${dir.current * 28}px` } as CSSProperties;
 
-  if (step.kind === 'card')
+  if (step.kind !== 'spot')
     return (
       <div role="dialog" aria-modal="true" aria-label={t('tour.label')} className="fixed inset-0 z-50 overflow-y-auto bg-bg" {...swipe}>
         <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-6 pb-6 pt-[max(1.25rem,env(safe-area-inset-top))]">
@@ -147,14 +208,26 @@ export function Tour({ onDone, onGo }: { onDone: () => void; onGo: (g: TourGo) =
             )}
           </div>
           <div key={i} style={motion} className="flex flex-1 animate-[tour-in_0.28s_ease-out] flex-col items-center justify-center text-center" aria-live="polite">
-            <span className="relative mb-6 grid size-28 place-items-center">
-              <span aria-hidden className="absolute inset-0 animate-[tour-halo_2.4s_ease-out_infinite] rounded-full bg-accent-soft" />
-              <span className="relative grid size-28 animate-[tour-pop_0.5s_ease-out] place-items-center rounded-full bg-accent-soft text-accent">
-                <Icon name={step.icon} size={52} />
+            {step.kind === 'demo' ? (
+              <div className="mb-5">
+                <Demo />
+              </div>
+            ) : (
+              <span className="relative mb-6 grid size-28 place-items-center">
+                <span aria-hidden className="absolute inset-0 animate-[tour-halo_2.4s_ease-out_infinite] rounded-full bg-accent-soft" />
+                <span className="relative grid size-28 animate-[tour-pop_0.5s_ease-out] place-items-center rounded-full bg-accent-soft text-accent">
+                  <Icon name={step.icon} size={52} />
+                </span>
               </span>
-            </span>
+            )}
+            <p className="mb-1 text-[12px] font-bold text-accent">{t(step.chapter)}</p>
             <h1 className="text-[26px] font-extrabold leading-tight">{t(step.title)}</h1>
             <p className="mt-3 max-w-xs text-[15px] font-medium text-muted">{t(step.body)}</p>
+            {step.kind === 'card' && step.share && (
+              <Btn className="mt-5" onClick={() => void shareApp(toast)}>
+                {t('tour.share')}
+              </Btn>
+            )}
           </div>
           <p className="sr-only">{t('tour.step', { n: i + 1, total: TOUR_STEPS.length })}</p>
           {controls}
@@ -199,7 +272,9 @@ export function Tour({ onDone, onGo }: { onDone: () => void; onGo: (g: TourGo) =
         className="pointer-events-auto fixed inset-x-4 mx-auto max-w-md animate-[tour-in_0.25s_ease-out] rounded-3xl border border-(--card-border) bg-bg p-4 shadow-xl"
       >
         <div className="mb-1 flex items-center justify-between">
-          <p className="text-[12px] font-bold text-muted">{t('tour.step', { n: i + 1, total: TOUR_STEPS.length })}</p>
+          <p className="text-[12px] font-bold text-muted">
+            <span className="text-accent">{t(step.chapter)}</span> · {t('tour.step', { n: i + 1, total: TOUR_STEPS.length })}
+          </p>
           <Btn variant="ghost" className="min-h-11 px-3" onClick={finish}>
             {t('tour.skip')}
           </Btn>

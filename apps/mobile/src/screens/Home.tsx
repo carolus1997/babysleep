@@ -202,7 +202,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
               </div>
             </Inset>
           ) : (
-            <Btn variant="ghost" className="w-full" onClick={() => run(() => startSettling(ctx, baby.id))}>
+            <Btn data-tour="settle" variant="ghost" className="w-full" onClick={() => run(() => startSettling(ctx, baby.id))}>
               {t('home.settle')}
             </Btn>
           )}
@@ -211,7 +211,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
 
       <FeedingCard />
 
-      <Card title={t('home.today')}>
+      <Card data-tour="today" title={t('home.today')}>
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
             <p className="text-xl font-extrabold tabular-nums">{fmtDur(today.napMs)}</p>

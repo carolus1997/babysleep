@@ -25,7 +25,7 @@ export function Health({ medIntent = null, onMedIntentUsed = () => {} }: { medIn
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-extrabold">{t('health.title')}</h1>
-      <Tabs label={t('health.title')}>
+      <Tabs label={t('health.title')} tour="health-tabs">
         <Chip active={section === 'overview'} onClick={() => setSection('overview')}>
           {t('health.sec.overview')}
         </Chip>
