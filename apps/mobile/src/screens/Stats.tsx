@@ -32,7 +32,7 @@ export function Stats() {
   const [view, setView] = useState<'summary' | 'rhythm' | 'timeline' | 'feeds' | 'trends' | 'report' | 'context'>('summary');
   return (
     <div className="space-y-4">
-      <Tabs label={t('stats.title')}>
+      <Tabs label={t('stats.title')} tour="stats-tabs">
         <Chip active={view === 'summary'} onClick={() => setView('summary')}>
           {t('stats.view.summary')}
         </Chip>

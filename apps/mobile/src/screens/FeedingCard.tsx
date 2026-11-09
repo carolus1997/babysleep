@@ -57,7 +57,7 @@ export function FeedingCard() {
 
   return (
     <>
-      <Card aria-label={t('feed.title')}>
+      <Card data-tour="feeding" aria-label={t('feed.title')}>
         {open ? (
           <>
             <div className="-mt-1 flex min-h-11 items-center justify-between gap-2">

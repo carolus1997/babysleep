@@ -165,7 +165,8 @@ for (const theme of THEMES)
     await boot(page, theme, 'data', true);
     const dialog = page.getByRole('dialog', { name: 'Bienvenida a BabySleep' });
     await dialog.waitFor();
-    const N = 7;
+    const N = 17;
+    const TAPS: Record<number, string> = { 8: 'chip-forecast', 9: 'chip-feeds', 10: 'chip-history', 11: 'tab-health', 13: 'tab-stats', 15: 'tab-settings' };
     for (let i = 1; i <= N; i++) {
       await page.waitForTimeout(450);
       await page.screenshot({ path: `${OUT}/tour-${theme}-${i}.png` });
@@ -175,15 +176,20 @@ for (const theme of THEMES)
         if (bad.length) appendFileSync(`${OUT}/axe.txt`, `tour ${theme} ${i}: ` + bad.map((v) => v.id).join(', ') + '\n');
         if (process.env.VISUAL_STRICT) expect(bad, bad.map((v) => v.id).join()).toEqual([]);
       }
-      if (i === 4) {
-        // Paso interactivo: tocar el elemento real resaltado hace su trabajo y el tour sigue solo.
-        await page.locator('[data-tour="chip-forecast"]').click();
-        await expect(page.getByRole('heading', { name: 'Salud, en un solo sitio' })).toBeVisible();
-        continue;
+      if (i === 2) {
+        // Práctica: la maqueta de Dormir/Despierto responde sin guardar nada.
+        await dialog.getByRole('button', { name: 'Dormir', exact: true }).click();
+        await page.waitForTimeout(1200);
+        await page.screenshot({ path: `${OUT}/tour-${theme}-2b.png` });
+        await dialog.getByRole('button', { name: 'Despierto', exact: true }).click();
+        await expect(dialog.getByText('¡Listo! Siesta registrada')).toBeVisible();
+        await page.screenshot({ path: `${OUT}/tour-${theme}-2c.png` });
       }
-      if (i === 5) {
-        await page.locator('[data-tour="tab-health"]').click();
-        await expect(page.getByRole('heading', { name: 'Ajustes y ayuda' })).toBeVisible();
+      // Pasos interactivos: tocar el elemento real resaltado hace su trabajo y el tour sigue solo.
+      const tap = TAPS[i];
+      if (tap) {
+        await page.locator(`[data-tour="${tap}"]`).click();
+        await expect(page.getByText(`Paso ${i + 1} de ${N}`).first()).toBeVisible();
         continue;
       }
       await dialog.getByRole('button', { name: i === N ? 'Empezar' : 'Siguiente' }).click();

@@ -75,9 +75,9 @@ export function Chip({
 }
 
 /** Sub-navegación de una pantalla: una fila de chips con desplazamiento lateral y degradado en el borde. */
-export function Tabs({ label, children }: { label: string; children: ReactNode }) {
+export function Tabs({ label, tour, children }: { label: string; tour?: string; children: ReactNode }) {
   return (
-    <div role="group" aria-label={label} className="tabs-fade -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
+    <div data-tour={tour} role="group" aria-label={label} className="tabs-fade -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
       {children}
     </div>
   );
