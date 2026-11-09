@@ -39,13 +39,6 @@ function AgeLabel({ baby }: { baby: BabyT }) {
 
 export function App() {
   const { baby, babies, selectBaby } = useApp();
-  // Si la app se abre desde un aviso (toca toma, cita, medicación) va directa a lo suyo: sin elegir perfil.
-  const [pickProfile] = useState(
-    () =>
-      parseFeedIntent(window.location.search) === null &&
-      parseMedIntent(window.location.search) === null &&
-      new URLSearchParams(window.location.search).get('go') === null,
-  );
   const [tab, setTab] = useState<Tab>('home');
   const [homeSection, setHomeSection] = useState<HomeSection>('today');
   const [switching, setSwitching] = useState(false);
@@ -119,14 +112,14 @@ export function App() {
   if (babies.length === 0 || baby === null)
     return (
       <>
-        <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />
+        <Splash baby={baby} />
         <Onboarding />
       </>
     );
 
   return (
     <>
-      <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />
+      <Splash baby={baby} />
       <div className="relative mx-auto flex min-h-dvh max-w-md flex-col">
       <header className="sticky top-0 z-30 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <button
