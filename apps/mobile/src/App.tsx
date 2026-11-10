@@ -15,6 +15,7 @@ import { Icon, type IconName } from './ui/Icon';
 import { Avatar } from './ui/photo';
 import { Sheet } from './ui/primitives';
 import { Splash } from './ui/Splash';
+import { COLD_START } from './app/coldStart';
 import { Hint, Tour } from './ui/Tutorial';
 import { isSeen } from './tutorial/seen';
 
@@ -39,9 +40,11 @@ function AgeLabel({ baby }: { baby: BabyT }) {
 
 export function App() {
   const { baby, babies, selectBaby } = useApp();
-  // Si la app se abre desde un aviso (toca toma, cita, medicación) va directa a lo suyo: sin elegir perfil.
+  // La bienvenida y la elección de bebé solo van al abrir la app desde cero (COLD_START): al volver a ella tras mirar
+  // otra app, se sigue donde estaba. Si se abre desde un aviso (toca toma, cita, medicación) va directa a lo suyo.
   const [pickProfile] = useState(
     () =>
+      COLD_START &&
       parseFeedIntent(window.location.search) === null &&
       parseMedIntent(window.location.search) === null &&
       new URLSearchParams(window.location.search).get('go') === null,
@@ -119,14 +122,14 @@ export function App() {
   if (babies.length === 0 || baby === null)
     return (
       <>
-        <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />
+        {COLD_START && <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />}
         <Onboarding />
       </>
     );
 
   return (
     <>
-      <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />
+      {COLD_START && <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />}
       <div className="relative mx-auto flex min-h-dvh max-w-md flex-col">
       <header className="sticky top-0 z-30 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <button
