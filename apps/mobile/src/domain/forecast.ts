@@ -21,6 +21,11 @@ import { isRunning } from './feeding';
 export const FORECAST_LOOKBACK_DAYS = 28;
 /** Si el último descanso terminó hace más que esto, los datos están desactualizados y no se predice. */
 export const STALE_AFTER_MS = 14 * MS_PER_HOUR;
+/**
+ * Una ventana de vigilia más corta que esto casi seguro es una siesta partida o un corte de registro, no tiempo despierto
+ * de verdad: se deja fuera de la muestra para que no ensanche el rango (el 25 % inferior del rango intercuartílico).
+ */
+export const MIN_WAKE_WINDOW_MS = 30 * 60_000;
 
 export type SleepForecastState =
   | { state: 'sleeping' }
@@ -92,7 +97,7 @@ function sleepForecast(sessions: readonly SleepSessionT[], zone: string, nowMs: 
   }
 
   const samples = wakeWindows(closed.filter((s) => s.sleep_end_utc !== null), { nowMs })
-    .windows.filter((w) => w.position === position && w.endMs >= since)
+    .windows.filter((w) => w.position === position && w.endMs >= since && w.durationMs >= MIN_WAKE_WINDOW_MS)
     .sort((a, b) => a.endMs - b.endMs)
     .map((w) => w.durationMs);
   const forecast = forecastFromSamples(samples);
