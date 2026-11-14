@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBaby } from '../src/domain/bootstrap';
 import { findObservation, tagIdsOf } from '../src/domain/notes';
 import { getOpenAttempt, getOpenSession, startSettlingWith, startSleepWith } from '../src/domain/sleep';
-import { clearIntent, loadIntent, loadLastOnset, saveIntent, saveLastOnset, SETTLING_FROM_ONSET, SLEEP_HOW_SLUGS } from '../src/domain/sleepIntent';
+import { clearIntent, loadIntent, loadLastOnset, ONSET_FROM_SETTLING, saveIntent, saveLastOnset, SETTLING_CHIP_SLUGS, SETTLING_FROM_ONSET, SLEEP_HOW_SLUGS } from '../src/domain/sleepIntent';
 import { SEED_TAGS } from '../src/domain/seed';
 import { HOUR, makeHarness, MIN } from './harness';
 
@@ -70,6 +70,18 @@ describe('modo de sueño', () => {
     expect(s.settling_attempt_id).toBe(a.id);
     expect((await getOpenSession(h.ctx, baby))?.id).toBe(s.id);
     void HOUR;
+  });
+});
+
+describe('etiquetas de la preparación', () => {
+  it('todas las que se ofrecen al preparar existen en el catálogo, y lo que ayudó vuelve a ser «cómo se durmió»', () => {
+    const slugs = new Set(SEED_TAGS.map((t) => t.slug));
+    for (const s of SETTLING_CHIP_SLUGS) expect(slugs.has(s), s).toBe(true);
+    for (const [settling, onset] of Object.entries(ONSET_FROM_SETTLING)) {
+      expect(SETTLING_FROM_ONSET[onset]).toBe(settling);
+      expect(SLEEP_HOW_SLUGS).toContain(onset);
+    }
+    expect(ONSET_FROM_SETTLING['settling.babywearing']).toBe('onset.babywearing');
   });
 });
 
