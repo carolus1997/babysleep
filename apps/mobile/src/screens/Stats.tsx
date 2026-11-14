@@ -1,5 +1,5 @@
 import type { AwakeningT, SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { listAwakenings, thresholdMs } from '../domain/awakening';
 import { buildOverview } from '../domain/overview';
@@ -28,8 +28,16 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 /** Estadísticas con dos vistas: el resumen de siempre y el análisis de ritmo. */
-export function Stats() {
+export function Stats({ resetKey = 0 }: { /** Sube cada vez que se pulsa «Estadísticas» en la barra: vuelve al Resumen. */ resetKey?: number }) {
   const [view, setView] = useState<'summary' | 'rhythm' | 'timeline' | 'feeds' | 'trends' | 'report' | 'context'>('summary');
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    setView('summary');
+  }, [resetKey]);
   return (
     <div className="space-y-4">
       <Tabs label={t('stats.title')} tour="stats-tabs">

@@ -20,6 +20,7 @@ import { t, type I18nKey } from '../i18n/es';
 import { shareOrDownloadIcs } from '../ui/calendar';
 import { fmtDur, toLocalInput } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
+import { Disclosure, useOpenSet } from '../ui/Disclosure';
 import { Btn, Card, Chip, Field, inputCls, Sheet } from '../ui/primitives';
 import { TimeField, timeReady, type Choice } from './TimeField';
 
@@ -139,7 +140,8 @@ function AppointmentSheet({ babyId, edit, draft, onClose }: { babyId: string; ed
   );
 }
 
-function AppointmentCard({ a, alias, onEdit, dim = false }: { a: AppointmentT; alias: string; onEdit: () => void; dim?: boolean }) {
+/** Una cita. `bare`: dentro de un desplegable (sin tarjeta propia, con una línea de separación). */
+function AppointmentCard({ a, alias, onEdit, dim = false, bare = false }: { a: AppointmentT; alias: string; onEdit: () => void; dim?: boolean; bare?: boolean }) {
   const { ctx, run, toast } = useApp();
   const event = toEvent(a, alias);
   const calendar = async () => {
@@ -152,10 +154,10 @@ function AppointmentCard({ a, alias, onEdit, dim = false }: { a: AppointmentT; a
     }
   };
   const setStatus = (s: 'scheduled' | 'done' | 'cancelled') => void run(() => setAppointmentStatus(ctx, a.id, s));
-  return (
-    <Card className={dim ? 'opacity-80' : ''}>
+  const body = (
+    <>
       <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-lg font-bold">{a.title}</h3>
+        <h4 className="text-base font-bold">{a.title}</h4>
         <span className="shrink-0 text-xs font-semibold text-muted">
           {a.status === 'done' ? t('appt.status.done') : a.status === 'cancelled' ? t('appt.status.cancelled') : t(KIND_KEY[a.kind])}
         </span>
@@ -199,7 +201,12 @@ function AppointmentCard({ a, alias, onEdit, dim = false }: { a: AppointmentT; a
           {t('common.delete')}
         </Btn>
       </div>
-    </Card>
+    </>
+  );
+  return bare ? (
+    <div className={`border-t border-line py-3 first:border-t-0 ${dim ? 'opacity-80' : ''}`}>{body}</div>
+  ) : (
+    <Card className={dim ? 'opacity-80' : ''}>{body}</Card>
   );
 }
 
@@ -210,7 +217,8 @@ export function Appointments({ draft, onDraftUsed }: { draft: AppointmentDraft |
   const all = useLive(() => listAppointments(ctx, babyId), [ctx, babyId], [] as AppointmentT[]);
   const now = useNow(60_000);
   const [sheet, setSheet] = useState<{ edit: AppointmentT | null; draft: AppointmentDraft | null } | null>(draft ? { edit: null, draft } : null);
-  const [showPast, setShowPast] = useState(false);
+  // Próximas abiertas por defecto; pasadas y avisos, cerrados.
+  const open = useOpenSet(['next']);
   const next = useMemo(() => upcoming(all, now), [all, now]);
   const old = useMemo(() => past(all, now), [all, now]);
   if (baby === null) return null;
@@ -230,25 +238,38 @@ export function Appointments({ draft, onDraftUsed }: { draft: AppointmentDraft |
           <p className="text-sm text-muted">{t('appt.empty')}</p>
         </Card>
       ) : (
-        next.map((a) => <AppointmentCard key={a.id} a={a} alias={baby.alias} onEdit={() => setSheet({ edit: a, draft: null })} />)
+        <Disclosure
+          title={t('appt.nextTitle')}
+          summary={next.length === 1 ? t('appt.countOne') : t('appt.countN', { n: next.length })}
+          open={open.isOpen('next')}
+          onToggle={() => open.toggle('next')}
+        >
+          {next.map((a) => (
+            <AppointmentCard key={a.id} a={a} alias={baby.alias} bare onEdit={() => setSheet({ edit: a, draft: null })} />
+          ))}
+        </Disclosure>
       )}
 
       {old.length > 0 && (
-        <>
-          <Btn variant="ghost" className="w-full" onClick={() => setShowPast((x) => !x)} aria-expanded={showPast}>
-            {showPast ? t('appt.hidePast') : t('appt.showPast', { n: old.length })}
-          </Btn>
-          {showPast && old.map((a) => <AppointmentCard key={a.id} a={a} alias={baby.alias} dim onEdit={() => setSheet({ edit: a, draft: null })} />)}
-        </>
+        <Disclosure
+          title={t('appt.pastTitle')}
+          summary={`${old.length === 1 ? t('appt.countOne') : t('appt.countN', { n: old.length })} · ${t('appt.pastSummary')}`}
+          open={open.isOpen('past')}
+          onToggle={() => open.toggle('past')}
+        >
+          {old.map((a) => (
+            <AppointmentCard key={a.id} a={a} alias={baby.alias} dim bare onEdit={() => setSheet({ edit: a, draft: null })} />
+          ))}
+        </Disclosure>
       )}
 
-      <Card title={t('appt.how')}>
-        <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
+      <Disclosure title={t('appt.how')} summary={t('appt.howSummary')} open={open.isOpen('how')} onToggle={() => open.toggle('how')}>
+        <ul className="list-disc space-y-1 pl-5 pt-1 text-sm text-muted">
           <li>{t('appt.how1')}</li>
           <li>{t('appt.how2')}</li>
           <li>{t('appt.how3')}</li>
         </ul>
-      </Card>
+      </Disclosure>
       <p className="text-xs text-muted">{t('appt.disclaimer')}</p>
 
       {sheet && <AppointmentSheet babyId={baby.id} edit={sheet.edit} draft={sheet.draft} onClose={close} />}
