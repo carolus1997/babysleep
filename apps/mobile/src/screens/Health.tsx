@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { t } from '../i18n/es';
 import { Chip, Tabs } from '../ui/primitives';
@@ -14,10 +14,27 @@ import { Vaccines } from './Vaccines';
 type Section = 'overview' | 'vaccines' | 'appointments' | 'growth' | 'medication' | 'illness' | 'profile';
 
 /** Salud: vacunas, citas, crecimiento, medicación, enfermedad y ficha (docs/development/salud-plan.md). */
-export function Health({ medIntent = null, onMedIntentUsed = () => {} }: { medIntent?: MedIntent | null; onMedIntentUsed?: () => void }) {
+export function Health({
+  medIntent = null,
+  onMedIntentUsed = () => {},
+  resetKey = 0,
+}: {
+  medIntent?: MedIntent | null;
+  onMedIntentUsed?: () => void;
+  /** Sube cada vez que se pulsa «Salud» en la barra: vuelve a la primera pestaña (Resumen). */
+  resetKey?: number;
+}) {
   const { ctx } = useApp();
   const [section, setSection] = useState<Section>('overview');
   const [draft, setDraft] = useState<AppointmentDraft | null>(null);
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    setSection('overview');
+  }, [resetKey]);
   // El aviso de una dosis abre directamente Medicación.
   useEffect(() => {
     if (medIntent !== null) setSection('medication');
