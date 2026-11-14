@@ -28,6 +28,12 @@ export function fmtClock(ms: number, zone: string): string {
   return new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: zone }).format(ms);
 }
 
+/** `2027-01-04`, `2027-01-10` → «4 ene – 10 ene». */
+export function fmtWeekRange(start: string, end: string): string {
+  const f = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return `${f.format(new Date(`${start}T12:00:00Z`))} – ${f.format(new Date(`${end}T12:00:00Z`))}`;
+}
+
 /** `2027-01-15` → «vie 15 ene». */
 export function fmtDayLabel(date: string): string {
   const d = new Date(`${date}T12:00:00Z`);

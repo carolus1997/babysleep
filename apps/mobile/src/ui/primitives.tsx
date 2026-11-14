@@ -1,4 +1,4 @@
-import { useEffect, useId, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react';
 import { t } from '../i18n/es';
 import { Icon, type IconName } from './Icon';
 
@@ -76,8 +76,24 @@ export function Chip({
 
 /** Sub-navegación de una pantalla: una fila de chips con desplazamiento lateral y degradado en el borde. */
 export function Tabs({ label, tour, children }: { label: string; tour?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const last = useRef<string | null>(null);
+  // Al cambiar la pestaña activa (también desde fuera, p. ej. al pulsar «Salud» y volver a «Resumen») la fila se
+  // desplaza lo justo para que se vea. Solo en horizontal: nunca mueve la página.
+  useEffect(() => {
+    const c = ref.current;
+    const el = c?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    const key = el?.textContent ?? null;
+    if (c && el && key !== last.current) {
+      const cr = c.getBoundingClientRect();
+      const er = el.getBoundingClientRect();
+      if (er.left < cr.left + 16) c.scrollLeft += er.left - cr.left - 16;
+      else if (er.right > cr.right - 16) c.scrollLeft += er.right - cr.right + 16;
+    }
+    last.current = key;
+  });
   return (
-    <div data-tour={tour} role="group" aria-label={label} className="tabs-fade -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
+    <div ref={ref} data-tour={tour} role="group" aria-label={label} className="tabs-fade -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
       {children}
     </div>
   );

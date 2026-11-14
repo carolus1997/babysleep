@@ -51,6 +51,9 @@ export function App() {
   );
   const [tab, setTab] = useState<Tab>('home');
   const [homeSection, setHomeSection] = useState<HomeSection>('today');
+  // Sube cada vez que se pulsa «Salud» o «Estadísticas»: sus pestañas interiores vuelven a la primera.
+  const [resetKey, setResetKey] = useState(0);
+  const [navNote, setNavNote] = useState<{ text: string; n: number }>({ text: '', n: 0 });
   const [switching, setSwitching] = useState(false);
   const [touring, setTouring] = useState(() => !isSeen('tour'));
   // Aviso de medicación: abre Salud → Medicación en ese tratamiento (y, con «Ya la di», la hoja de registro).
@@ -112,6 +115,21 @@ export function App() {
     return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
   }, [ctx, babyId, run, toast]);
 
+  // Pulsar una sección de la barra lleva siempre a su primera pestaña y arriba del todo: Inicio → Hoy, Salud → Resumen,
+  // Estadísticas → Resumen, Ajustes → arriba. Si ya estabas en ella, además se anuncia (lectores de pantalla).
+  const goTab = (id: Tab) => {
+    if (id === 'home') setHomeSection('today');
+    if (id === 'health' || id === 'stats') setResetKey((k) => k + 1);
+    const same = id === tab;
+    setTab(id);
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+    window.scrollTo({ top: 0, behavior: same && !reduced ? 'smooth' : 'auto' });
+    if (same) {
+      const name = id === 'home' ? 'home.sec.today' : id === 'health' ? 'health.sec.overview' : id === 'stats' ? 'stats.view.summary' : 'settings.title';
+      setNavNote((p) => ({ text: t('nav.backTo', { name: t(name) }), n: p.n + 1 }));
+    }
+  };
+
   // Al cambiar de pestaña se empieza arriba (antes Salud se abría a mitad de la lista de la pantalla anterior).
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -159,10 +177,15 @@ export function App() {
         {tab === 'home' && <HomeShell section={homeSection} onSection={setHomeSection} goSettings={() => setTab('settings')} />}
         {tab === 'health' && <Hint id="hint-health">{t('hint.health')}</Hint>}
         {tab === 'stats' && <Hint id="hint-stats">{t('hint.stats')}</Hint>}
-        {tab === 'health' && <Health medIntent={medIntent} onMedIntentUsed={() => setMedIntent(null)} />}
-        {tab === 'stats' && <Stats />}
+        {tab === 'health' && <Health medIntent={medIntent} onMedIntentUsed={() => setMedIntent(null)} resetKey={resetKey} />}
+        {tab === 'stats' && <Stats resetKey={resetKey} />}
         {tab === 'settings' && <Settings onReplayTour={() => setTouring(true)} />}
       </main>
+
+      <p role="status" aria-live="polite" className="sr-only">
+        {navNote.text}
+        {navNote.n % 2 === 0 ? '' : '\u200b'}
+      </p>
 
       <nav
         aria-label="Principal"
@@ -173,7 +196,7 @@ export function App() {
             key={x.id}
             data-tour={`tab-${x.id}`}
             aria-current={tab === x.id ? 'page' : undefined}
-            onClick={() => setTab(x.id)}
+            onClick={() => goTab(x.id)}
             className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-[12px] font-bold ${
               tab === x.id ? 'text-accent' : 'text-muted'
             }`}

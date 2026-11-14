@@ -14,6 +14,7 @@ import {
 } from '../domain/vaccines';
 import { t, type I18nKey } from '../i18n/es';
 import { useLive, useNow } from '../ui/hooks';
+import { Disclosure, ExpandBar, useOpenSet } from '../ui/Disclosure';
 import { Btn, Card, Field, inputCls, Sheet } from '../ui/primitives';
 
 type PlannedDose = CorePlannedDose<VaccinationT>;
@@ -219,9 +220,12 @@ export function Vaccines({ onSchedule }: { onSchedule?: (m: PlannedMilestone) =>
   const [record, setRecord] = useState<{ milestone: PlannedMilestone; only?: PlannedDose } | null>(null);
   const [dose, setDose] = useState<{ milestone: PlannedMilestone | null; dose: PlannedDose } | null>(null);
   const [extra, setExtra] = useState(false);
+  // Todo cerrado por defecto: la próxima vacuna ya está arriba en «Lo siguiente», con sus botones.
+  const open = useOpenSet();
 
   const plan = useMemo(() => (baby === null ? [] : planFor(ctx, baby, records)), [ctx, baby, records, now]);
   if (baby === null) return null;
+  const allIds = [...plan.map((m) => m.milestone.id), 'seasonal', 'extra'];
   const next = nextMilestone(plan);
   const extras = records.filter((r) => r.dose_key === null);
 
@@ -250,15 +254,18 @@ export function Vaccines({ onSchedule }: { onSchedule?: (m: PlannedMilestone) =>
         )}
       </Card>
 
+      <ExpandBar label={t('vac.byAge')} anyOpen={open.anyOpen(allIds)} onExpand={() => open.openAll(allIds)} onCollapse={open.closeAll} />
+
+      <div className="space-y-2.5">
       {plan.map((m) => (
-        <Card key={m.milestone.id}>
-          <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-lg font-bold">{m.milestone.label}</h2>
-            <span className={`text-sm font-semibold ${STATUS_CLS[m.status]}`}>{t(STATUS_KEY[m.status])}</span>
-          </div>
-          <p className="mb-2 text-xs text-muted">
-            {t('vac.dueOn', { date: fmtDate(m.dueDate) })} · {when(m.daysToDue)}
-          </p>
+        <Disclosure
+          key={m.milestone.id}
+          title={m.milestone.label}
+          summary={`${t('vac.dueOn', { date: fmtDate(m.dueDate) })} · ${when(m.daysToDue)}`}
+          badge={<span className={STATUS_CLS[m.status]}>{t(STATUS_KEY[m.status])}</span>}
+          open={open.isOpen(m.milestone.id)}
+          onToggle={() => open.toggle(m.milestone.id)}
+        >
           <ul className="divide-y divide-line">
             {m.doses.map((d) => (
               <li key={d.key}>
@@ -282,11 +289,16 @@ export function Vaccines({ onSchedule }: { onSchedule?: (m: PlannedMilestone) =>
               {t('vac.recordVisit')}
             </Btn>
           )}
-        </Card>
+        </Disclosure>
       ))}
 
-      <Card title={t('vac.seasonal')}>
-        <ul className="space-y-2 text-sm">
+      <Disclosure
+        title={t('vac.seasonal')}
+        summary={t('vac.seasonalCount', { n: MADRID_2026.seasonal.length })}
+        open={open.isOpen('seasonal')}
+        onToggle={() => open.toggle('seasonal')}
+      >
+        <ul className="space-y-2 pt-1 text-sm">
           {MADRID_2026.seasonal.map((s) => (
             <li key={s.id}>
               <span className="font-semibold">{s.label}</span>
@@ -295,9 +307,14 @@ export function Vaccines({ onSchedule }: { onSchedule?: (m: PlannedMilestone) =>
           ))}
         </ul>
         <p className="mt-2 text-xs text-muted">{t('vac.seasonalHint')}</p>
-      </Card>
+      </Disclosure>
 
-      <Card title={t('vac.extra')}>
+      <Disclosure
+        title={t('vac.extra')}
+        summary={extras.length === 0 ? t('vac.extraSummary') : t('vac.extraCount', { n: extras.length })}
+        open={open.isOpen('extra')}
+        onToggle={() => open.toggle('extra')}
+      >
         {extras.length === 0 ? (
           <p className="text-sm text-muted">{t('vac.extraEmpty')}</p>
         ) : (
@@ -322,7 +339,8 @@ export function Vaccines({ onSchedule }: { onSchedule?: (m: PlannedMilestone) =>
         <Btn className="mt-3 w-full" onClick={() => setExtra(true)}>
           + {t('vac.extraAdd')}
         </Btn>
-      </Card>
+      </Disclosure>
+      </div>
 
       <p className="text-xs text-muted">
         {t('vac.source', { edition: MADRID_2026.edition })}{' '}
