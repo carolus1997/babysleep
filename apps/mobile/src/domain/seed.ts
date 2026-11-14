@@ -29,6 +29,7 @@ export const SEED_TAGS: readonly SeedTag[] = [
   { slug: 'settling.very_tired', category: 'settling', es: 'Muy cansado' },
   { slug: 'settling.after_feeding', category: 'settling', es: 'Tras comer' },
   { slug: 'settling.in_arms', category: 'settling', es: 'En brazos' },
+  { slug: 'settling.babywearing', category: 'settling', es: 'En porteo' },
   // Al dormirse
   { slug: 'onset.fell_easily', category: 'onset', es: 'Se durmió fácilmente' },
   { slug: 'onset.hard_to_fall_asleep', category: 'onset', es: 'Le costó dormirse' },

@@ -26,7 +26,6 @@ export const TOUR_STEPS: ReadonlyArray<TourStep> = [
   { kind: 'demo', chapter: 'tour.ch.sleep', title: 'tour.demo.title', body: 'tour.demo.body', go: HOME_TODAY },
   { kind: 'spot', chapter: 'tour.ch.sleep', target: 'round', title: 'tour.round.title', body: 'tour.round.body', go: HOME_TODAY },
   { kind: 'spot', chapter: 'tour.ch.sleep', target: 'ring', title: 'tour.ring.title', body: 'tour.ring.body', go: HOME_TODAY },
-  { kind: 'spot', chapter: 'tour.ch.sleep', target: 'settle', title: 'tour.settle.title', body: 'tour.settle.body', go: HOME_TODAY },
 
   { kind: 'spot', chapter: 'tour.ch.feeds', target: 'feeding', title: 'tour.feeding.title', body: 'tour.feeding.body', go: HOME_TODAY },
   { kind: 'spot', chapter: 'tour.ch.feeds', target: 'today', title: 'tour.today.title', body: 'tour.today.body', go: HOME_TODAY },

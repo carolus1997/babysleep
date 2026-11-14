@@ -3,6 +3,7 @@ import type { SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
 import { MS_PER_HOUR, MS_PER_MIN, parseInstant, resolveLocal, suggestSleepType, toIso } from '@babysleep/core';
 import type { Ctx } from './context';
 import { DomainError } from './context';
+import { saveObservation } from './notes';
 import { insertRow, newRow, restoreRow, softDelete, updateRow } from './write';
 
 /** Un intento abierto con más de 6 h se considera caducado y se abandona al iniciar sueño. */
@@ -124,6 +125,25 @@ export async function startSleep(ctx: Ctx, babyId: string): Promise<SleepSession
       source: 'timer',
     }),
   );
+}
+
+/**
+ * «Ya duerme» con el modo de sueño elegido: empieza el sueño y deja lo elegido como explícito (siesta o noche, tipo
+ * «manual», y cómo se duerme como etiquetas de «al dormirse»). Si ya había un sueño abierto, no lo toca.
+ */
+export async function startSleepWith(ctx: Ctx, babyId: string, d: { type: 'nap' | 'night'; onsetTagIds: string[] }): Promise<SleepSessionT> {
+  if ((await getOpenSession(ctx, babyId)) !== undefined) return startSleep(ctx, babyId);
+  const started = await startSleep(ctx, babyId);
+  const s = await editSession(ctx, started.id, { type: d.type });
+  if (d.onsetTagIds.length > 0) await saveObservation(ctx, { target: { sessionId: s.id }, moment: 'onset', text: '', tagIds: d.onsetTagIds });
+  return s;
+}
+
+/** «Prepararlo para dormir» con la forma elegida (etiquetas de conciliación). */
+export async function startSettlingWith(ctx: Ctx, babyId: string, d: { settlingTagIds: string[] }): Promise<SettlingAttemptT> {
+  const a = await startSettling(ctx, babyId);
+  if (d.settlingTagIds.length > 0) await saveObservation(ctx, { target: { attemptId: a.id }, moment: 'settling', text: '', tagIds: d.settlingTagIds });
+  return a;
 }
 
 export async function finishSleep(ctx: Ctx, sessionId: string): Promise<SleepSessionT> {

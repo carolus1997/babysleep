@@ -1,11 +1,11 @@
-import type { AwakeningT, SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
-import { buildSpans, localDate, parseInstant, sleepDayTotals, summarizeAwakenings } from '@babysleep/core';
+import type { AwakeningT, SettlingAttemptT, SleepSessionT, TagT } from '@babysleep/contract';
+import { buildSpans, localDate, parseInstant, sleepDayTotals, summarizeAwakenings, suggestSleepType } from '@babysleep/core';
 import { useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { finishAwakening, getOpenAwakening, listAwakenings, startAwakening, thresholdMs } from '../domain/awakening';
 import { awakeStatus } from '../domain/awake';
 import { backupReminderDue } from '../domain/export';
-import type { ObservationTarget } from '../domain/notes';
+import { listTags, type ObservationTarget } from '../domain/notes';
 import {
   cancelSettling,
   cancelSleep,
@@ -17,10 +17,11 @@ import {
   markPutDown,
   nudgeTime,
   reopenSettling,
-  startSettling,
   startSleep,
+  startSleepWith,
   undoCancelSleep,
 } from '../domain/sleep';
+import { clearIntent, loadIntent } from '../domain/sleepIntent';
 import { t } from '../i18n/es';
 import { fmtClock, fmtDur, fmtElapsed } from '../ui/format';
 import type { SyncStatus } from '../sync/useAutoSync';
@@ -30,6 +31,7 @@ import { Banner, Btn, Card, Chip, EmptyState, Inset, Ring, Round, Tile } from '.
 import { AwakeningsSheet } from './AwakeningsSheet';
 import { FeedingCard } from './FeedingCard';
 import { NotesSheet } from './NotesSheet';
+import { SleepModeSheet } from './SleepModeSheet';
 
 export function Home({ goSettings }: { goSettings: () => void }) {
   const { ctx, baby, run, toast } = useApp();
@@ -44,6 +46,8 @@ export function Home({ goSettings }: { goSettings: () => void }) {
   const now = useNow(open || attempt ? 1000 : 30_000);
   const [awakeSheet, setAwakeSheet] = useState<string | null>(null);
   const [notes, setNotes] = useState<ObservationTarget | null>(null);
+  const [modeSheet, setModeSheet] = useState(false);
+  const tags = useLive(() => listTags(ctx), [ctx], [] as TagT[]);
 
   if (baby === null) return null;
 
@@ -83,10 +87,28 @@ export function Home({ goSettings }: { goSettings: () => void }) {
     }
   };
 
+  // «Ya duerme» desde la preparación: el sueño empieza con el modo y la forma elegidos al prepararlo.
+  const intent = attempt ? loadIntent(attempt.id) : null;
+  const intentLabel = intent
+    ? [
+        t(intent.type === 'nap' ? 'home.type.nap' : 'home.type.night'),
+        ...intent.onsetSlugs.map((s) => tags.find((x) => x.tag_slug === s)?.label_i18n['es']).filter((x): x is string => x !== undefined),
+      ].join(' · ')
+    : null;
+  const startFromAttempt = () =>
+    run(async () => {
+      const type = intent?.type ?? suggestSleepType(ctx.now(), ctx.zone);
+      const onsetTagIds = (intent?.onsetSlugs ?? []).map((s) => tags.find((x) => x.tag_slug === s && x.category === 'onset')?.id).filter((x): x is string => x !== undefined);
+      const s = await startSleepWith(ctx, baby.id, { type, onsetTagIds });
+      clearIntent();
+      return s;
+    });
+
   const cancelOpenAttempt = async () => {
     if (!attempt) return;
     const id = attempt.id;
     if (await run(() => cancelSettling(ctx, id))) {
+      clearIntent();
       toast(t('home.cancelSettleDone'), { label: t('home.undo'), run: () => void run(() => reopenSettling(ctx, id)) });
     }
   };
@@ -184,13 +206,20 @@ export function Home({ goSettings }: { goSettings: () => void }) {
             )}
           </Card>
           <div className="-mt-[58px] flex flex-col items-center gap-1">
-            <Round data-tour="round" icon="moon" label={t('home.roundSleep')} aria-label={t('home.roundSleepName')} onClick={() => run(() => startSleep(ctx, baby.id))} />
-            <p className="max-w-[16rem] text-center text-[12px] text-muted">{t('home.startSleepHint')}</p>
+            <Round
+              data-tour="round"
+              icon="moon"
+              label={attempt ? t('home.roundSleepNow') : t('home.roundSleep')}
+              aria-label={attempt ? t('home.roundSleepNowName') : t('home.roundSleepName')}
+              onClick={() => (attempt ? startFromAttempt() : setModeSheet(true))}
+            />
+            <p className="max-w-[16rem] text-center text-[12px] text-muted">{attempt ? t('home.startSleepHintPrep') : t('home.startSleepHint')}</p>
           </div>
 
-          {attempt ? (
+          {attempt && (
             <Inset>
               <p className="font-bold">{t('home.settling', { dur: fmtDur(attempt.started_utc ? now - parseInstant(attempt.started_utc) : 0) })}</p>
+              {intentLabel && <p className="text-[13px] font-semibold text-muted">{intentLabel}</p>}
               <div className="mt-2 flex flex-wrap gap-2">
                 {attempt.put_down_utc ? (
                   <span className="self-center text-sm text-muted">{t('home.putDownDone', { time: fmtClock(parseInstant(attempt.put_down_utc), ctx.zone) })}</span>
@@ -201,10 +230,6 @@ export function Home({ goSettings }: { goSettings: () => void }) {
                 <Chip onClick={cancelOpenAttempt}>{t('home.cancelSettle')}</Chip>
               </div>
             </Inset>
-          ) : (
-            <Btn data-tour="settle" variant="ghost" className="w-full" onClick={() => run(() => startSettling(ctx, baby.id))}>
-              {t('home.settle')}
-            </Btn>
           )}
         </>
       )}
@@ -265,6 +290,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
       )}
 
       {notes && <NotesSheet target={notes} onClose={() => setNotes(null)} />}
+      {modeSheet && <SleepModeSheet babyId={baby.id} onClose={() => setModeSheet(false)} />}
       {awakeSheet && sessions.find((x) => x.id === awakeSheet) && (
         <AwakeningsSheet session={sessions.find((x) => x.id === awakeSheet) as SleepSessionT} onClose={() => setAwakeSheet(null)} />
       )}
