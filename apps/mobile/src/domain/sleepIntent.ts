@@ -21,6 +21,19 @@ export const SETTLING_FROM_ONSET: Readonly<Record<string, string>> = {
   'onset.after_feeding': 'settling.after_feeding',
 };
 
+/** Lo que se ofrece mientras se prepara: cómo va (etiquetas de «conciliación» existentes). */
+export const SETTLING_CHIP_SLUGS: readonly string[] = [
+  'settling.babywearing',
+  'settling.in_arms',
+  'settling.crying',
+  'settling.restless',
+  'settling.very_tired',
+  'settling.after_feeding',
+];
+
+/** Inversa de `SETTLING_FROM_ONSET`: al pasar de preparar a dormir, lo que ayudó se vuelve «cómo se durmió». */
+export const ONSET_FROM_SETTLING: Readonly<Record<string, string>> = Object.fromEntries(Object.entries(SETTLING_FROM_ONSET).map(([o, s]) => [s, o]));
+
 export interface SleepIntent {
   attemptId: string;
   type: 'nap' | 'night';

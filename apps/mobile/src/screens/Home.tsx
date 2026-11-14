@@ -5,7 +5,7 @@ import { useApp } from '../app/AppContext';
 import { finishAwakening, getOpenAwakening, listAwakenings, startAwakening, thresholdMs } from '../domain/awakening';
 import { awakeStatus } from '../domain/awake';
 import { backupReminderDue } from '../domain/export';
-import { listTags, type ObservationTarget } from '../domain/notes';
+import { findObservation, listTags, tagIdsOf, type ObservationTarget } from '../domain/notes';
 import {
   cancelSettling,
   cancelSleep,
@@ -17,11 +17,11 @@ import {
   markPutDown,
   nudgeTime,
   reopenSettling,
-  startSleep,
+  startSettlingWith,
   startSleepWith,
   undoCancelSleep,
 } from '../domain/sleep';
-import { clearIntent, loadIntent } from '../domain/sleepIntent';
+import { clearIntent, loadIntent, loadLastOnset, ONSET_FROM_SETTLING, saveIntent, saveLastOnset, SETTLING_CHIP_SLUGS, SETTLING_FROM_ONSET, SLEEP_HOW_SLUGS } from '../domain/sleepIntent';
 import { t } from '../i18n/es';
 import { fmtClock, fmtDur, fmtElapsed } from '../ui/format';
 import type { SyncStatus } from '../sync/useAutoSync';
@@ -31,7 +31,7 @@ import { Banner, Btn, Card, Chip, EmptyState, Inset, Ring, Round, Tile } from '.
 import { AwakeningsSheet } from './AwakeningsSheet';
 import { FeedingCard } from './FeedingCard';
 import { NotesSheet } from './NotesSheet';
-import { SleepModeSheet } from './SleepModeSheet';
+import { SleepPill, TagChips } from './SleepStart';
 
 export function Home({ goSettings }: { goSettings: () => void }) {
   const { ctx, baby, run, toast } = useApp();
@@ -46,8 +46,14 @@ export function Home({ goSettings }: { goSettings: () => void }) {
   const now = useNow(open || attempt ? 1000 : 30_000);
   const [awakeSheet, setAwakeSheet] = useState<string | null>(null);
   const [notes, setNotes] = useState<ObservationTarget | null>(null);
-  const [modeSheet, setModeSheet] = useState(false);
+  const [pick, setPick] = useState<'nap' | 'night' | null>(null);
+  const [, bump] = useState(0);
   const tags = useLive(() => listTags(ctx), [ctx], [] as TagT[]);
+  const linkedAttempt = useLive(
+    async () => (open?.settling_attempt_id ? await ctx.db.settling_attempt.get(open.settling_attempt_id) : undefined),
+    [ctx, open?.settling_attempt_id],
+    undefined as SettlingAttemptT | undefined,
+  );
 
   if (baby === null) return null;
 
@@ -87,22 +93,73 @@ export function Home({ goSettings }: { goSettings: () => void }) {
     }
   };
 
-  // «Ya duerme» desde la preparación: el sueño empieza con el modo y la forma elegidos al prepararlo.
+  // Píldora «Dormir»: empieza ya con el modo del interruptor (por defecto, el sugerido por la hora) y con
+  // la forma en que se durmió la última vez, que se puede cambiar después con las etiquetas.
+  const suggested = suggestSleepType(now, ctx.zone);
   const intent = attempt ? loadIntent(attempt.id) : null;
-  const intentLabel = intent
-    ? [
-        t(intent.type === 'nap' ? 'home.type.nap' : 'home.type.night'),
-        ...intent.onsetSlugs.map((s) => tags.find((x) => x.tag_slug === s)?.label_i18n['es']).filter((x): x is string => x !== undefined),
-      ].join(' · ')
-    : null;
-  const startFromAttempt = () =>
-    run(async () => {
-      const type = intent?.type ?? suggestSleepType(ctx.now(), ctx.zone);
-      const onsetTagIds = (intent?.onsetSlugs ?? []).map((s) => tags.find((x) => x.tag_slug === s && x.category === 'onset')?.id).filter((x): x is string => x !== undefined);
-      const s = await startSleepWith(ctx, baby.id, { type, onsetTagIds });
-      clearIntent();
-      return s;
+  const mode = attempt ? (intent?.type ?? suggested) : (pick ?? suggested);
+  const tagId = (slug: string, category: 'onset' | 'settling') => tags.find((x) => x.tag_slug === slug && x.category === category)?.id;
+  const startedToast = (type: 'nap' | 'night', id: string) =>
+    toast(t(type === 'nap' ? 'sleep.startedNap' : 'sleep.startedNight'), { label: t('home.undo'), run: () => void run(() => cancelSleep(ctx, id)) });
+  const startNow = async () => {
+    const type = mode;
+    const done = await run(async () => {
+      const onsetTagIds = loadLastOnset()
+        .map((x) => tagId(x, 'onset'))
+        .filter((x): x is string => x !== undefined);
+      return startSleepWith(ctx, baby.id, { type, onsetTagIds });
     });
+    if (done) {
+      setPick(null);
+      startedToast(type, done.id);
+    }
+  };
+  const prepare = async () => {
+    const type = mode;
+    const a = await run(async () => {
+      const settlingTagIds = loadLastOnset()
+        .map((x) => SETTLING_FROM_ONSET[x])
+        .map((x) => (x === undefined ? undefined : tagId(x, 'settling')))
+        .filter((x): x is string => x !== undefined);
+      const created = await startSettlingWith(ctx, baby.id, { settlingTagIds });
+      saveIntent({ attemptId: created.id, type, onsetSlugs: [] });
+      return created;
+    });
+    if (a) {
+      setPick(null);
+      bump((n) => n + 1);
+    }
+  };
+  const changeMode = (m: 'nap' | 'night') => {
+    if (attempt) {
+      saveIntent({ attemptId: attempt.id, type: m, onsetSlugs: [] });
+      bump((n) => n + 1);
+    } else setPick(m);
+  };
+  // «Ya duerme» desde la preparación: lo que ayudó (en brazos, porteo…) pasa a ser cómo se durmió.
+  const startFromAttempt = async () => {
+    if (!attempt) return;
+    const type = mode;
+    const attemptId = attempt.id;
+    const slugs: string[] = [];
+    const done = await run(async () => {
+      const obs = await findObservation(ctx, { attemptId }, 'settling');
+      const ids = obs === undefined ? [] : await tagIdsOf(ctx, obs.id);
+      for (const id of ids) {
+        const slug = tags.find((x) => x.id === id)?.tag_slug;
+        const onset = slug === undefined ? undefined : ONSET_FROM_SETTLING[slug];
+        if (onset !== undefined) slugs.push(onset);
+      }
+      const onsetTagIds = slugs.map((x) => tagId(x, 'onset')).filter((x): x is string => x !== undefined);
+      const created = await startSleepWith(ctx, baby.id, { type, onsetTagIds });
+      clearIntent();
+      return created;
+    });
+    if (done) {
+      saveLastOnset(slugs);
+      startedToast(type, done.id);
+    }
+  };
 
   const cancelOpenAttempt = async () => {
     if (!attempt) return;
@@ -147,6 +204,17 @@ export function Home({ goSettings }: { goSettings: () => void }) {
             <Round data-tour="round" icon="sun" label={t('home.roundWake')} aria-label={t('home.roundWakeName')} onClick={finish} />
           </div>
 
+          {linkedAttempt?.started_utc && (
+            <p className="rounded-2xl bg-surface2 px-3 py-2 text-center text-[13px] font-bold">
+              {t('sleep.latency', { dur: fmtDur(Math.max(0, parseInstant(open.sleep_start_utc) - parseInstant(linkedAttempt.started_utc))) })}
+            </p>
+          )}
+          <Inset>
+            <p className="mb-2 text-center text-[13px] font-bold text-muted">{t('sleep.howNow')}</p>
+            <TagChips target={{ sessionId: open.id }} moment="onset" category="onset" slugs={SLEEP_HOW_SLUGS} onChanged={saveLastOnset} />
+            <p className="mt-2 text-center text-[12px] font-semibold text-muted">{t('sleep.howRemembered')}</p>
+          </Inset>
+
           <Inset className="flex flex-wrap items-center justify-center gap-2">
             <span className="text-[13px] font-bold text-muted">{t('home.fixStart')}</span>
             {[5, 10, 15].map((m) => (
@@ -183,8 +251,18 @@ export function Home({ goSettings }: { goSettings: () => void }) {
         </>
       ) : (
         <>
-          <Card className="flex flex-col items-center pb-14 text-center" aria-label={t('wakeTime.title')}>
-            {awake.state === 'awake' ? (
+          <Card className="flex flex-col items-center text-center" aria-label={t('wakeTime.title')}>
+            {attempt ? (
+              <Ring tour="ring" progress={0}>
+                <p className="text-[12px] font-bold text-muted">{t('sleep.settleRing')}</p>
+                <p className="my-1 text-[34px] font-extrabold leading-none tabular-nums" aria-live="off">
+                  {fmtElapsed(attempt.started_utc ? now - parseInstant(attempt.started_utc) : 0)}
+                </p>
+                <p className="text-[12px] font-semibold text-muted">
+                  {attempt.put_down_utc ? t('home.putDownDone', { time: fmtClock(parseInstant(attempt.put_down_utc), ctx.zone) }) : t(mode === 'nap' ? 'home.type.nap' : 'home.type.night')}
+                </p>
+              </Ring>
+            ) : awake.state === 'awake' ? (
               <>
                 <Ring tour="ring" progress={awake.usual !== null ? awake.elapsedMs / awake.usual.toMs : 0}>
                   <p className="text-[12px] font-bold text-muted">{t('wakeTime.title')}</p>
@@ -205,30 +283,35 @@ export function Home({ goSettings }: { goSettings: () => void }) {
               !hasHistory && <EmptyState icon="moon" title={t('home.emptyTitle')} hint={t('home.emptyHint')} />
             )}
           </Card>
-          <div className="-mt-[58px] flex flex-col items-center gap-1">
-            <Round
-              data-tour="round"
-              icon="moon"
-              label={attempt ? t('home.roundSleepNow') : t('home.roundSleep')}
-              aria-label={attempt ? t('home.roundSleepNowName') : t('home.roundSleepName')}
-              onClick={() => (attempt ? startFromAttempt() : setModeSheet(true))}
-            />
-            <p className="max-w-[16rem] text-center text-[12px] text-muted">{attempt ? t('home.startSleepHintPrep') : t('home.startSleepHint')}</p>
-          </div>
+          <SleepPill
+            mode={mode}
+            onMode={changeMode}
+            onGo={attempt ? startFromAttempt : startNow}
+            title={attempt ? t('sleep.nowAsleep') : t('home.roundSleep')}
+            sub={t(attempt ? (mode === 'nap' ? 'sleep.pill.nowNap' : 'sleep.pill.nowNight') : mode === 'nap' ? 'sleep.pill.subNap' : 'sleep.pill.subNight')}
+            label={attempt ? t('home.roundSleepNowName') : t('sleep.pill.go')}
+          />
+          {!attempt && (
+            <Btn className="flex w-full items-center justify-center gap-2" onClick={prepare}>
+              <Icon name="clock" size={18} />
+              {t('sleep.prepare')}
+            </Btn>
+          )}
 
           {attempt && (
             <Inset>
-              <p className="font-bold">{t('home.settling', { dur: fmtDur(attempt.started_utc ? now - parseInstant(attempt.started_utc) : 0) })}</p>
-              {intentLabel && <p className="text-[13px] font-semibold text-muted">{intentLabel}</p>}
-              <div className="mt-2 flex flex-wrap gap-2">
-                {attempt.put_down_utc ? (
-                  <span className="self-center text-sm text-muted">{t('home.putDownDone', { time: fmtClock(parseInstant(attempt.put_down_utc), ctx.zone) })}</span>
-                ) : (
-                  <Chip onClick={() => run(() => markPutDown(ctx, attempt.id))}>{t('home.putDown')}</Chip>
+              <p className="mb-2 text-center text-[13px] font-bold text-muted">{t('sleep.settleHow')}</p>
+              <div className="flex flex-col items-center gap-2">
+                {attempt.put_down_utc === null && (
+                  <Chip className="bg-surface!" onClick={() => run(() => markPutDown(ctx, attempt.id))}>
+                    {t('home.putDown')}
+                  </Chip>
                 )}
-                <Chip onClick={() => setNotes({ attemptId: attempt.id })}>{t('home.settleNotes')}</Chip>
-                <Chip onClick={cancelOpenAttempt}>{t('home.cancelSettle')}</Chip>
+                <TagChips target={{ attemptId: attempt.id }} moment="settling" category="settling" slugs={SETTLING_CHIP_SLUGS} />
               </div>
+              <Btn variant="ghost" className="mt-1 w-full" onClick={cancelOpenAttempt}>
+                {t('home.cancelSettle')}
+              </Btn>
             </Inset>
           )}
         </>
@@ -290,7 +373,6 @@ export function Home({ goSettings }: { goSettings: () => void }) {
       )}
 
       {notes && <NotesSheet target={notes} onClose={() => setNotes(null)} />}
-      {modeSheet && <SleepModeSheet babyId={baby.id} onClose={() => setModeSheet(false)} />}
       {awakeSheet && sessions.find((x) => x.id === awakeSheet) && (
         <AwakeningsSheet session={sessions.find((x) => x.id === awakeSheet) as SleepSessionT} onClose={() => setAwakeSheet(null)} />
       )}
