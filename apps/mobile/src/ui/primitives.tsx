@@ -93,8 +93,12 @@ export function Tabs({ label, tour, children }: { label: string; tour?: string; 
     last.current = key;
   });
   return (
-    <div ref={ref} data-tour={tour} role="group" aria-label={label} className="tabs-fade -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
-      {children}
+    // Fila fija bajo la cabecera: cambiar de pestaña no obliga a volver arriba. El fondo va en el contenedor porque
+    // la máscara de degradado de `tabs-fade` también desvanecería el fondo de la propia fila.
+    <div className="tabs-sticky sticky top-(--hdr-h,3.5rem) z-20 -mx-4 bg-bg px-4 pb-2 pt-1">
+      <div ref={ref} data-tour={tour} role="group" aria-label={label} className="tabs-fade -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
+        {children}
+      </div>
     </div>
   );
 }

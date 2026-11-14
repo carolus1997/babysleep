@@ -1,5 +1,5 @@
 import type { BabyT } from '@babysleep/contract';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useApp } from './app/AppContext';
 import { applyFeedIntent, parseFeedIntent, type FeedIntent } from './domain/feedIntent';
 import { parseMedIntent, type MedIntent } from './domain/medIntent';
@@ -50,6 +50,13 @@ export function App() {
       new URLSearchParams(window.location.search).get('go') === null,
   );
   const [tab, setTab] = useState<Tab>('home');
+  // Altura real de la cabecera (varía con el área segura y el tamaño de texto): las pestañas interiores se quedan fijas justo debajo.
+  const headerRef = useCallback((el: HTMLElement | null) => {
+    if (!el) return;
+    const set = () => document.documentElement.style.setProperty('--hdr-h', `${el.getBoundingClientRect().height}px`);
+    set();
+    new ResizeObserver(set).observe(el);
+  }, []);
   const [homeSection, setHomeSection] = useState<HomeSection>('today');
   // Sube cada vez que se pulsa «Salud» o «Estadísticas»: sus pestañas interiores vuelven a la primera.
   const [resetKey, setResetKey] = useState(0);
@@ -149,7 +156,7 @@ export function App() {
     <>
       {COLD_START && <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />}
       <div className="relative mx-auto flex min-h-dvh max-w-md flex-col">
-      <header className="sticky top-0 z-30 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+      <header ref={headerRef} className="sticky top-0 z-30 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <button
           className="flex min-h-12 w-full items-center justify-between rounded-2xl text-left"
           onClick={() => setSwitching(true)}
