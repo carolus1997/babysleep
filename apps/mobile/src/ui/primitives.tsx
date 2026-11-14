@@ -203,6 +203,24 @@ export function Ring({
   );
 }
 
+/** Botón de elección múltiple en mosaico (qué ha tomado, qué pecho): marcado con borde, color de acento y un check. */
+export function Toggle({ icon, children, on, onClick, wide }: { icon?: IconName; children: ReactNode; on: boolean; onClick: () => void; wide?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onClick}
+      className={`relative flex items-center justify-center gap-2 rounded-[18px] border-2 px-2 text-sm font-bold transition-colors ${
+        wide ? 'min-h-12 flex-row' : 'min-h-[64px] flex-col'
+      } ${on ? 'border-accent bg-accent-soft text-fg' : 'border-transparent bg-surface2 text-fg'}`}
+    >
+      {icon && <Icon name={icon} size={wide ? 20 : 22} className={on ? 'text-accent' : ''} />}
+      <span>{children}</span>
+      {on && <Icon name="check" size={14} className="absolute right-2 top-1.5 text-accent" />}
+    </button>
+  );
+}
+
 /** Hoja inferior accesible: se cierra con Escape o tocando fuera. */
 export function Sheet({ title, onClose, footer, children }: { title: string; onClose: () => void; /** Pie fijo (botón de guardar): se queda visible aunque el contenido se desplace. */ footer?: ReactNode; children: ReactNode }) {
   const id = useId();

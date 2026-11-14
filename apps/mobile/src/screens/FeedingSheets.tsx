@@ -7,7 +7,7 @@ import { localToMs } from '../domain/sleep';
 import { t, type I18nKey } from '../i18n/es';
 import { fmtDur, toLocalInput } from '../ui/format';
 import { Icon, type IconName } from '../ui/Icon';
-import { Btn, Chip, Field, inputCls, Sheet } from '../ui/primitives';
+import { Btn, Chip, Field, inputCls, Sheet, Toggle } from '../ui/primitives';
 import { TimeField, timeReady, type Choice } from './TimeField';
 
 const SIDES: readonly BreastSideT[] = ['left', 'right', 'both'];
@@ -72,24 +72,6 @@ function TypeChips({ value, onChange }: { value: FeedTypeT; onChange: (v: FeedTy
         </Chip>
       ))}
     </div>
-  );
-}
-
-/** Botón de elección múltiple en mosaico (qué ha tomado, qué pecho): marcado con borde, color de acento y un check. */
-function Toggle({ icon, children, on, onClick, wide }: { icon?: IconName; children: ReactNode; on: boolean; onClick: () => void; wide?: boolean }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={onClick}
-      className={`relative flex items-center justify-center gap-2 rounded-[18px] border-2 px-2 text-sm font-bold transition-colors ${
-        wide ? 'min-h-12 flex-row' : 'min-h-[64px] flex-col'
-      } ${on ? 'border-accent bg-accent-soft text-fg' : 'border-transparent bg-surface2 text-fg'}`}
-    >
-      {icon && <Icon name={icon} size={wide ? 20 : 22} className={on ? 'text-accent' : ''} />}
-      <span>{children}</span>
-      {on && <Icon name="check" size={14} className="absolute right-2 top-1.5 text-accent" />}
-    </button>
   );
 }
 
