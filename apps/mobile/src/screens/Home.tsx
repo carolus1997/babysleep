@@ -174,16 +174,19 @@ export function Home({ goSettings }: { goSettings: () => void }) {
   const hasHistory = sessions.length > 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 land:grid land:grid-cols-[minmax(14rem,16.5rem)_minmax(0,1fr)] land:items-start land:gap-x-4 land:space-y-0">
+      <div className="space-y-4 empty:hidden land:col-start-2 land:row-start-1 land:mb-3">
       {expired && (
         <Banner tone="danger" onClick={goSettings}>
           {t('home.sessionExpired')}
         </Banner>
       )}
       {reminder && <Banner onClick={goSettings}>{t('home.backupDue')}</Banner>}
+      </div>
 
-      {open ? (
-        <>
+      <div className="space-y-4 land:sticky land:top-14 land:col-start-1 land:row-span-2 land:row-start-1 land:-mx-2 land:max-h-[calc(100dvh-3.5rem)] land:overflow-y-auto land:px-2 land:pb-2">
+        {open ? (
+          <>
           <Card className="flex flex-col items-center pb-14 text-center">
             <Ring tour="ring" progress={0}>
               <p className="text-[12px] font-bold text-muted">{t('home.sleeping', { time: fmtClock(parseInstant(open.sleep_start_utc), ctx.zone) })}</p>
@@ -192,7 +195,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
               </p>
               <Icon name="moon" size={18} className="text-seg-nap" />
             </Ring>
-            <div className="mt-3 flex justify-center gap-2" role="group" aria-label={t('home.sleeping', { time: fmtClock(parseInstant(open.sleep_start_utc), ctx.zone) })}>
+            <div className="mt-3 flex justify-center gap-2 land:hidden" role="group" aria-label={t('home.sleeping', { time: fmtClock(parseInstant(open.sleep_start_utc), ctx.zone) })}>
               {(['nap', 'night'] as const).map((ty) => (
                 <Chip key={ty} active={open.sleep_type === ty} onClick={() => run(() => editSession(ctx, open.id, { type: ty }))}>
                   {t(ty === 'nap' ? 'home.type.nap' : 'home.type.night')}
@@ -203,7 +206,69 @@ export function Home({ goSettings }: { goSettings: () => void }) {
           <div className="-mt-[58px] flex justify-center">
             <Round data-tour="round" icon="sun" label={t('home.roundWake')} aria-label={t('home.roundWakeName')} onClick={finish} />
           </div>
+          </>
+        ) : (
+          <>
+          <Card className="flex flex-col items-center text-center land:p-2" aria-label={t('wakeTime.title')}>
+            {attempt ? (
+              <Ring tour="ring" progress={0}>
+                <p className="text-[12px] font-bold text-muted">{t('sleep.settleRing')}</p>
+                <p className="my-1 ring-num font-extrabold leading-none tabular-nums" aria-live="off">
+                  {fmtElapsed(attempt.started_utc ? now - parseInstant(attempt.started_utc) : 0)}
+                </p>
+                <p className="text-[12px] font-semibold text-muted">
+                  {attempt.put_down_utc ? t('home.putDownDone', { time: fmtClock(parseInstant(attempt.put_down_utc), ctx.zone) }) : t(mode === 'nap' ? 'home.type.nap' : 'home.type.night')}
+                </p>
+              </Ring>
+            ) : awake.state === 'awake' ? (
+              <>
+                <Ring tour="ring" progress={awake.usual !== null ? awake.elapsedMs / awake.usual.toMs : 0}>
+                  <p className="text-[12px] font-bold text-muted">{t('wakeTime.title')}</p>
+                  <p className="my-1 ring-num font-extrabold leading-none tabular-nums">{fmtDur(awake.elapsedMs)}</p>
+                  <p className="text-[12px] font-semibold text-muted land:hidden">
+                    {t('wakeTime.since', { time: fmtClock(awake.sinceMs, ctx.zone), what: t(awake.after === 'night' ? 'wakeTime.afterNight' : 'wakeTime.afterNap') })}
+                  </p>
+                </Ring>
+                {awake.usual !== null && (
+                  <p className="mt-3 text-[13px] text-muted land:hidden">
+                    {t('wakeTime.usual', { from: fmtDur(awake.usual.fromMs), to: fmtDur(awake.usual.toMs) })}
+                    {awake.elapsedMs > awake.usual.toMs && ` ${t('wakeTime.over')}`}
+                  </p>
+                )}
+                {awake.stale && <p className="mt-2 text-[13px] text-muted">{t('wakeTime.stale')}</p>}
+              </>
+            ) : (
+              !hasHistory && <EmptyState icon="moon" title={t('home.emptyTitle')} hint={t('home.emptyHint')} />
+            )}
+          </Card>
+          <SleepPill
+            mode={mode}
+            onMode={changeMode}
+            onGo={attempt ? startFromAttempt : startNow}
+            title={attempt ? t('sleep.nowAsleep') : t('home.roundSleep')}
+            sub={t(attempt ? (mode === 'nap' ? 'sleep.pill.nowNap' : 'sleep.pill.nowNight') : mode === 'nap' ? 'sleep.pill.subNap' : 'sleep.pill.subNight')}
+            label={attempt ? t('home.roundSleepNowName') : t('sleep.pill.go')}
+          />
+          </>
+        )}
+      </div>
 
+      <div className="space-y-4 land:col-start-2 land:row-start-2">
+        {!attempt && (
+            <Btn className="flex w-full items-center justify-center gap-2" onClick={prepare}>
+              <Icon name="clock" size={18} />
+              {t('sleep.prepare')}
+            </Btn>
+          )}
+        {open ? (
+          <>
+          <div className="hidden justify-center gap-2 land:flex" role="group" aria-label={t('home.sleeping', { time: fmtClock(parseInstant(open.sleep_start_utc), ctx.zone) })}>
+            {(['nap', 'night'] as const).map((ty) => (
+              <Chip key={ty} active={open.sleep_type === ty} onClick={() => run(() => editSession(ctx, open.id, { type: ty }))}>
+                {t(ty === 'nap' ? 'home.type.nap' : 'home.type.night')}
+              </Chip>
+            ))}
+          </div>
           {linkedAttempt?.started_utc && (
             <p className="rounded-2xl bg-surface2 px-3 py-2 text-center text-[13px] font-bold">
               {t('sleep.latency', { dur: fmtDur(Math.max(0, parseInstant(open.sleep_start_utc) - parseInstant(linkedAttempt.started_utc))) })}
@@ -248,56 +313,9 @@ export function Home({ goSettings }: { goSettings: () => void }) {
               {t('home.cancelSleep')}
             </Tile>
           </div>
-        </>
-      ) : (
-        <>
-          <Card className="flex flex-col items-center text-center" aria-label={t('wakeTime.title')}>
-            {attempt ? (
-              <Ring tour="ring" progress={0}>
-                <p className="text-[12px] font-bold text-muted">{t('sleep.settleRing')}</p>
-                <p className="my-1 ring-num font-extrabold leading-none tabular-nums" aria-live="off">
-                  {fmtElapsed(attempt.started_utc ? now - parseInstant(attempt.started_utc) : 0)}
-                </p>
-                <p className="text-[12px] font-semibold text-muted">
-                  {attempt.put_down_utc ? t('home.putDownDone', { time: fmtClock(parseInstant(attempt.put_down_utc), ctx.zone) }) : t(mode === 'nap' ? 'home.type.nap' : 'home.type.night')}
-                </p>
-              </Ring>
-            ) : awake.state === 'awake' ? (
-              <>
-                <Ring tour="ring" progress={awake.usual !== null ? awake.elapsedMs / awake.usual.toMs : 0}>
-                  <p className="text-[12px] font-bold text-muted">{t('wakeTime.title')}</p>
-                  <p className="my-1 ring-num font-extrabold leading-none tabular-nums">{fmtDur(awake.elapsedMs)}</p>
-                  <p className="text-[12px] font-semibold text-muted">
-                    {t('wakeTime.since', { time: fmtClock(awake.sinceMs, ctx.zone), what: t(awake.after === 'night' ? 'wakeTime.afterNight' : 'wakeTime.afterNap') })}
-                  </p>
-                </Ring>
-                {awake.usual !== null && (
-                  <p className="mt-3 text-[13px] text-muted">
-                    {t('wakeTime.usual', { from: fmtDur(awake.usual.fromMs), to: fmtDur(awake.usual.toMs) })}
-                    {awake.elapsedMs > awake.usual.toMs && ` ${t('wakeTime.over')}`}
-                  </p>
-                )}
-                {awake.stale && <p className="mt-2 text-[13px] text-muted">{t('wakeTime.stale')}</p>}
-              </>
-            ) : (
-              !hasHistory && <EmptyState icon="moon" title={t('home.emptyTitle')} hint={t('home.emptyHint')} />
-            )}
-          </Card>
-          <SleepPill
-            mode={mode}
-            onMode={changeMode}
-            onGo={attempt ? startFromAttempt : startNow}
-            title={attempt ? t('sleep.nowAsleep') : t('home.roundSleep')}
-            sub={t(attempt ? (mode === 'nap' ? 'sleep.pill.nowNap' : 'sleep.pill.nowNight') : mode === 'nap' ? 'sleep.pill.subNap' : 'sleep.pill.subNight')}
-            label={attempt ? t('home.roundSleepNowName') : t('sleep.pill.go')}
-          />
-          {!attempt && (
-            <Btn className="flex w-full items-center justify-center gap-2" onClick={prepare}>
-              <Icon name="clock" size={18} />
-              {t('sleep.prepare')}
-            </Btn>
-          )}
-
+          </>
+        ) : (
+          <>
           {attempt && (
             <Inset>
               <p className="mb-2 text-center text-[13px] font-bold text-muted">{t('sleep.settleHow')}</p>
@@ -314,24 +332,24 @@ export function Home({ goSettings }: { goSettings: () => void }) {
               </Btn>
             </Inset>
           )}
-        </>
-      )}
+          </>
+        )}
 
       <FeedingCard />
 
       <Card data-tour="today" title={t('home.today')}>
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <p className="text-xl font-extrabold tabular-nums">{fmtDur(today.napMs)}</p>
+            <p className="text-xl font-extrabold tabular-nums land:whitespace-nowrap land:text-lg">{fmtDur(today.napMs)}</p>
             <p className="text-[13px] font-semibold text-muted">{t('home.todayNaps')}</p>
             <p className="text-[12px] text-muted">{t('home.todayNapsSub', { n: today.napCount })}</p>
           </div>
           <div>
-            <p className="text-xl font-extrabold tabular-nums">{fmtDur(today.nightMs)}</p>
+            <p className="text-xl font-extrabold tabular-nums land:whitespace-nowrap land:text-lg">{fmtDur(today.nightMs)}</p>
             <p className="text-[13px] font-semibold text-muted">{t('home.todayNight')}</p>
           </div>
           <div>
-            <p className="text-xl font-extrabold tabular-nums">{fmtDur(today.totalMs)}</p>
+            <p className="text-xl font-extrabold tabular-nums land:whitespace-nowrap land:text-lg">{fmtDur(today.totalMs)}</p>
             <p className="text-[13px] font-semibold text-muted">{t('home.todaySleep')}</p>
           </div>
         </div>
@@ -371,6 +389,8 @@ export function Home({ goSettings }: { goSettings: () => void }) {
           )}
         </div>
       )}
+
+      </div>
 
       {notes && <NotesSheet target={notes} onClose={() => setNotes(null)} />}
       {awakeSheet && sessions.find((x) => x.id === awakeSheet) && (

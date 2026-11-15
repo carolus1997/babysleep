@@ -106,7 +106,7 @@ function Ready({ ctx, replaceCtx, children }: { ctx: Ctx; replaceCtx: (ctx: Ctx)
       {toastState !== null && (
         <div
           role="status"
-          className="fixed inset-x-3 bottom-24 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl bg-fg px-4 py-3 text-bg shadow-lg"
+          className="fixed inset-x-3 bottom-24 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl bg-fg px-4 py-3 text-bg shadow-lg land:bottom-3 land:left-auto land:right-[calc(0.75rem+env(safe-area-inset-right))] land:mx-0 land:max-w-sm"
         >
           <span>{toastState.msg}</span>
           {toastState.action && (

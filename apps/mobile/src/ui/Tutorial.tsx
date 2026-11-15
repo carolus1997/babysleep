@@ -294,7 +294,7 @@ export function Hint({ id, children }: { id: TutorialKey; children: string }) {
   const [open, setOpen] = useState(() => !isSeen(id));
   if (!open) return null;
   return (
-    <div role="note" className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-2xl bg-surface2 p-3 text-sm font-medium text-fg">
+    <div role="note" className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-2xl bg-surface2 p-3 text-sm font-medium text-fg land:hidden">
       <Icon name="info" className="mt-0.5 text-accent" />
       <span className="min-w-0 flex-[1_1_9rem] [overflow-wrap:anywhere]">{children}</span>
       <button
