@@ -70,25 +70,25 @@ export function FeedingCard() {
                 <Icon name="more" />
               </button>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Ring size={76} stroke={8} neutral progress={0}>
                 <span className="text-[17px] font-extrabold tabular-nums" aria-live="off">
                   {fmtElapsed(now - parseInstant(open.start_utc))}
                 </span>
               </Ring>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-[7rem] flex-1">
                 <p className="text-sm font-extrabold">{t('feed.runningNow')}</p>
                 <p className="text-[12px] font-semibold text-muted">{t('feed.runningHint')}</p>
               </div>
-              <Round small icon="check" label={t('feed.roundFinish')} aria-label={t('feed.roundFinishName')} onClick={() => setFinishing(open)} />
+              <Round small className="ml-auto" icon="check" label={t('feed.roundFinish')} aria-label={t('feed.roundFinishName')} onClick={() => setFinishing(open)} />
             </div>
           </>
         ) : (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Ring size={76} stroke={8} neutral progress={last && range ? last.sinceMs / range.highMs : 0}>
               <span className="text-[17px] font-extrabold tabular-nums">{last ? fmtDur(last.sinceMs) : '—'}</span>
             </Ring>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-[7rem] flex-1">
               {last ? (
                 <>
                   <p className="text-[12px] font-bold text-muted">{t('feed.card.last', { time: fmtClock(parseInstant(last.feeding.start_utc), ctx.zone) })}</p>
@@ -104,7 +104,7 @@ export function FeedingCard() {
                 </>
               )}
             </div>
-            <Round small icon="milk" label={t('feed.roundStart')} aria-label={t('feed.roundStartName')} onClick={() => run(() => startFeeding(ctx, baby.id, 'breast'))} />
+            <Round small className="ml-auto" icon="milk" label={t('feed.roundStart')} aria-label={t('feed.roundStartName')} onClick={() => run(() => startFeeding(ctx, baby.id, 'breast'))} />
           </div>
         )}
         {today.count > 0 && <p className="mt-3 text-center text-[12px] text-muted">{t('feed.today', { line: dayLine(today) })}</p>}

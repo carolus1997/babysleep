@@ -20,7 +20,7 @@ function Row({ icon, title, value, hint, onClick }: { icon: IconName; title: str
       <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
         <Icon name={icon} />
       </span>
-      <span className="min-w-0 flex-1">
+      <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
         <span className="block text-[13px] font-bold text-muted">{title}</span>
         <span className="block text-base font-extrabold">{value}</span>
         {hint && <span className="block text-[13px] text-muted">{hint}</span>}

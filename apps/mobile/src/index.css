@@ -210,7 +210,9 @@ input[type='date'] {
 /* El logo llega grande y desenfocado, se asienta con un pequeño golpe y deja un destello. */
 .splash-logo {
   margin: 4px 0 0;
-  font-size: 3.4rem;
+  /* Con el ancho de la pantalla, no con el texto del sistema: en un móvil estrecho o con letra grande no se sale. */
+  font-size: min(3.4rem, 13vw);
+  white-space: nowrap;
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: 0.01em;
@@ -241,7 +243,7 @@ input[type='date'] {
 .splash-pick-title {
   margin: 0 0 28px;
   text-align: center;
-  font-size: 2rem;
+  font-size: min(2rem, 8vw);
   font-weight: 800;
   line-height: 1.15;
   color: var(--fg);
@@ -250,7 +252,7 @@ input[type='date'] {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 24px 20px;
+  gap: 20px 16px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -263,7 +265,8 @@ input[type='date'] {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  min-width: 112px;
+  min-width: min(112px, 28vw);
+  max-width: 100%;
   padding: 0;
   border: 0;
   background: none;
@@ -294,7 +297,7 @@ input[type='date'] {
   box-shadow: 0 0 0 3px var(--ring), 0 8px 24px rgb(0 0 0 / 0.28);
 }
 .splash-name {
-  font-size: 1.4rem;
+  font-size: min(1.4rem, 6vw);
   font-weight: 800;
 }
 @keyframes splash-fade-in {
@@ -318,8 +321,8 @@ input[type='date'] {
   0% {
     opacity: 0;
     filter: blur(18px);
-    transform: scale(1.7);
-    letter-spacing: 0.25em;
+    transform: scale(1.35);
+    letter-spacing: 0.1em;
   }
   55% {
     opacity: 1;
@@ -384,4 +387,15 @@ input[type='date'] {
   50% {
     box-shadow: 0 0 0 6px var(--accent-soft);
   }
+}
+
+/* Etiquetas de la barra inferior: se adaptan al ancho de la pantalla para que «Estadísticas» no pise a «Ajustes». */
+.nav-label {
+  font-size: clamp(10px, 3.2vw, 12px);
+}
+
+/* Cifra grande dentro del anillo: ajusta su tamaño al ancho de la pantalla y nunca se parte en dos líneas. */
+.ring-num {
+  font-size: clamp(22px, 7.2vw, 28px);
+  white-space: nowrap;
 }
