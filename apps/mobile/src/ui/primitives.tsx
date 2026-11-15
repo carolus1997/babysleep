@@ -95,7 +95,7 @@ export function Tabs({ label, tour, children }: { label: string; tour?: string; 
   return (
     // Fila fija bajo la cabecera: cambiar de pestaña no obliga a volver arriba. El fondo va en el contenedor porque
     // la máscara de degradado de `tabs-fade` también desvanecería el fondo de la propia fila.
-    <div className="tabs-sticky sticky top-(--hdr-h,3.5rem) z-20 -mx-4 bg-bg px-4 pb-2 pt-1">
+    <div className="tabs-sticky sticky top-(--hdr-h,3.5rem) land:top-0 z-20 -mx-4 bg-bg px-4 pb-2 pt-1">
       <div ref={ref} data-tour={tour} role="group" aria-label={label} className="tabs-fade -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
         {children}
       </div>
@@ -195,8 +195,8 @@ export function Ring({
   const c = 2 * Math.PI * r;
   const p = Math.max(0, Math.min(1, progress));
   return (
-    <div data-tour={tour} className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90" aria-hidden>
+    <div data-tour={tour} className={`relative ${size >= 150 ? 'land:size-36!' : ''}`} style={{ width: size, height: size }}>
+      <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%" className="-rotate-90" aria-hidden>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface2)" strokeWidth={stroke} />
         {p > 0 && (
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={neutral ? 'color-mix(in srgb, var(--fg) 55%, transparent)' : 'var(--accent)'} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${c * p} ${c}`} />
@@ -242,14 +242,14 @@ export function Sheet({ title, onClose, footer, children }: { title: string; onC
     };
   }, []);
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center overscroll-contain bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center overscroll-contain bg-black/60 land:items-stretch land:justify-end" onClick={onClose}>
       {/* overflow-x-hidden + touch-action: pan-y: con `overflow-y: auto` el eje X pasa a `auto` y cualquier
           píxel de más permite arrastrar la hoja hacia los lados. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={id}
-        className="max-h-[92dvh] w-full max-w-md touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-(--card-border) bg-bg p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl"
+        className="max-h-[92dvh] w-full max-w-md touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-(--card-border) bg-bg p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl land:h-dvh land:max-h-none land:w-[min(24rem,62vw)] land:max-w-none land:rounded-l-[24px] land:rounded-t-none land:border-l land:border-t-0 land:pr-[max(1rem,env(safe-area-inset-right))]"
         onClick={(e) => e.stopPropagation()}
       >
         <div aria-hidden className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-line" />

@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+/* Móvil tumbado: apaisado y bajo. La barra inferior pasa a un carril lateral y el contenido a dos columnas. */
+@custom-variant land (@media (orientation: landscape) and (max-height: 500px));
 
 /*
  * Sistema de diseño «Marea Crepúsculo» (docs/design/BABYSLEEP_DESIGN_SYSTEM.md). Los colores se validan con
@@ -398,4 +400,11 @@ input[type='date'] {
 .ring-num {
   font-size: clamp(22px, 7.2vw, 28px);
   white-space: nowrap;
+}
+
+/* En horizontal la cifra del anillo es algo menor: el anillo también lo es. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .ring-num {
+    font-size: 20px;
+  }
 }

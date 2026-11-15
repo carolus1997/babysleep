@@ -155,22 +155,22 @@ export function App() {
   return (
     <>
       {COLD_START && <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />}
-      <div className="relative mx-auto flex min-h-dvh max-w-md flex-col">
-      <header ref={headerRef} className="sticky top-0 z-30 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+      <div className="relative mx-auto flex min-h-dvh max-w-md flex-col land:max-w-none">
+      <header ref={headerRef} className="sticky top-0 z-30 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] land:fixed land:left-0 land:z-40 land:w-[calc(78px+env(safe-area-inset-left))] land:border-r land:border-line land:bg-surface land:px-0 land:pb-1 land:pl-[env(safe-area-inset-left)] land:pt-2">
         <button
-          className="flex min-h-12 w-full items-center justify-between rounded-2xl text-left"
+          className="flex min-h-12 w-full items-center justify-between rounded-2xl text-left land:justify-center"
           onClick={() => setSwitching(true)}
           aria-label={`${baby.alias}. Cambiar de bebé`}
         >
           <span className="flex items-center gap-3">
             <Avatar baby={baby} size={40} />
-            <span className="flex flex-col leading-tight">
+            <span className="flex flex-col leading-tight land:hidden">
               <span className="text-xl font-extrabold">{baby.alias}</span>
               <AgeLabel baby={baby} />
             </span>
           </span>
           {babies.length > 1 && (
-            <span className="flex min-h-9 items-center gap-1 rounded-full bg-surface2 px-3 text-xs font-bold">
+            <span className="flex min-h-9 items-center gap-1 rounded-full bg-surface2 px-3 text-xs font-bold land:hidden">
               <Icon name="swap" size={15} />
               {t('app.switchBaby')}
             </span>
@@ -180,7 +180,7 @@ export function App() {
 
       {/* `relative` sin `z-*`: sube el contenido por encima del fondo de foto SIN crear un contexto de
           apilamiento; con `z-10` las hojas (z-40) quedaban atrapadas debajo de la cabecera y la barra. */}
-      <main className="relative flex-1 px-4 pb-28 pt-2">
+      <main className="relative flex-1 px-4 pb-28 pt-2 land:pb-4 land:pl-[calc(78px+env(safe-area-inset-left)+1rem)] land:pr-[calc(1rem+env(safe-area-inset-right))] land:pt-1">
         {tab === 'home' && <HomeShell section={homeSection} onSection={setHomeSection} goSettings={() => setTab('settings')} />}
         {tab === 'health' && <Hint id="hint-health">{t('hint.health')}</Hint>}
         {tab === 'stats' && <Hint id="hint-stats">{t('hint.stats')}</Hint>}
@@ -196,7 +196,7 @@ export function App() {
 
       <nav
         aria-label="Principal"
-        className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-md grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
+        className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-md grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] land:inset-y-0 land:right-auto land:mx-0 land:w-[calc(78px+env(safe-area-inset-left))] land:max-w-none land:grid-cols-1 land:grid-rows-4 land:border-r land:border-t-0 land:pb-2 land:pl-[env(safe-area-inset-left)] land:pt-[4.25rem]"
       >
         {TABS.map((x) => (
           <button
@@ -204,7 +204,7 @@ export function App() {
             data-tour={`tab-${x.id}`}
             aria-current={tab === x.id ? 'page' : undefined}
             onClick={() => goTab(x.id)}
-            className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 nav-label font-bold ${
+            className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 nav-label font-bold land:min-h-12 ${
               tab === x.id ? 'text-accent' : 'text-muted'
             }`}
           >
