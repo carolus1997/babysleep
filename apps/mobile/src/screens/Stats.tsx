@@ -102,9 +102,9 @@ function Summary() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-extrabold">{t('stats.title')}</h1>
-        <div className="flex gap-1.5" role="group" aria-label={t('stats.title')}>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('stats.title')}>
           {RANGES.map((r) => (
             <Chip key={r} active={days === r} onClick={() => setDays(r)}>
               {r}d

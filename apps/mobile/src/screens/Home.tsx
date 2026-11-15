@@ -187,7 +187,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
           <Card className="flex flex-col items-center pb-14 text-center">
             <Ring tour="ring" progress={0}>
               <p className="text-[12px] font-bold text-muted">{t('home.sleeping', { time: fmtClock(parseInstant(open.sleep_start_utc), ctx.zone) })}</p>
-              <p className="my-1 text-[34px] font-extrabold leading-none tabular-nums" aria-live="off">
+              <p className="my-1 ring-num font-extrabold leading-none tabular-nums" aria-live="off">
                 {fmtElapsed(now - parseInstant(open.sleep_start_utc))}
               </p>
               <Icon name="moon" size={18} className="text-seg-nap" />
@@ -255,7 +255,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
             {attempt ? (
               <Ring tour="ring" progress={0}>
                 <p className="text-[12px] font-bold text-muted">{t('sleep.settleRing')}</p>
-                <p className="my-1 text-[34px] font-extrabold leading-none tabular-nums" aria-live="off">
+                <p className="my-1 ring-num font-extrabold leading-none tabular-nums" aria-live="off">
                   {fmtElapsed(attempt.started_utc ? now - parseInstant(attempt.started_utc) : 0)}
                 </p>
                 <p className="text-[12px] font-semibold text-muted">
@@ -266,7 +266,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
               <>
                 <Ring tour="ring" progress={awake.usual !== null ? awake.elapsedMs / awake.usual.toMs : 0}>
                   <p className="text-[12px] font-bold text-muted">{t('wakeTime.title')}</p>
-                  <p className="my-1 text-[34px] font-extrabold leading-none tabular-nums">{fmtDur(awake.elapsedMs)}</p>
+                  <p className="my-1 ring-num font-extrabold leading-none tabular-nums">{fmtDur(awake.elapsedMs)}</p>
                   <p className="text-[12px] font-semibold text-muted">
                     {t('wakeTime.since', { time: fmtClock(awake.sinceMs, ctx.zone), what: t(awake.after === 'night' ? 'wakeTime.afterNight' : 'wakeTime.afterNap') })}
                   </p>

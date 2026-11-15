@@ -294,15 +294,15 @@ export function Hint({ id, children }: { id: TutorialKey; children: string }) {
   const [open, setOpen] = useState(() => !isSeen(id));
   if (!open) return null;
   return (
-    <div role="note" className="flex items-start gap-3 rounded-2xl bg-surface2 p-3 text-sm font-medium text-fg">
+    <div role="note" className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-2xl bg-surface2 p-3 text-sm font-medium text-fg">
       <Icon name="info" className="mt-0.5 text-accent" />
-      <span className="flex-1">{children}</span>
+      <span className="min-w-0 flex-[1_1_9rem] [overflow-wrap:anywhere]">{children}</span>
       <button
         onClick={() => {
           markSeen(id);
           setOpen(false);
         }}
-        className="min-h-11 shrink-0 rounded-full px-3 font-bold text-accent hover:bg-accent-soft"
+        className="ml-auto min-h-11 shrink-0 rounded-full px-3 font-bold text-accent hover:bg-accent-soft"
       >
         {t('hint.ok')}
       </button>

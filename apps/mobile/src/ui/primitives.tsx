@@ -202,7 +202,7 @@ export function Ring({
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={neutral ? 'color-mix(in srgb, var(--fg) 55%, transparent)' : 'var(--accent)'} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${c * p} ${c}`} />
         )}
       </svg>
-      <div className={`absolute inset-0 flex flex-col items-center justify-center text-center ${neutral ? 'px-2' : 'px-6'}`}>{children}</div>
+      <div className={`absolute inset-0 flex flex-col items-center justify-center text-center ${neutral ? 'px-2' : 'px-4'} [&_p]:max-w-full [&_p]:[overflow-wrap:anywhere]`}>{children}</div>
     </div>
   );
 }

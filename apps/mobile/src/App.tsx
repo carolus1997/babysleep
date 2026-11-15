@@ -204,14 +204,14 @@ export function App() {
             data-tour={`tab-${x.id}`}
             aria-current={tab === x.id ? 'page' : undefined}
             onClick={() => goTab(x.id)}
-            className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-[12px] font-bold ${
+            className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 nav-label font-bold ${
               tab === x.id ? 'text-accent' : 'text-muted'
             }`}
           >
             <span className={`grid h-7 w-12 place-items-center rounded-full ${tab === x.id ? 'bg-accent-soft' : ''}`}>
               <Icon name={x.icon} size={22} />
             </span>
-            {t(x.label)}
+            <span className="max-w-full truncate">{t(x.label)}</span>
           </button>
         ))}
       </nav>

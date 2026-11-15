@@ -76,7 +76,7 @@ export function Rhythm() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1" role="group" aria-label={t('rhythm.title')}>
+      <div className="flex flex-wrap gap-1" role="group" aria-label={t('rhythm.title')}>
         {RANGES.map((x) => (
           <Chip key={x} active={days === x} onClick={() => setDays(x)}>
             {x}d
