@@ -304,12 +304,36 @@ export function summarizeAwakenings(
   return { count, longCount, unknownCount, longIntervals: merged, awakeMs: unionLength(merged) };
 }
 
+/**
+ * Pausas de las siestas: ratos despierta dentro de una siesta que se siguió contando como una sola. A diferencia de
+ * los despertares nocturnos, se descuentan SIEMPRE, duren lo que duren. Se devuelven recortadas a su siesta y sin
+ * solapes. Una en curso (cronómetro) llega hasta `nowMs`; sin duración conocida no descuenta nada.
+ */
+export function napPauses(spans: readonly SessionSpan[], awakenings: readonly AwakeningInput[], nowMs?: EpochMs): Interval[] {
+  const naps = new Map(spans.filter((s) => s.type === 'nap').map((s) => [s.id, s]));
+  const out: Interval[] = [];
+  for (const a of awakenings) {
+    if ((a.deleted_at ?? null) !== null) continue;
+    const span = naps.get(a.session_id);
+    if (span === undefined) continue;
+    const start = parseInstant(a.start_utc);
+    let end: EpochMs | null = null;
+    if (a.end_utc !== null) end = parseInstant(a.end_utc);
+    else if (a.source === 'timer' && nowMs !== undefined) end = nowMs;
+    if (end === null || end <= start) continue;
+    const c = clip({ start, end }, span.interval);
+    if (c !== null) out.push(c);
+  }
+  return mergeIntervals(out);
+}
+
 export interface SleepDay {
   kind: 'sleep_day';
   date: string;
   /** Duraciones COMPLETAS (no se parten por medianoche): la noche entera cuenta en el día en que empezó. */
-  /** Sueño real: ya sin los despertares largos de la noche. */
+  /** Sueño real: ya sin los despertares largos de la noche ni las pausas de las siestas. */
   totalMs: number;
+  /** Siestas sin sus pausas. */
   napMs: number;
   /** Sueño real de la noche: tiempo en cama menos los despertares largos. */
   nightMs: number;
@@ -364,11 +388,12 @@ export function sleepDayTotals(
   const nights = mine.filter((s) => s.type === 'night');
   const aw = summarizeAwakenings(nights, opts.awakenings ?? [], opts.awakeningThresholdMs, opts.nowMs);
   const nightNet = subtractIntervals(nights.map((s) => s.interval), aw.longIntervals);
+  const napNet = subtractIntervals(naps.map((s) => s.interval), napPauses(naps, opts.awakenings ?? [], opts.nowMs));
   return {
     kind: 'sleep_day',
     date,
-    totalMs: unionLength([...naps.map((s) => s.interval), ...nightNet]),
-    napMs: unionLength(naps.map((s) => s.interval)),
+    totalMs: unionLength([...napNet, ...nightNet]),
+    napMs: unionLength(napNet),
     nightMs: unionLength(nightNet),
     nightBedMs: unionLength(nights.map((s) => s.interval)),
     napCount: naps.length,

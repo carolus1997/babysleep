@@ -8,14 +8,13 @@ import { t, type I18nKey } from './i18n/es';
 import { Health } from './screens/Health';
 import { HomeShell, type HomeSection } from './screens/HomeShell';
 import { Onboarding } from './screens/Onboarding';
-import { Settings } from './screens/Settings';
+import { BabySheet, Settings } from './screens/Settings';
 import { Stats } from './screens/Stats';
 import { fmtAges } from './ui/format';
 import { Icon, type IconName } from './ui/Icon';
 import { Avatar } from './ui/photo';
 import { Sheet } from './ui/primitives';
 import { Splash } from './ui/Splash';
-import { COLD_START } from './app/coldStart';
 import { Hint, Tour } from './ui/Tutorial';
 import { isSeen } from './tutorial/seen';
 
@@ -39,16 +38,9 @@ function AgeLabel({ baby }: { baby: BabyT }) {
 }
 
 export function App() {
-  const { baby, babies, selectBaby } = useApp();
-  // La bienvenida y la elección de bebé solo van al abrir la app desde cero (COLD_START): al volver a ella tras mirar
-  // otra app, se sigue donde estaba. Si se abre desde un aviso (toca toma, cita, medicación) va directa a lo suyo.
-  const [pickProfile] = useState(
-    () =>
-      COLD_START &&
-      parseFeedIntent(window.location.search) === null &&
-      parseMedIntent(window.location.search) === null &&
-      new URLSearchParams(window.location.search).get('go') === null,
-  );
+  const { baby, babies, selectBaby, welcome } = useApp();
+  // Datos del bebé activo (y su foto), a un toque desde el avatar de la cabecera.
+  const [profile, setProfile] = useState(false);
   const [tab, setTab] = useState<Tab>('home');
   // Altura real de la cabecera (varía con el área segura y el tamaño de texto): las pestañas interiores se quedan fijas justo debajo.
   const headerRef = useCallback((el: HTMLElement | null) => {
@@ -142,40 +134,50 @@ export function App() {
     window.scrollTo(0, 0);
   }, [tab]);
 
-  // La bienvenida va siempre la primera de un fragmento, en la misma posición en ambas ramas, para que no se
-  // reinicie cuando el bebé activo termina de cargar. Se monta una vez por carga de la página.
+  // La bienvenida solo sale al iniciar sesión. Va siempre la primera de un fragmento, en la misma posición en ambas
+  // ramas, para que no se reinicie cuando el bebé activo termina de cargar. Con un solo bebé no se pregunta cuál.
+  const splash = welcome > 0 && <Splash key={welcome} babies={babies} activeId={baby?.id ?? null} onPick={selectBaby} />;
   if (babies.length === 0 || baby === null)
     return (
       <>
-        {COLD_START && <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />}
+        {splash}
         <Onboarding />
       </>
     );
 
   return (
     <>
-      {COLD_START && <Splash babies={babies} activeId={baby?.id ?? null} pick={pickProfile} onPick={selectBaby} />}
+      {splash}
       <div className="relative mx-auto flex min-h-dvh max-w-md flex-col land:max-w-none">
       <header ref={headerRef} className="sticky top-0 z-30 bg-bg px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] land:fixed land:left-0 land:z-40 land:w-[calc(78px+env(safe-area-inset-left))] land:border-r land:border-line land:bg-surface land:px-0 land:pb-1 land:pl-[env(safe-area-inset-left)] land:pt-2">
-        <button
-          className="flex min-h-12 w-full items-center justify-between rounded-2xl text-left land:justify-center"
-          onClick={() => setSwitching(true)}
-          aria-label={`${baby.alias}. Cambiar de bebé`}
-        >
-          <span className="flex items-center gap-3">
+        <div className="flex min-h-12 items-center gap-2 land:flex-col land:justify-center">
+          <button className="grid size-12 shrink-0 place-items-center rounded-full" onClick={() => setProfile(true)} aria-label={t('app.babyProfile', { alias: baby.alias })}>
             <Avatar baby={baby} size={40} />
-            <span className="flex flex-col leading-tight land:hidden">
+          </button>
+          {/* Con un solo bebé no hay nada que cambiar: el nombre también lleva a sus datos. */}
+          <button
+            className="flex min-h-12 min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl text-left land:hidden"
+            onClick={() => (babies.length > 1 ? setSwitching(true) : setProfile(true))}
+            aria-label={babies.length > 1 ? `${baby.alias}. Cambiar de bebé` : t('app.babyData', { alias: baby.alias })}
+          >
+            <span className="flex flex-col leading-tight">
               <span className="text-xl font-extrabold">{baby.alias}</span>
               <AgeLabel baby={baby} />
             </span>
-          </span>
+            {babies.length > 1 && (
+              <span className="flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-surface2 px-3 text-xs font-bold">
+                <Icon name="swap" size={15} />
+                {t('app.switchBaby')}
+              </span>
+            )}
+          </button>
+          {/* En apaisado no cabe el nombre: el botón de cambiar de bebé va aparte, bajo el avatar. */}
           {babies.length > 1 && (
-            <span className="flex min-h-9 items-center gap-1 rounded-full bg-surface2 px-3 text-xs font-bold land:hidden">
+            <button className="hidden size-9 place-items-center rounded-full bg-surface2 land:grid" onClick={() => setSwitching(true)} aria-label={`${baby.alias}. Cambiar de bebé`}>
               <Icon name="swap" size={15} />
-              {t('app.switchBaby')}
-            </span>
+            </button>
           )}
-        </button>
+        </div>
       </header>
 
       {/* `relative` sin `z-*`: sube el contenido por encima del fondo de foto SIN crear un contexto de
@@ -223,6 +225,8 @@ export function App() {
             if (g.section) setHomeSection(g.section);
           }}
         />}
+
+      {profile && <BabySheet key={baby.id} baby={baby} onClose={() => setProfile(false)} />}
 
       {switching && (
         <Sheet title={t('settings.babies')} onClose={() => setSwitching(false)}>

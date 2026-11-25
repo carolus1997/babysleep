@@ -1310,7 +1310,7 @@ describe('convergencia (prueba aleatoria)', () => {
           const ft = (await listTags(p.ctx)).filter((t) => t.category === 'feeding');
           await saveObservation(p.ctx, { target: { feedingId: pick(feeds).id }, moment: 'feeding', text: `toma ${step}`, tagIds: [pick(ft).id] });
         } else if (action === 'feedDelete' && feeds.length > 0) await deleteFeeding(p.ctx, pick(feeds).id);
-        else if (action === 'awStart' && open?.sleep_type === 'night') await startAwakening(p.ctx, open.id, pick(['feeding', 'diaper', null] as const));
+        else if (action === 'awStart' && open?.sleep_type === 'night') await startAwakening(p.ctx, open.id, pick([['feeding'], ['sleep', 'other'], []] as const));
         else if (action === 'awFinish' && awakes.length > 0) {
           const a = pick(awakes);
           await finishAwakening(p.ctx, a.id);
@@ -1320,7 +1320,7 @@ describe('convergencia (prueba aleatoria)', () => {
           await addManualAwakening(p.ctx, { sessionId: night.id, startLocal: formatLocal(at, 'Europe/Madrid').slice(0, 16).replace(' ', 'T'), durationMin: rand() < 0.5 ? null : 5 + Math.floor(rand() * 60) });
         } else if (action === 'awEdit' && awakes.length > 0) {
           const a = pick(awakes);
-          if (rand() < 0.5) await editAwakening(p.ctx, a.id, { reason: pick(['crying', 'other', null] as const) });
+          if (rand() < 0.5) await editAwakening(p.ctx, a.id, { reasons: pick([['illness'], ['other', 'discomfort'], []] as const), note: `motivo ${step}` });
           else await editAwakening(p.ctx, a.id, { endMs: parseInstant(a.start_utc) + (10 + Math.floor(rand() * 50)) * MIN });
         } else if (action === 'awDelete' && awakes.length > 0) await deleteAwakening(p.ctx, pick(awakes).id);
         else if (action === 'hProfile') {

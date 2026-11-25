@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { mustResolveLocal } from '@babysleep/core';
 import { createBaby } from '../src/domain/bootstrap';
-import { listFeedings } from '../src/domain/feeding';
+import { addManualFeeding, listFeedings } from '../src/domain/feeding';
 import { buildForecast } from '../src/domain/forecast';
 import { addManualSession, listSessions } from '../src/domain/sleep';
-import { HOUR, makeHarness, MIN } from './harness';
+import { HOUR, MADRID, makeHarness, MIN } from './harness';
 
 type H = Awaited<ReturnType<typeof makeHarness>>;
 const view = async (h: H, babyId: string) =>
@@ -60,6 +61,41 @@ describe('previsión en el móvil', () => {
     const v = await view(h, baby.id);
     expect(v.sleep.state).toBe('awake');
     if (v.sleep.state === 'awake') expect(v.sleep.forecast).toEqual({ kind: 'range', lowMs: 150 * MIN, midMs: 150 * MIN, highMs: 150 * MIN, n: 6 });
+  });
+
+  it('con hora habitual de acostarse, ella decide si viene otra siesta o la noche, y la noche se prevé por reloj', async () => {
+    const h = await makeHarness('2027-01-20T12:00');
+    const baby = await createBaby(h.ctx, { alias: 'B', birthDate: '2026-09-01' });
+    const add = (s: string, e: string, type: 'nap' | 'night') => addManualSession(h.ctx, { babyId: baby.id, startLocal: s, endLocal: e, type });
+    for (let d = 12; d <= 18; d++) await add(`2027-01-${d}T21:00`, `2027-01-${d + 1}T07:00`, 'night');
+
+    // Una siesta que acaba por la mañana: viene otra siesta, por muchas que lleve.
+    await add('2027-01-20T09:00', '2027-01-20T10:00', 'nap');
+    const morning = await view(h, baby.id);
+    expect(morning.sleep).toMatchObject({ state: 'awake', position: 'between', basis: 'awake' });
+
+    // Acaba a menos de 3 h de acostarse: viene la noche, hacia la hora de siempre.
+    h.at('2027-01-20T19:00');
+    await add('2027-01-20T18:00', '2027-01-20T18:40', 'nap');
+    const evening = await view(h, baby.id);
+    expect(evening.sleep).toMatchObject({ state: 'awake', position: 'bedtime', basis: 'clock' });
+    if (evening.sleep.state === 'awake') expect(evening.sleep.range?.midMs).toBe(mustResolveLocal('2027-01-20T21:00', MADRID));
+  });
+
+  it('tomas: aprende de las de una hora parecida y una retomada al poco es la misma', async () => {
+    const h = await makeHarness('2027-01-20T10:30');
+    const baby = await createBaby(h.ctx, { alias: 'B', birthDate: '2026-09-01' });
+    const feed = (at: string) => addManualFeeding(h.ctx, { babyId: baby.id, type: 'breast', startLocal: at, durationMin: 5, side: null, amountMl: null });
+    for (let d = 13; d <= 19; d++) {
+      await feed(`2027-01-${d}T10:00`);
+      await feed(`2027-01-${d}T12:15`); // por la mañana, cada 2 h y cuarto
+      await feed(`2027-01-${d}T17:00`);
+      await feed(`2027-01-${d}T21:00`);
+    }
+    await feed('2027-01-20T10:00');
+    await feed('2027-01-20T10:15'); // la misma toma retomada
+    const v = await view(h, baby.id);
+    expect(v.feed).toMatchObject({ state: 'waiting', basis: 'same_hour', lastStartMs: mustResolveLocal('2027-01-20T10:00', MADRID), forecast: { kind: 'range', midMs: 2 * HOUR + 15 * MIN } });
   });
 
   it('durmiendo no se prevé; con datos viejos tampoco', async () => {

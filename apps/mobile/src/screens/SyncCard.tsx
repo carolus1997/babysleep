@@ -258,7 +258,7 @@ function SignOutSheet({ onClose, onSignedOut }: { onClose: () => void; onSignedO
 
 /** Cuenta y sincronización. Con el móvil sin conectar, no descarga nada de la librería hasta que se necesita. */
 export function SyncCard({ fresh = false, page = false }: { fresh?: boolean; page?: boolean }) {
-  const { ctx, run, toast, replaceCtx } = useApp();
+  const { ctx, run, toast, replaceCtx, showWelcome } = useApp();
   const [phase, setPhase] = useState<Phase>(ctx.db.syncEnabled || hasStoredSession() ? 'checking' : 'signed_out');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -325,6 +325,8 @@ export function SyncCard({ fresh = false, page = false }: { fresh?: boolean; pag
       const s = await currentSession(client);
       if (s === null) throw new Error('No se pudo iniciar la sesión');
       setPhase(ctx.db.syncEnabled ? 'connected' : (await isLinked(client, s.userId)) ? 'linked' : 'needs_claim');
+      // Volver a entrar en un móvil ya conectado: la sesión queda iniciada aquí. La primera vez, al terminar de conectar.
+      if (ctx.db.syncEnabled) showWelcome();
       return true;
     });
     if (ok === undefined) setCodeError(true);
@@ -342,6 +344,7 @@ export function SyncCard({ fresh = false, page = false }: { fresh?: boolean; pag
       const client = await getSupabaseClient();
       const r = await connectDevice(ctx, supabaseTransport(client));
       replaceCtx(r.ctx);
+      showWelcome();
       toast(t('sync.connectedToast', { sent: r.report.pushed, got: r.report.pulled }));
       setPhase('connected');
     });

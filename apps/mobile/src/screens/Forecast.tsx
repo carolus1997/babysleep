@@ -72,7 +72,7 @@ export function Forecast() {
             </p>
             {s.forecast.kind === 'range' && s.range !== null ? <Range range={s.range} zone={ctx.zone} /> : s.forecast.kind === 'abstain' && <Abstain f={s.forecast} />}
             {s.range !== null && now > s.range.toMs && <p className="mt-2 text-xs text-muted">{t('forecast.passed')}</p>}
-            {s.forecast.kind === 'range' && <p className="mt-2 text-xs text-muted">{t('forecast.basisN', { n: s.forecast.n })}</p>}
+            {s.forecast.kind === 'range' && <p className="mt-2 text-xs text-muted">{t(s.basis === 'clock' ? 'forecast.basisClock' : 'forecast.basisN', { n: s.forecast.n })}</p>}
             <BacktestLine b={s.backtest} />
           </>
         )}
@@ -87,7 +87,7 @@ export function Forecast() {
             {f.forecast.kind === 'range' && f.range !== null ? <Range range={f.range} zone={ctx.zone} /> : f.forecast.kind === 'abstain' && <Abstain f={f.forecast} />}
             {f.range !== null && now > f.range.toMs && <p className="mt-2 text-xs text-muted">{t('forecast.passedFeed')}</p>}
             {f.forecast.kind === 'range' && (
-              <p className="mt-2 text-xs text-muted">{t(f.basis === 'same_band' ? 'forecast.basisBand' : 'forecast.basisAll', { n: f.forecast.n })}</p>
+              <p className="mt-2 text-xs text-muted">{t(f.basis === 'same_hour' ? 'forecast.basisBand' : 'forecast.basisAll', { n: f.forecast.n })}</p>
             )}
             <BacktestLine b={f.backtest} />
           </>

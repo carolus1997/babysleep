@@ -26,15 +26,15 @@ const FADE_MS = 400;
 type Phase = 'intro' | 'pick' | 'leaving';
 
 /**
- * Bienvenida del arranque en frío, al estilo de una plataforma de vídeo: una intro con la luna y el logo y,
+ * Bienvenida al iniciar sesión, al estilo de una plataforma de vídeo: una intro con la luna y el logo y,
  * después, «¿De quién cuidamos hoy?» con el avatar de cada bebé para elegir el perfil. Un toque salta la intro.
- * Sin perfiles (primer uso) o con `pick` en falso (se abrió desde un aviso) se desvanece al acabar la intro.
+ * Con un solo bebé (o ninguno) no hay nada que elegir: se desvanece al acabar la intro.
  * Con «reducir movimiento» se muestra fija y la intro dura poco.
  */
-export function Splash({ babies, activeId, pick, onPick }: { babies: readonly BabyT[]; activeId: string | null; pick: boolean; onPick: (id: string) => void }) {
+export function Splash({ babies, activeId, onPick }: { babies: readonly BabyT[]; activeId: string | null; onPick: (id: string) => void }) {
   const [phase, setPhase] = useState<Phase>('intro');
   const [gone, setGone] = useState(false);
-  const canPick = pick && babies.length > 0;
+  const canPick = babies.length > 1;
 
   // Fin de la intro: a los perfiles o, si no hay nada que elegir, a desvanecerse.
   useEffect(() => {

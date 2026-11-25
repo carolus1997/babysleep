@@ -4,7 +4,7 @@ import { createBaby, renameBaby } from '../src/domain/bootstrap';
 import type { DomainError } from '../src/domain/context';
 import {
   addManualAwakening, awakeningsOf, confirmAwakenings, deleteAwakening, editAwakening, finishAwakening, getOpenAwakening,
-  listAwakenings, restoreAwakening, startAwakening, thresholdMs,
+  listAwakenings, reasonsOf, restoreAwakening, startAwakening, thresholdMs,
 } from '../src/domain/awakening';
 import { buildBackupJson } from '../src/domain/export';
 import { applyImport, planImport } from '../src/domain/import';
@@ -27,8 +27,8 @@ describe('despertares: cronómetro', () => {
     const s = await startSleep(h.ctx, baby);
     expect(s.sleep_type).toBe('night');
     h.advance(4 * HOUR);
-    const a = await startAwakening(h.ctx, s.id, 'feeding');
-    expect(a).toMatchObject({ source: 'timer', end_utc: null, reason: 'feeding' });
+    const a = await startAwakening(h.ctx, s.id, ['feeding']);
+    expect(a).toMatchObject({ source: 'timer', end_utc: null, reasons: ['feeding'] });
     expect((await getOpenAwakening(h.ctx, s.id))?.id).toBe(a.id);
     expect((await h.ctx.db.sleep_session.get(s.id))?.awakenings_completeness).toBe('partial');
     expect((await startAwakening(h.ctx, s.id)).id).toBe(a.id); // nunca dos abiertos
@@ -38,12 +38,13 @@ describe('despertares: cronómetro', () => {
     expect(await getOpenAwakening(h.ctx, s.id)).toBeUndefined();
   });
 
-  it('solo en noches y dentro del descanso', async () => {
+  it('dentro del descanso; en una siesta son pausas y no se «confirman»', async () => {
     const h = await makeHarness('2027-01-15T10:00');
     const baby = (await createBaby(h.ctx, { alias: 'B', birthDate: '2026-07-01' })).id;
     const nap = await addManualSession(h.ctx, { babyId: baby, startLocal: '2027-01-15T09:00', endLocal: '2027-01-15T09:45', type: 'nap' });
-    expect(await code(startAwakening(h.ctx, nap.id))).toBe('invalid'); // siesta: no
-    expect(await code(addManualAwakening(h.ctx, { sessionId: nap.id, startLocal: '2027-01-15T09:10' }))).toBe('invalid');
+    await addManualAwakening(h.ctx, { sessionId: nap.id, startLocal: '2027-01-15T09:10', durationMin: 5 });
+    expect((await h.ctx.db.sleep_session.get(nap.id))?.awakenings_completeness).toBe('unknown');
+    expect(await code(confirmAwakenings(h.ctx, nap.id, true))).toBe('invalid');
 
     const { night } = await nightOf(h);
     expect(await code(startAwakening(h.ctx, night.id))).toBe('invalid_range'); // la noche ya acabó
@@ -56,8 +57,8 @@ describe('despertares: registro manual y edición', () => {
   it('la duración es opcional: sin ella queda sin fin (desconocida), no «en curso»', async () => {
     const h = await makeHarness();
     const { night } = await nightOf(h);
-    const a = await addManualAwakening(h.ctx, { sessionId: night.id, startLocal: '2027-01-15T02:00', reason: 'diaper' });
-    expect(a).toMatchObject({ source: 'manual', end_utc: null, end_tz: null, end_quality: null, reason: 'diaper' });
+    const a = await addManualAwakening(h.ctx, { sessionId: night.id, startLocal: '2027-01-15T02:00', reasons: ['discomfort'] });
+    expect(a).toMatchObject({ source: 'manual', end_utc: null, end_tz: null, end_quality: null, reason: null, reasons: ['discomfort'] });
     expect(await getOpenAwakening(h.ctx, night.id)).toBeUndefined();
     const b = await addManualAwakening(h.ctx, { sessionId: night.id, startLocal: '2027-01-15T04:00', durationMin: 40 });
     expect(parseInstant(b.end_utc as string) - parseInstant(b.start_utc)).toBe(40 * MIN);
@@ -71,9 +72,9 @@ describe('despertares: registro manual y edición', () => {
     const h = await makeHarness();
     const { night } = await nightOf(h);
     const a = await addManualAwakening(h.ctx, { sessionId: night.id, startLocal: '2027-01-15T02:00', durationMin: 20 });
-    const e = await editAwakening(h.ctx, a.id, { endMs: parseInstant(a.start_utc) + 50 * MIN, reason: 'crying' });
+    const e = await editAwakening(h.ctx, a.id, { endMs: parseInstant(a.start_utc) + 50 * MIN, reasons: ['illness', 'feeding', 'illness'] });
     expect(parseInstant(e.end_utc as string) - parseInstant(e.start_utc)).toBe(50 * MIN);
-    expect(e.reason).toBe('crying');
+    expect(e.reasons).toEqual(['illness', 'feeding']);
     expect(await code(editAwakening(h.ctx, a.id, { endMs: parseInstant(a.start_utc) - MIN }))).toBe('invalid_range');
     const u = await editAwakening(h.ctx, a.id, { endMs: null });
     expect(u).toMatchObject({ end_utc: null, end_tz: null, end_quality: null });
@@ -91,6 +92,56 @@ describe('despertares: registro manual y edición', () => {
     expect((await confirmAwakenings(h.ctx, night.id, false)).awakenings_completeness).toBe('unknown');
     await addManualAwakening(h.ctx, { sessionId: night.id, startLocal: '2027-01-15T02:00', durationMin: 20 });
     expect((await confirmAwakenings(h.ctx, night.id, false)).awakenings_completeness).toBe('partial');
+  });
+});
+
+describe('varios motivos y «otro»', () => {
+  it('la explicación solo se guarda con «otro»', async () => {
+    const h = await makeHarness();
+    const { night } = await nightOf(h);
+    const a = await addManualAwakening(h.ctx, { sessionId: night.id, startLocal: '2027-01-15T02:00', reasons: ['sleep', 'other'], note: '  se destapó  ' });
+    expect(a.reason_note).toBe('se destapó');
+    expect((await editAwakening(h.ctx, a.id, { reasons: ['sleep'] })).reason_note).toBeNull();
+    expect(await code(addManualAwakening(h.ctx, { sessionId: night.id, startLocal: '2027-01-15T03:00', reasons: ['crying'] }))).toBe('invalid');
+  });
+
+  it('un registro antiguo conserva su motivo al editarlo', async () => {
+    const h = await makeHarness();
+    const { night } = await nightOf(h);
+    const a = await addManualAwakening(h.ctx, { sessionId: night.id, startLocal: '2027-01-15T02:00' });
+    const { reasons: _r, reason_note: _n, ...old } = a;
+    await h.ctx.db.awakening.put({ ...old, reason: 'crying' } as typeof a);
+    expect(reasonsOf((await h.ctx.db.awakening.get(a.id))!)).toEqual(['crying']);
+    const e = await editAwakening(h.ctx, a.id, { reasons: ['crying', 'feeding'] });
+    expect(e).toMatchObject({ reason: null, reasons: ['crying', 'feeding'] });
+  });
+});
+
+describe('pausas de siesta', () => {
+  it('la siesta sigue siendo una y la pausa se descuenta aunque dure poco', async () => {
+    const h = await makeHarness('2027-01-15T10:00');
+    const baby = (await createBaby(h.ctx, { alias: 'B', birthDate: '2026-07-01' })).id;
+    const s = await startSleep(h.ctx, baby);
+    h.advance(30 * MIN);
+    const pause = await startAwakening(h.ctx, s.id);
+    h.advance(10 * MIN);
+    await finishAwakening(h.ctx, pause.id);
+    h.advance(20 * MIN);
+    await finishSleep(h.ctx, s.id);
+    const o = buildOverview({ sessions: await listSessions(h.ctx, baby), awakenings: await listAwakenings(h.ctx, baby), attempts: [], zone: h.ctx.zone, nowMs: h.nowMs(), days: 1 });
+    expect(o.today).toMatchObject({ napCount: 1, napMs: 50 * MIN, totalMs: 50 * MIN, awakeningCount: 0 });
+  });
+
+  it('si no vuelve a dormirse, la siesta acaba donde empezó la pausa', async () => {
+    const h = await makeHarness('2027-01-15T10:00');
+    const baby = (await createBaby(h.ctx, { alias: 'B', birthDate: '2026-07-01' })).id;
+    const s = await startSleep(h.ctx, baby);
+    h.advance(40 * MIN);
+    const pause = await startAwakening(h.ctx, s.id);
+    h.advance(25 * MIN);
+    const done = await finishSleep(h.ctx, s.id);
+    expect(done.sleep_end_utc).toBe(pause.start_utc);
+    expect(await listAwakenings(h.ctx, baby)).toHaveLength(0);
   });
 });
 
@@ -135,7 +186,7 @@ describe('copia y restauración', () => {
   it('los despertares viajan en la copia completa y se restauran sin duplicar', async () => {
     const a = await makeHarness();
     const { night } = await nightOf(a);
-    await addManualAwakening(a.ctx, { sessionId: night.id, startLocal: '2027-01-15T02:00', durationMin: 35, reason: 'feeding' });
+    await addManualAwakening(a.ctx, { sessionId: night.id, startLocal: '2027-01-15T02:00', durationMin: 35, reasons: ['feeding'] });
     const json = (await buildBackupJson(a.ctx)).content;
 
     const b = await makeHarness();

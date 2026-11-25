@@ -1,6 +1,7 @@
 import { SettlingAttempt, SleepSession } from '@babysleep/contract';
 import type { SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
 import { MS_PER_HOUR, MS_PER_MIN, parseInstant, resolveLocal, suggestSleepType, toIso } from '@babysleep/core';
+import { deleteAwakening, getOpenAwakening } from './awakening';
 import type { Ctx } from './context';
 import { DomainError } from './context';
 import { saveObservation } from './notes';
@@ -150,13 +151,23 @@ export async function finishSleep(ctx: Ctx, sessionId: string): Promise<SleepSes
   const s = await ctx.db.sleep_session.get(sessionId);
   if (s === undefined) throw new DomainError('not_found', 'Sesión inexistente');
   if (s.sleep_end_utc !== null) return s;
-  const endMs = ctx.now();
+  // Siesta en pausa que ya no se retoma: terminó cuando se despertó, y esa pausa deja de serlo.
+  const pause = await openNapPause(ctx, s);
+  const endMs = pause === undefined ? ctx.now() : parseInstant(pause.start_utc);
   if (endMs <= parseInstant(s.sleep_start_utc)) throw new DomainError('invalid_range', 'El fin debe ser posterior al inicio');
-  return updateRow(ctx, ctx.db.sleep_session, SleepSession, sessionId, {
-    sleep_end_utc: toIso(endMs),
-    end_tz: ctx.zone,
-    end_quality: 'exact',
+  return ctx.db.transaction('rw', ctx.db.tables, async () => {
+    if (pause !== undefined) await deleteAwakening(ctx, pause.id);
+    return updateRow(ctx, ctx.db.sleep_session, SleepSession, sessionId, {
+      sleep_end_utc: toIso(endMs),
+      end_tz: ctx.zone,
+      end_quality: 'exact',
+    });
   });
+}
+
+/** La pausa en curso de una siesta, si la hay. */
+export async function openNapPause(ctx: Ctx, s: Pick<SleepSessionT, 'id' | 'sleep_type'>) {
+  return s.sleep_type === 'nap' ? getOpenAwakening(ctx, s.id) : undefined;
 }
 
 /**

@@ -10,6 +10,8 @@ import {
   naturalDayWindow,
   parseInstant,
   recordedDurationMs,
+  napPauses,
+  unionLength,
   settlingLatency,
   sleepDayTotals,
   summarizeLatency,
@@ -144,6 +146,7 @@ export function buildOverview(input: OverviewInput): Overview {
   const inRange = active.filter((s) => parseInstant(s.sleep_start_utc) >= rangeStart);
   const closed = inRange.filter((s) => s.sleep_end_utc !== null);
   const dur = (s: SleepSessionT) => recordedDurationMs(s) as number;
+  const pausedMs = (s: SleepSessionT) => unionLength(napPauses(buildSpans([s]).spans, aw.awakenings));
 
   const attemptById = new Map(attempts.map((a) => [a.id, a]));
   const latencyOpts =
@@ -171,7 +174,7 @@ export function buildOverview(input: OverviewInput): Overview {
     meanLongAwakeningsPerNight: mean(confirmed.map((d) => d.longAwakeningCount)),
     meanAwakeMs: mean(confirmed.map((d) => d.awakeMs)),
     meanNapsPerDay: mean(withData.map((d) => d.napCount)),
-    medianNapMs: median(closed.filter((s) => s.sleep_type === 'nap').map(dur)),
+    medianNapMs: median(closed.filter((s) => s.sleep_type === 'nap').map((s) => dur(s) - pausedMs(s))),
     medianNightMs: median(closed.filter((s) => s.sleep_type === 'night').map(dur)),
     latency: summarizeLatency(latencies),
     quality: {

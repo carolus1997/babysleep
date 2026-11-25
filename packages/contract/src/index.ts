@@ -7,7 +7,7 @@ import { z } from 'zod';
  * de PostgreSQL (database/migrations). Los instantes son siempre UTC ISO-8601
  * con sufijo `Z`; la zona IANA y el offset viajan aparte en cada evento.
  */
-export const CONTRACT_VERSION = '0.10.0';
+export const CONTRACT_VERSION = '0.11.0';
 
 // ---------------------------------------------------------------- primitivos
 
@@ -316,7 +316,8 @@ export const Feeding = SyncedRow.extend({
 
 // ------------------------------------------------------------------ despertares
 
-export const AwakeningReason = z.enum(['feeding', 'diaper', 'crying', 'other']);
+/** `diaper` y `crying` ya no se ofrecen (desde 0.11.0), pero siguen siendo válidos en registros antiguos. */
+export const AwakeningReason = z.enum(['feeding', 'illness', 'discomfort', 'sleep', 'other', 'diaper', 'crying']);
 
 /**
  * Despertar dentro de un sueño NOCTURNO (desde contrato 0.4.0). `end_*` es `null` si el niño sigue despierto
@@ -332,7 +333,12 @@ export const Awakening = SyncedRow.extend({
   end_utc: InstantUtc.nullable(),
   end_tz: IanaZone.nullable(),
   end_quality: TimeQuality.nullable(),
+  /** Un solo motivo, como se guardaba antes de 0.11.0. Al escribir de nuevo los motivos pasa a `reasons`. */
   reason: AwakeningReason.nullable().default(null),
+  /** Motivos del despertar; pueden ser varios. Desde 0.11.0. */
+  reasons: z.array(AwakeningReason).max(7).default([]),
+  /** Explicación libre del motivo «otro». Desde 0.11.0. */
+  reason_note: z.string().max(500).nullable().default(null),
   source: z.enum(['timer', 'manual', 'import']),
 })
   .refine((a) => a.end_utc === null || Date.parse(a.end_utc) > Date.parse(a.start_utc), {
