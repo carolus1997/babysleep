@@ -1,5 +1,5 @@
-import type { AwakeningT, EventCategoryT, LifeEventT, SleepSessionT } from '@babysleep/contract';
-import { buildSpans, findOverlaps, localDate, parseInstant, sleepDayTotals } from '@babysleep/core';
+import type { AwakeningT, EventCategoryT, LifeEventT, SettlingAttemptT, SleepSessionT } from '@babysleep/contract';
+import { buildSpans, findOverlaps, localDate, napPauses, parseInstant, sleepDayTotals, unionLength } from '@babysleep/core';
 import { useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { splitRecentAndWeeks } from '../domain/dayGroups';
@@ -24,6 +24,7 @@ export function History() {
   const awakenings = useLive(() => listAwakenings(ctx, babyId), [ctx, babyId], [] as AwakeningT[]);
   const events = useLive(() => listLifeEvents(ctx, babyId), [ctx, babyId], [] as LifeEventT[]);
   const cats = useLive(() => ctx.db.event_category.toArray(), [ctx], [] as EventCategoryT[]);
+  const attempts = useLive(() => ctx.db.settling_attempt.where('baby_id').equals(babyId).toArray(), [ctx, babyId], [] as SettlingAttemptT[]);
   const now = useNow(30_000);
   const [edit, setEdit] = useState<SleepSessionT | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
@@ -94,6 +95,10 @@ export function History() {
             const startMs = parseInstant(s.sleep_start_utc);
             const endMs = s.sleep_end_utc ? parseInstant(s.sleep_end_utc) : null;
             const approx = s.start_quality === 'approx' || s.end_quality === 'approx';
+            const mine = awakenings.filter((a) => a.session_id === s.id);
+            const pausedMs = unionLength(napPauses(buildSpans([s], { nowMs: now }).spans, mine, now));
+            // A qué hora se empezó a dormirla (rutina de noche o preparación de la siesta).
+            const settled = attempts.find((a) => a.id === s.settling_attempt_id && a.deleted_at === null)?.started_utc ?? null;
             return (
               <li key={s.id}>
                 <button className="flex min-h-14 w-full items-center justify-between gap-2 py-2 text-left" onClick={() => setEdit(s)}>
@@ -116,14 +121,29 @@ export function History() {
                       </span>
                     )}
                   </span>
-                  <span className="font-semibold">{endMs ? fmtDur(endMs - startMs) : fmtDur(now - startMs)}</span>
+                  <span className="font-semibold">{fmtDur((endMs ?? now) - startMs - pausedMs)}</span>
                 </button>
-                {s.sleep_type === 'night' && (
+                {(settled !== null || pausedMs > 0) && (
+                  <p className="-mt-1 mb-2 text-[13px] text-muted">
+                    {[
+                      settled === null
+                        ? null
+                        : t(s.sleep_type === 'night' ? 'history.routine' : 'history.settled', {
+                            time: fmtClock(parseInstant(settled), ctx.zone),
+                            dur: fmtDur(Math.max(0, startMs - parseInstant(settled))),
+                          }),
+                      pausedMs > 0 ? t('history.paused', { dur: fmtDur(pausedMs) }) : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                )}
+                {(s.sleep_type === 'night' || mine.length > 0) && (
                   <button
                     className="mb-2 ml-1 min-h-10 rounded-full border border-line bg-surface2 px-3 text-sm font-medium"
                     onClick={() => setAwake(s.id)}
                   >
-                    {t('awake.openN', { n: awakenings.filter((a) => a.session_id === s.id).length })}
+                    {t(s.sleep_type === 'nap' ? 'pause.openN' : 'awake.openN', { n: mine.length })}
                   </button>
                 )}
               </li>

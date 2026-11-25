@@ -6,6 +6,7 @@ import { addManualSession, deleteSession, editSession, localToMs, restoreSession
 import { t } from '../i18n/es';
 import { fmtDur, toLocalInput } from '../ui/format';
 import { Btn, Card, Chip, Sheet } from '../ui/primitives';
+import { SessionConflict } from './ConflictsSection';
 import { TimeField, timeReady, type Choice } from './TimeField';
 
 const TYPES = ['nap', 'night'] as const;
@@ -19,7 +20,7 @@ export function SessionSheet({
   session: SleepSessionT;
   onClose: () => void;
   onNotes: () => void;
-  /** Solo en noches: abre los despertares de esa noche. */
+  /** Abre los despertares de una noche o las pausas de una siesta. */
   onAwakenings?: () => void;
 }) {
   const { ctx, run, toast } = useApp();
@@ -52,6 +53,8 @@ export function SessionSheet({
         <p className="mb-1 text-center text-3xl font-bold">{fmtDur(dur)}</p>
       )}
       <p className="mb-4 text-center text-xs text-muted">{t('session.durationHint')}</p>
+      {/* Al resolverlo la hoja se cierra: así «Guardar» no puede volver a escribir las horas que se veían antes. */}
+      {session.conflict_open && <SessionConflict sessionId={session.id} onResolved={onClose} />}
       <div className="mb-3 flex gap-2">
         {TYPES.map((ty) => (
           <Chip key={ty} active={type === ty} onClick={() => setType(ty)}>
@@ -60,9 +63,9 @@ export function SessionSheet({
         ))}
       </div>
       <TimeField label={t('session.start')} value={start} onChange={setStart} choice={sc} onChoice={setSc} zone={ctx.zone} />
-      <TimeField label={t('session.end')} value={end} onChange={setEnd} choice={ec} onChoice={setEc} zone={ctx.zone} />
+      <TimeField label={t('session.end')} value={end} onChange={setEnd} choice={ec} onChoice={setEc} zone={ctx.zone} after={start} />
       <div className="flex flex-col gap-2">
-        {onAwakenings && session.sleep_type === 'night' && <Btn variant="secondary" onClick={onAwakenings}>{t('awake.open')}</Btn>}
+        {onAwakenings && <Btn variant="secondary" onClick={onAwakenings}>{t(session.sleep_type === 'night' ? 'awake.open' : 'pause.open')}</Btn>}
         <Btn variant="primary" disabled={!ready} onClick={save}>
           {t('session.save')}
         </Btn>
@@ -104,7 +107,7 @@ export function ManualSheet({ babyId, onClose }: { babyId: string; onClose: () =
         </div>
       </Card>
       <TimeField label={t('session.start')} value={start} onChange={setStart} choice={sc} onChoice={setSc} zone={ctx.zone} />
-      <TimeField label={t('session.end')} value={end} onChange={setEnd} choice={ec} onChoice={setEc} zone={ctx.zone} />
+      <TimeField label={t('session.end')} value={end} onChange={setEnd} choice={ec} onChoice={setEc} zone={ctx.zone} after={start} />
       <Btn
         variant="primary"
         className="w-full"

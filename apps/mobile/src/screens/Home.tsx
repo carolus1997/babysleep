@@ -1,8 +1,8 @@
 import type { AwakeningT, SettlingAttemptT, SleepSessionT, TagT } from '@babysleep/contract';
-import { buildSpans, localDate, parseInstant, sleepDayTotals, summarizeAwakenings, suggestSleepType } from '@babysleep/core';
+import { buildSpans, localDate, napPauses, parseInstant, sleepDayTotals, summarizeAwakenings, suggestSleepType, unionLength } from '@babysleep/core';
 import { useState } from 'react';
 import { useApp } from '../app/AppContext';
-import { finishAwakening, getOpenAwakening, listAwakenings, startAwakening, thresholdMs } from '../domain/awakening';
+import { finishAwakening, getOpenAwakening, listAwakenings, restoreAwakening, startAwakening, thresholdMs } from '../domain/awakening';
 import { awakeStatus } from '../domain/awake';
 import { backupReminderDue } from '../domain/export';
 import { findObservation, listTags, tagIdsOf, type ObservationTarget } from '../domain/notes';
@@ -16,6 +16,7 @@ import {
   listSessions,
   markPutDown,
   nudgeTime,
+  openNapPause,
   reopenSettling,
   startSettlingWith,
   startSleepWith,
@@ -31,6 +32,7 @@ import { Banner, Btn, Card, Chip, EmptyState, Inset, Ring, Round, Tile } from '.
 import { AwakeningsSheet } from './AwakeningsSheet';
 import { FeedingCard } from './FeedingCard';
 import { NotesSheet } from './NotesSheet';
+import { SessionSheet } from './SessionSheets';
 import { SleepPill, TagChips } from './SleepStart';
 
 export function Home({ goSettings }: { goSettings: () => void }) {
@@ -46,6 +48,7 @@ export function Home({ goSettings }: { goSettings: () => void }) {
   const now = useNow(open || attempt ? 1000 : 30_000);
   const [awakeSheet, setAwakeSheet] = useState<string | null>(null);
   const [notes, setNotes] = useState<ObservationTarget | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [pick, setPick] = useState<'nap' | 'night' | null>(null);
   const [, bump] = useState(0);
   const tags = useLive(() => listTags(ctx), [ctx], [] as TagT[]);
@@ -75,13 +78,22 @@ export function Home({ goSettings }: { goSettings: () => void }) {
 
   const finish = async () => {
     if (!open) return;
+    const pause = await openNapPause(ctx, open);
     const done = await run(() => finishSleep(ctx, open.id));
     if (done?.sleep_end_utc) {
-      const dur = parseInstant(done.sleep_end_utc) - parseInstant(done.sleep_start_utc);
-      toast(t('home.saved', { dur: fmtDur(dur) }), {
-        label: t('home.undo'),
-        run: () => void run(() => editSession(ctx, done.id, { endMs: null })),
-      });
+      const dur =
+        parseInstant(done.sleep_end_utc) - parseInstant(done.sleep_start_utc) - unionLength(napPauses(buildSpans([done]).spans, awakenings));
+      toast(t('home.saved', { dur: fmtDur(dur) }), [
+        { label: t('common.edit'), run: () => setEditing(done.id) },
+        {
+          label: t('home.undo'),
+          run: () =>
+            void run(async () => {
+              await editSession(ctx, done.id, { endMs: null });
+              if (pause) await restoreAwakening(ctx, pause.id);
+            }),
+        },
+      ]);
     }
   };
 
@@ -172,6 +184,10 @@ export function Home({ goSettings }: { goSettings: () => void }) {
 
   const nightN = open ? awakenings.filter((a) => a.session_id === open.id).length : 0;
   const hasHistory = sessions.length > 0;
+  const editingSession = editing === null ? undefined : sessions.find((x) => x.id === editing);
+  // Siesta en curso: el reloj grande cuenta lo dormido, sin las pausas; en pausa se queda quieto.
+  const paused = open?.sleep_type === 'nap' && openAwake !== undefined;
+  const sleptMs = open ? now - parseInstant(open.sleep_start_utc) - unionLength(napPauses(buildSpans([open], { nowMs: now }).spans, awakenings, now)) : 0;
 
   return (
     <div className="space-y-4 land:grid land:grid-cols-[minmax(14rem,16.5rem)_minmax(0,1fr)] land:items-start land:gap-x-4 land:space-y-0">
@@ -189,11 +205,17 @@ export function Home({ goSettings }: { goSettings: () => void }) {
           <>
           <Card className="flex flex-col items-center pb-14 text-center">
             <Ring tour="ring" progress={0}>
-              <p className="text-[12px] font-bold text-muted">{t('home.sleeping', { time: fmtClock(parseInstant(open.sleep_start_utc), ctx.zone) })}</p>
-              <p className="my-1 ring-num font-extrabold leading-none tabular-nums" aria-live="off">
-                {fmtElapsed(now - parseInstant(open.sleep_start_utc))}
+              <p className="text-[12px] font-bold text-muted">
+                {paused ? t('pause.ring') : t('home.sleeping', { time: fmtClock(parseInstant(open.sleep_start_utc), ctx.zone) })}
               </p>
-              <Icon name="moon" size={18} className="text-seg-nap" />
+              <p className={`my-1 ring-num font-extrabold leading-none tabular-nums ${paused ? 'text-muted' : ''}`} aria-live="off">
+                {fmtElapsed(sleptMs)}
+              </p>
+              {paused && openAwake ? (
+                <p className="text-[12px] font-bold">{t('pause.since', { dur: fmtElapsed(now - parseInstant(openAwake.start_utc)) })}</p>
+              ) : (
+                <Icon name="moon" size={18} className="text-seg-nap" />
+              )}
             </Ring>
             <div className="mt-3 flex justify-center gap-2 land:hidden" role="group" aria-label={t('home.sleeping', { time: fmtClock(parseInstant(open.sleep_start_utc), ctx.zone) })}>
               {(['nap', 'night'] as const).map((ty) => (
@@ -206,18 +228,31 @@ export function Home({ goSettings }: { goSettings: () => void }) {
           <div className="-mt-[58px] flex justify-center">
             <Round data-tour="round" icon="sun" label={t('home.roundWake')} aria-label={t('home.roundWakeName')} onClick={finish} />
           </div>
+          {open.sleep_type === 'nap' && (
+            <div>
+              <Btn variant={paused ? 'primary' : 'secondary'} className="flex w-full items-center justify-center gap-2" onClick={wakeUp}>
+                <Icon name={paused ? 'moon' : 'pause'} size={18} />
+                {t(paused ? 'pause.resume' : 'pause.start')}
+              </Btn>
+              <p className="mt-1 text-center text-[12px] font-semibold text-muted">{t(paused ? 'pause.resumeHint' : 'pause.startHint')}</p>
+            </div>
+          )}
           </>
         ) : (
           <>
           <Card className="flex flex-col items-center text-center land:p-2" aria-label={t('wakeTime.title')}>
             {attempt ? (
               <Ring tour="ring" progress={0}>
-                <p className="text-[12px] font-bold text-muted">{t('sleep.settleRing')}</p>
+                <p className="text-[12px] font-bold text-muted">{t(mode === 'night' ? 'sleep.routineRing' : 'sleep.settleRing')}</p>
                 <p className="my-1 ring-num font-extrabold leading-none tabular-nums" aria-live="off">
                   {fmtElapsed(attempt.started_utc ? now - parseInstant(attempt.started_utc) : 0)}
                 </p>
                 <p className="text-[12px] font-semibold text-muted">
-                  {attempt.put_down_utc ? t('home.putDownDone', { time: fmtClock(parseInstant(attempt.put_down_utc), ctx.zone) }) : t(mode === 'nap' ? 'home.type.nap' : 'home.type.night')}
+                  {attempt.put_down_utc
+                    ? t('home.putDownDone', { time: fmtClock(parseInstant(attempt.put_down_utc), ctx.zone) })
+                    : attempt.started_utc
+                      ? t('sleep.settleSince', { time: fmtClock(parseInstant(attempt.started_utc), ctx.zone) })
+                      : t(mode === 'nap' ? 'home.type.nap' : 'home.type.night')}
                 </p>
               </Ring>
             ) : awake.state === 'awake' ? (
@@ -254,10 +289,13 @@ export function Home({ goSettings }: { goSettings: () => void }) {
       </div>
 
       <div className="space-y-4 land:col-start-2 land:row-start-2">
-        {!attempt && (
-            <Btn className="flex w-full items-center justify-center gap-2" onClick={prepare}>
-              <Icon name="clock" size={18} />
-              {t('sleep.prepare')}
+        {!attempt && !open && (
+            <Btn
+              className={`flex w-full items-center justify-center gap-2 ${mode === 'night' ? 'border-2 border-accent' : ''}`}
+              onClick={prepare}
+            >
+              <Icon name={mode === 'night' ? 'moon' : 'clock'} size={18} />
+              {t(mode === 'night' ? 'sleep.routine' : 'sleep.prepare')}
             </Btn>
           )}
         {open ? (
@@ -274,19 +312,25 @@ export function Home({ goSettings }: { goSettings: () => void }) {
               {t('sleep.latency', { dur: fmtDur(Math.max(0, parseInstant(open.sleep_start_utc) - parseInstant(linkedAttempt.started_utc))) })}
             </p>
           )}
+          <Inset className="space-y-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span className="text-[13px] font-bold text-muted">{t('home.fixStart')}</span>
+              {[5, 10, 15].map((m) => (
+                <Chip key={m} className="bg-surface! px-3!" onClick={() => run(() => nudgeTime(ctx, open.id, 'start', -m))}>
+                  −{m} min
+                </Chip>
+              ))}
+            </div>
+            <Btn variant="ghost" className="flex w-full items-center justify-center gap-2" onClick={cancelOpenSleep}>
+              <Icon name="undo" size={18} />
+              {t('home.cancelSleep')}
+            </Btn>
+          </Inset>
+
           <Inset>
             <p className="mb-2 text-center text-[13px] font-bold text-muted">{t('sleep.howNow')}</p>
             <TagChips target={{ sessionId: open.id }} moment="onset" category="onset" slugs={SLEEP_HOW_SLUGS} onChanged={saveLastOnset} />
             <p className="mt-2 text-center text-[12px] font-semibold text-muted">{t('sleep.howRemembered')}</p>
-          </Inset>
-
-          <Inset className="flex flex-wrap items-center justify-center gap-2">
-            <span className="text-[13px] font-bold text-muted">{t('home.fixStart')}</span>
-            {[5, 10, 15].map((m) => (
-              <Chip key={m} onClick={() => run(() => nudgeTime(ctx, open.id, 'start', -m))}>
-                −{m} min
-              </Chip>
-            ))}
           </Inset>
 
           {open.sleep_type === 'night' && (
@@ -305,14 +349,10 @@ export function Home({ goSettings }: { goSettings: () => void }) {
             </Card>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <Tile icon="pencil" onClick={() => setNotes({ sessionId: open.id })}>
-              {t('home.notes')}
-            </Tile>
-            <Tile icon="undo" onClick={cancelOpenSleep}>
-              {t('home.cancelSleep')}
-            </Tile>
-          </div>
+          <Btn className="flex w-full items-center justify-center gap-2" onClick={() => setNotes({ sessionId: open.id })}>
+            <Icon name="pencil" size={18} />
+            {t('home.notes')}
+          </Btn>
           </>
         ) : (
           <>
@@ -392,6 +432,21 @@ export function Home({ goSettings }: { goSettings: () => void }) {
 
       </div>
 
+      {editingSession && (
+        <SessionSheet
+          key={editingSession.id + editingSession.rev}
+          session={editingSession}
+          onClose={() => setEditing(null)}
+          onNotes={() => {
+            setNotes({ sessionId: editingSession.id });
+            setEditing(null);
+          }}
+          onAwakenings={() => {
+            setAwakeSheet(editingSession.id);
+            setEditing(null);
+          }}
+        />
+      )}
       {notes && <NotesSheet target={notes} onClose={() => setNotes(null)} />}
       {awakeSheet && sessions.find((x) => x.id === awakeSheet) && (
         <AwakeningsSheet session={sessions.find((x) => x.id === awakeSheet) as SleepSessionT} onClose={() => setAwakeSheet(null)} />

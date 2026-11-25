@@ -78,6 +78,9 @@ const FIELD_LABEL: Record<string, string> = {
   intake: 'cuánto comió',
   diaper: 'pañal',
   note: 'nota',
+  // despertares (0.11.0)
+  reasons: 'motivos del despertar',
+  reason_note: 'explicación del motivo',
 };
 
 const ILLNESS_LABEL: Record<string, Record<string, string>> = {

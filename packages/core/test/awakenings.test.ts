@@ -72,17 +72,17 @@ describe('despertares nocturnos', () => {
     expect(d.awakeMs).toBe(90 * MIN);
   });
 
-  it('ignora los eliminados y los de otras sesiones o de siestas', () => {
+  it('ignora los eliminados y los de otras sesiones; los de una siesta son pausas: no cuentan como despertar, pero se descuentan', () => {
     const nap = session('p1', '2027-01-15T14:00', '2027-01-15T15:30');
     const d = day(
       [
         aw('a', '2027-01-16T01:00', '2027-01-16T02:00', { deleted_at: '2027-01-16T08:00:00.000Z' }),
-        aw('b', '2027-01-15T14:10', '2027-01-15T15:00', { session_id: 'p1' }), // en una siesta: no cuenta
+        aw('b', '2027-01-15T14:10', '2027-01-15T14:25', { session_id: 'p1' }), // pausa de 15 min en una siesta
         aw('c', '2027-01-16T03:00', '2027-01-16T04:00', { session_id: 'otra' }),
       ],
       { sessions: [nap, night] },
     );
-    expect(d).toMatchObject({ awakeningCount: 0, awakeMs: 0, napMs: 90 * MIN, nightMs: 10 * HOUR });
+    expect(d).toMatchObject({ awakeningCount: 0, awakeMs: 0, napMs: 75 * MIN, nightMs: 10 * HOUR, totalMs: 10 * HOUR + 75 * MIN });
   });
 
   it('el tramo se recorta a su noche: un fin posterior al despertar no descuenta de más', () => {

@@ -10,7 +10,7 @@ import { fmtClock, fmtDur, fmtElapsed } from '../ui/format';
 import { useLive, useNow } from '../ui/hooks';
 import { Icon } from '../ui/Icon';
 import { Btn, Card, Chip, Ring, Round, Sheet } from '../ui/primitives';
-import { FinishFeedingSheet } from './FeedingSheets';
+import { FeedingSheet, FinishFeedingSheet } from './FeedingSheets';
 import { NotesSheet } from './NotesSheet';
 
 /** «3 tomas · 420 ml» (los ml solo si hay biberones con cantidad). */
@@ -35,8 +35,10 @@ export function FeedingCard() {
   const [finishing, setFinishing] = useState<FeedingT | null>(null);
   const [options, setOptions] = useState(false);
   const [notes, setNotes] = useState<ObservationTarget | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const feedForecast = useMemo(() => buildForecast({ sessions: [], feedings: all, zone: ctx.zone, nowMs: now }).feed, [all, ctx.zone, now]);
   if (baby === null) return null;
+  const editingFeeding = editing === null ? undefined : all.find((x) => x.id === editing);
 
   const today = summarizeFeedings(all, localDate(now, ctx.zone), ctx.zone);
   const last = lastFeeding(all, now);
@@ -45,7 +47,10 @@ export function FeedingCard() {
   const done = (f: FeedingT) => {
     setFinishing(null);
     const dur = f.end_utc ? parseInstant(f.end_utc) - parseInstant(f.start_utc) : 0;
-    toast(t('feed.saved', { dur: fmtDur(dur) }), { label: t('home.notes'), run: () => setNotes({ feedingId: f.id }) });
+    toast(t('feed.saved', { dur: fmtDur(dur) }), [
+      { label: t('common.edit'), run: () => setEditing(f.id) },
+      { label: t('home.notes'), run: () => setNotes({ feedingId: f.id }) },
+    ]);
   };
 
   const cancelTake = async (f: FeedingT) => {
@@ -134,6 +139,17 @@ export function FeedingCard() {
         </Sheet>
       )}
       {finishing && <FinishFeedingSheet feeding={finishing} onClose={() => setFinishing(null)} onDone={done} />}
+      {editingFeeding && (
+        <FeedingSheet
+          key={editingFeeding.id + editingFeeding.rev}
+          feeding={editingFeeding}
+          onClose={() => setEditing(null)}
+          onNotes={() => {
+            setNotes({ feedingId: editingFeeding.id });
+            setEditing(null);
+          }}
+        />
+      )}
       {notes && <NotesSheet target={notes} onClose={() => setNotes(null)} />}
     </>
   );

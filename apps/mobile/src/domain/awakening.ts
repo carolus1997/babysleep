@@ -6,7 +6,13 @@ import { DomainError } from './context';
 import { localToMs } from './sleep';
 import { insertRow, newRow, restoreRow, softDelete, updateRow } from './write';
 
-export const AWAKENING_REASONS: readonly AwakeningReasonT[] = ['feeding', 'diaper', 'crying', 'other'];
+/** Los motivos que se ofrecen hoy; se pueden marcar varios. */
+export const AWAKENING_REASONS: readonly AwakeningReasonT[] = ['feeding', 'illness', 'discomfort', 'sleep', 'other'];
+export const MAX_REASON_NOTE = 500;
+
+/** Motivos de un despertar, también de los guardados antes de poder marcar varios. */
+export const reasonsOf = (a: { reason?: AwakeningReasonT | null; reasons?: readonly AwakeningReasonT[] }): AwakeningReasonT[] =>
+  a.reasons !== undefined && a.reasons.length > 0 ? [...a.reasons] : a.reason ? [a.reason] : [];
 export const MAX_AWAKENING_MINUTES = 600;
 
 /** Umbral del bebé en ms: desde esa duración un despertar se descuenta del sueño (por defecto 30 min). */
@@ -34,10 +40,16 @@ export async function getOpenAwakening(ctx: Ctx, sessionId: string): Promise<Awa
 
 // --------------------------------------------------------- validaciones
 
-async function nightSession(ctx: Ctx, sessionId: string): Promise<SleepSessionT> {
+/** En una noche son despertares; en una siesta, pausas. */
+async function liveSession(ctx: Ctx, sessionId: string): Promise<SleepSessionT> {
   const s = await ctx.db.sleep_session.get(sessionId);
   if (s === undefined || s.deleted_at !== null) throw new DomainError('not_found', 'Ese descanso no existe');
-  if (s.sleep_type !== 'night') throw new DomainError('invalid', 'Los despertares solo se registran en las noches');
+  return s;
+}
+
+async function nightSession(ctx: Ctx, sessionId: string): Promise<SleepSessionT> {
+  const s = await liveSession(ctx, sessionId);
+  if (s.sleep_type !== 'night') throw new DomainError('invalid', 'Solo las noches se confirman como completas');
   return s;
 }
 
@@ -46,28 +58,37 @@ function checkInside(s: SleepSessionT, startMs: number, nowMs: number): void {
   const from = parseInstant(s.sleep_start_utc);
   const to = s.sleep_end_utc === null ? nowMs : parseInstant(s.sleep_end_utc);
   if (startMs < from || startMs >= to) {
-    throw new DomainError('invalid_range', 'El despertar debe empezar durante la noche (entre que se durmió y se despertó)');
+    throw new DomainError('invalid_range', 'El despertar debe empezar durante el sueño (entre que se durmió y se despertó)');
   }
 }
 
 /** Anotar un despertar implica que los despertares de esa noche ya no son «desconocidos»: pasan a «algunos». */
 async function markPartial(ctx: Ctx, s: SleepSessionT): Promise<void> {
-  if (s.awakenings_completeness === 'unknown') {
+  if (s.sleep_type === 'night' && s.awakenings_completeness === 'unknown') {
     await updateRow(ctx, ctx.db.sleep_session, SleepSession, s.id, { awakenings_completeness: 'partial' });
   }
 }
 
-const cleanReason = (r: AwakeningReasonT | null | undefined): AwakeningReasonT | null => {
-  if (r == null) return null;
-  if (!AWAKENING_REASONS.includes(r)) throw new DomainError('invalid', 'Motivo no válido');
-  return r;
-};
+/** Sin repetidos y solo motivos de los que se ofrecen (o los antiguos que el registro ya tuviera). */
+function cleanReasons(list: readonly AwakeningReasonT[], kept: readonly AwakeningReasonT[] = []): AwakeningReasonT[] {
+  const out = [...new Set(list)];
+  if (out.some((r) => !AWAKENING_REASONS.includes(r) && !kept.includes(r))) throw new DomainError('invalid', 'Motivo no válido');
+  return out;
+}
+
+/** La explicación solo acompaña al motivo «otro». */
+function cleanNote(note: string | null | undefined, reasons: readonly AwakeningReasonT[]): string | null {
+  const v = (note ?? '').trim();
+  if (v === '' || !reasons.includes('other')) return null;
+  if (v.length > MAX_REASON_NOTE) throw new DomainError('invalid', `La explicación no puede pasar de ${MAX_REASON_NOTE} caracteres`);
+  return v;
+}
 
 // ------------------------------------------------------------ cronómetro
 
-/** «Se despertó»: abre un despertar en la noche indicada. Solo uno abierto por noche (se devuelve el existente). */
-export async function startAwakening(ctx: Ctx, sessionId: string, reason?: AwakeningReasonT | null): Promise<AwakeningT> {
-  const s = await nightSession(ctx, sessionId);
+/** «Se despertó» (noche) o «Pausa» (siesta): abre un despertar. Solo uno abierto por sueño (se devuelve el existente). */
+export async function startAwakening(ctx: Ctx, sessionId: string, reasons: readonly AwakeningReasonT[] = []): Promise<AwakeningT> {
+  const s = await liveSession(ctx, sessionId);
   const open = await getOpenAwakening(ctx, sessionId);
   if (open !== undefined) return open;
   const now = ctx.now();
@@ -85,7 +106,8 @@ export async function startAwakening(ctx: Ctx, sessionId: string, reason?: Awake
       end_utc: null,
       end_tz: null,
       end_quality: null,
-      reason: cleanReason(reason),
+      reason: null,
+      reasons: cleanReasons(reasons),
       source: 'timer',
     }),
   );
@@ -94,15 +116,13 @@ export async function startAwakening(ctx: Ctx, sessionId: string, reason?: Awake
 }
 
 /** «Se durmió de nuevo»: cierra el despertar en curso con la hora actual. */
-export async function finishAwakening(ctx: Ctx, id: string, reason?: AwakeningReasonT | null): Promise<AwakeningT> {
+export async function finishAwakening(ctx: Ctx, id: string): Promise<AwakeningT> {
   const a = await ctx.db.awakening.get(id);
   if (a === undefined) throw new DomainError('not_found', 'Despertar inexistente');
   if (!isAwake(a)) return a;
   const endMs = ctx.now();
   if (endMs <= parseInstant(a.start_utc)) throw new DomainError('invalid_range', 'El fin debe ser posterior al inicio');
-  const changes: Partial<AwakeningT> = { end_utc: toIso(endMs), end_tz: ctx.zone, end_quality: 'exact' };
-  if (reason !== undefined) changes.reason = cleanReason(reason);
-  return updateRow(ctx, ctx.db.awakening, Awakening, id, changes);
+  return updateRow(ctx, ctx.db.awakening, Awakening, id, { end_utc: toIso(endMs), end_tz: ctx.zone, end_quality: 'exact' });
 }
 
 // ----------------------------------------------------------- registro manual
@@ -114,17 +134,19 @@ export interface ManualAwakeningInput {
   startChoice?: 0 | 1;
   /** Duración en minutos. Opcional: si no se sabe queda VACÍA (cuenta como despertar, no descuenta tiempo). */
   durationMin?: number | null;
-  reason?: AwakeningReasonT | null;
+  reasons?: readonly AwakeningReasonT[];
+  note?: string | null;
 }
 
 export async function addManualAwakening(ctx: Ctx, input: ManualAwakeningInput): Promise<AwakeningT> {
-  const s = await nightSession(ctx, input.sessionId);
+  const s = await liveSession(ctx, input.sessionId);
   const dur = input.durationMin ?? null;
   if (dur !== null && (!Number.isInteger(dur) || dur < 1 || dur > MAX_AWAKENING_MINUTES)) {
     throw new DomainError('invalid_range', `La duración debe estar entre 1 y ${MAX_AWAKENING_MINUTES} minutos`);
   }
   const start = localToMs(input.startLocal, ctx.zone, input.startChoice);
   checkInside(s, start, ctx.now());
+  const reasons = cleanReasons(input.reasons ?? []);
   const a = await insertRow(
     ctx.db.awakening,
     Awakening,
@@ -138,7 +160,9 @@ export async function addManualAwakening(ctx: Ctx, input: ManualAwakeningInput):
       end_utc: dur === null ? null : toIso(start + dur * MS_PER_MIN),
       end_tz: dur === null ? null : ctx.zone,
       end_quality: dur === null ? null : 'approx',
-      reason: cleanReason(input.reason),
+      reason: null,
+      reasons,
+      reason_note: cleanNote(input.note, reasons),
       source: 'manual',
     }),
   );
@@ -152,7 +176,8 @@ export interface AwakeningPatch {
   startMs?: number;
   /** `null` = duración desconocida. */
   endMs?: number | null;
-  reason?: AwakeningReasonT | null;
+  reasons?: readonly AwakeningReasonT[];
+  note?: string | null;
 }
 
 export async function editAwakening(ctx: Ctx, id: string, patch: AwakeningPatch): Promise<AwakeningT> {
@@ -162,7 +187,7 @@ export async function editAwakening(ctx: Ctx, id: string, patch: AwakeningPatch)
   const end = patch.endMs === undefined ? (cur.end_utc === null ? null : parseInstant(cur.end_utc)) : patch.endMs;
   if (end !== null && end <= start) throw new DomainError('invalid_range', 'El fin debe ser posterior al inicio');
   if (patch.startMs !== undefined) {
-    const s = await nightSession(ctx, cur.session_id);
+    const s = await liveSession(ctx, cur.session_id);
     checkInside(s, start, ctx.now());
   }
   const changes: Partial<AwakeningT> = {};
@@ -177,7 +202,13 @@ export async function editAwakening(ctx: Ctx, id: string, patch: AwakeningPatch)
     // Sin fin y de cronómetro sería «en curso»: al dejarlo sin duración pasa a manual (duración desconocida).
     if (end === null && cur.source === 'timer') changes.source = 'manual';
   }
-  if (patch.reason !== undefined) changes.reason = cleanReason(patch.reason);
+  if (patch.reasons !== undefined || patch.note !== undefined) {
+    const before = reasonsOf(cur);
+    const reasons = patch.reasons === undefined ? before : cleanReasons(patch.reasons, before);
+    changes.reason = null;
+    changes.reasons = reasons;
+    changes.reason_note = cleanNote(patch.note === undefined ? cur.reason_note : patch.note, reasons);
+  }
   return updateRow(ctx, ctx.db.awakening, Awakening, id, changes);
 }
 

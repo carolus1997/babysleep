@@ -5,7 +5,7 @@
 -- Después crea tu familia (ver docs/development/supabase-setup.md):
 --   select app.bootstrap_family('Mi familia', 'Tu nombre', 'tu-correo@ejemplo.com');
 --
--- Contiene: 0001_init.sql, 0002_security.sql, 0003_sync.sql, 0004_baby_profile.sql, 0005_sync_restore.sql, 0006_family_admin.sql, 0007_resolve_conflict.sql, 0008_feeding.sql, 0009_feed_reminders.sql, 0010_awakenings.sql, 0011_health_vaccines.sql, 0012_appointments.sql, 0013_growth.sql, 0014_medication.sql, 0015_illness.sql, 0016_feeding_mixed.sql
+-- Contiene: 0001_init.sql, 0002_security.sql, 0003_sync.sql, 0004_baby_profile.sql, 0005_sync_restore.sql, 0006_family_admin.sql, 0007_resolve_conflict.sql, 0008_feeding.sql, 0009_feed_reminders.sql, 0010_awakenings.sql, 0011_health_vaccines.sql, 0012_appointments.sql, 0013_growth.sql, 0014_medication.sql, 0015_illness.sql, 0016_feeding_mixed.sql, 0017_awakening_reasons.sql
 
 -- ================================================================
 -- 0001_init.sql
@@ -3509,3 +3509,33 @@ alter table app.feeding
   add constraint feeding_amount_ml_type_check check (amount_ml is null or feed_type in ('bottle', 'mixed'));
 
 update app.app_meta set value = '0.16.0' where key = 'schema_version';
+
+-- ================================================================
+-- 0017_awakening_reasons.sql
+-- ================================================================
+
+-- BabySleep · migración 0017 · varios motivos por despertar (contrato v0.11.0)
+--
+--  * `awakening.reasons`: los motivos de un despertar (se pueden marcar varios): toma, enfermedad, incomodidad,
+--    sueño u otro. `diaper` y `crying` ya no se ofrecen, pero se admiten porque hay registros antiguos.
+--  * `awakening.reason_note`: texto libre para explicar el motivo «otro».
+--  * La columna antigua `reason` se conserva: los registros de antes siguen tal cual y los móviles aún sin actualizar
+--    pueden seguir enviando datos.
+--  * `apply_changes` no cambia: admite las columnas que tenga la tabla.
+--
+-- HAY QUE EJECUTARLA ANTES de publicar la versión de la app que la usa: si no, el servidor rechaza los despertares.
+
+alter table app.awakening
+  add column if not exists reasons text[] not null default '{}',
+  add column if not exists reason_note text;
+
+alter table app.awakening
+  drop constraint if exists awakening_reasons_check,
+  drop constraint if exists awakening_reason_note_check;
+alter table app.awakening
+  add constraint awakening_reasons_check
+    check (reasons <@ array['feeding', 'illness', 'discomfort', 'sleep', 'other', 'diaper', 'crying']::text[]
+           and cardinality(reasons) <= 7),
+  add constraint awakening_reason_note_check check (reason_note is null or char_length(reason_note) <= 500);
+
+update app.app_meta set value = '0.17.0' where key = 'schema_version';

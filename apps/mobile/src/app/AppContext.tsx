@@ -8,9 +8,14 @@ import { t } from '../i18n/es';
 import { useAutoSync } from '../sync/useAutoSync';
 import { useLive } from '../ui/hooks';
 
+export interface ToastAction {
+  label: string;
+  run: () => void | Promise<void>;
+}
+
 interface ToastState {
   msg: string;
-  action?: { label: string; run: () => void | Promise<void> };
+  actions: readonly ToastAction[];
 }
 
 interface AppState {
@@ -20,7 +25,11 @@ interface AppState {
   selectBaby: (id: string) => void;
   /** Sustituye el contexto (p. ej. al conectar la sincronización, que cambia la familia y el cuidador locales). */
   replaceCtx: (ctx: Ctx) => void;
-  toast: (msg: string, action?: ToastState['action']) => void;
+  toast: (msg: string, action?: ToastAction | readonly ToastAction[]) => void;
+  /** Cuántas veces se ha iniciado sesión desde que se abrió la app: cada una muestra la bienvenida. */
+  welcome: number;
+  /** Se llama al entrar con la cuenta: es el único momento en el que sale la bienvenida. */
+  showWelcome: () => void;
   /** Ejecuta una acción de dominio mostrando los errores como aviso, sin romper la pantalla. */
   run: <T>(fn: () => Promise<T>) => Promise<T | undefined>;
 }
@@ -68,8 +77,11 @@ function Ready({ ctx, replaceCtx, children }: { ctx: Ctx; replaceCtx: (ctx: Ctx)
   const [toastState, setToast] = useState<ToastState | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const toast = useCallback((msg: string, action?: ToastState['action']) => {
-    setToast(action === undefined ? { msg } : { msg, action });
+  const [welcome, setWelcome] = useState(0);
+  const showWelcome = useCallback(() => setWelcome((n) => n + 1), []);
+
+  const toast = useCallback((msg: string, action?: ToastAction | readonly ToastAction[]) => {
+    setToast({ msg, actions: action === undefined ? [] : 'run' in action ? [action] : action });
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(null), 7000);
   }, []);
@@ -96,8 +108,10 @@ function Ready({ ctx, replaceCtx, children }: { ctx: Ctx; replaceCtx: (ctx: Ctx)
       replaceCtx,
       toast,
       run,
+      welcome,
+      showWelcome,
     }),
-    [ctx, babies, activeId, toast, run, replaceCtx],
+    [ctx, babies, activeId, toast, run, replaceCtx, welcome, showWelcome],
   );
 
   return (
@@ -109,17 +123,21 @@ function Ready({ ctx, replaceCtx, children }: { ctx: Ctx; replaceCtx: (ctx: Ctx)
           className="fixed inset-x-3 bottom-24 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl bg-fg px-4 py-3 text-bg shadow-lg land:bottom-3 land:left-auto land:right-[calc(0.75rem+env(safe-area-inset-right))] land:mx-0 land:max-w-sm"
         >
           <span>{toastState.msg}</span>
-          {toastState.action && (
-            <button
-              className="rounded-lg px-3 py-1 font-semibold underline"
-              onClick={() => {
-                const a = toastState.action;
-                setToast(null);
-                void a?.run();
-              }}
-            >
-              {toastState.action.label}
-            </button>
+          {toastState.actions.length > 0 && (
+            <span className="flex shrink-0 items-center gap-1">
+              {toastState.actions.map((a) => (
+                <button
+                  key={a.label}
+                  className="min-h-11 rounded-lg px-2.5 font-semibold underline"
+                  onClick={() => {
+                    setToast(null);
+                    void a.run();
+                  }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </span>
           )}
         </div>
       )}

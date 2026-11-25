@@ -1170,4 +1170,27 @@ begin
   perform tests.as_superuser();
 end $$;
 
+-- S36 · varios motivos por despertar (0017)
+do $$
+declare r jsonb; v_reasons text[]; v_note text;
+begin
+  perform tests.as_user('a0000000-0000-4000-8000-000000000001', 'admin-a@example.test');
+  r := tests.go(tests.op('awakening', 170, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'session_id', tests.u(90), 'start_utc', '2027-02-02T04:00:00.000Z', 'start_tz', 'Europe/Madrid',
+    'reasons', jsonb_build_array('sleep', 'other'), 'reason_note', 'se destapo', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S36a varios motivos y su explicacion');
+  r := tests.go(tests.op('awakening', 170, 1, jsonb_build_object('reasons', jsonb_build_array('illness'), 'reason_note', null)));
+  perform tests.assert(r ->> 'status' = 'applied', 'S36b editar los motivos');
+  r := tests.go(tests.op('awakening', 171, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'session_id', tests.u(90), 'start_utc', '2027-02-02T04:30:00.000Z', 'start_tz', 'Europe/Madrid',
+    'reasons', jsonb_build_array('hambre'), 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'rejected', 'S36c un motivo desconocido: rechazado');
+  r := tests.go(tests.op('awakening', 172, null, jsonb_build_object(
+    'baby_id', tests.u(1), 'session_id', tests.u(90), 'start_utc', '2027-02-02T05:00:00.000Z', 'start_tz', 'Europe/Madrid', 'source', 'manual')));
+  perform tests.assert(r ->> 'status' = 'applied', 'S36d un movil sin actualizar puede seguir sin enviar motivos');
+  perform tests.as_superuser();
+  select reasons, reason_note into v_reasons, v_note from app.awakening where id = tests.u(170);
+  perform tests.assert(v_reasons = array['illness'] and v_note is null, 'S36e queda guardado');
+end $$;
+
 rollback;

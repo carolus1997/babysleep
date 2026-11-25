@@ -44,6 +44,9 @@ export function awakeStatus(input: { sessions: readonly SleepSessionT[]; zone: s
     elapsedMs,
     after: last.sleep_type,
     stale: elapsedMs > AWAKE_STALE_AFTER_MS,
-    usual: f.state === 'awake' && f.range !== null ? { fromMs: f.range.fromMs - f.awakeSinceMs, toMs: f.range.toMs - f.awakeSinceMs } : null,
+    usual:
+      f.state === 'awake' && f.range !== null && f.range.toMs > f.awakeSinceMs
+        ? { fromMs: Math.max(0, f.range.fromMs - f.awakeSinceMs), toMs: f.range.toMs - f.awakeSinceMs }
+        : null,
   };
 }

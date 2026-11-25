@@ -1,10 +1,12 @@
 import type { ObservationMomentT, TagT } from '@babysleep/contract';
+import { localDate, parseInstant } from '@babysleep/core';
 import { useEffect, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { findObservation, listTags, saveObservation, tagIdsOf, type ObservationTarget } from '../domain/notes';
 import { t, type I18nKey } from '../i18n/es';
 import { useLive } from '../ui/hooks';
 import { Btn, Chip, inputCls, Sheet } from '../ui/primitives';
+import { EventDiary, EventSheet } from './EventDiary';
 
 interface Draft {
   text: string;
@@ -25,6 +27,16 @@ export function NotesSheet({ target, onClose }: { target: ObservationTarget; onC
   const moments: ObservationMomentT[] = 'sessionId' in target ? ['onset', 'during', 'wake'] : 'attemptId' in target ? ['settling'] : ['feeding'];
   const [drafts, setDrafts] = useState<Partial<Record<ObservationMomentT, Draft>>>({});
   const tags = useLive(() => listTags(ctx), [ctx], [] as TagT[]);
+  const [addingEvent, setAddingEvent] = useState(false);
+  // La fecha propuesta para un acontecimiento es la del sueño del que se viene (o la de hoy).
+  const eventDate = useLive(
+    async () => {
+      const s = 'sessionId' in target ? await ctx.db.sleep_session.get(target.sessionId) : undefined;
+      return localDate(s ? parseInstant(s.sleep_start_utc) : ctx.now(), ctx.zone);
+    },
+    [ctx],
+    localDate(ctx.now(), ctx.zone),
+  );
 
   useEffect(() => {
     let alive = true;
@@ -58,6 +70,9 @@ export function NotesSheet({ target, onClose }: { target: ObservationTarget; onC
       onClose();
     }
   };
+
+  // La hoja del acontecimiento sustituye a esta; lo escrito en las notas se conserva para cuando se vuelva.
+  if (addingEvent) return <EventSheet defaultDate={eventDate} onClose={() => setAddingEvent(false)} />;
 
   return (
     <Sheet title={t('notes.title')} onClose={onClose}>
@@ -105,6 +120,7 @@ export function NotesSheet({ target, onClose }: { target: ObservationTarget; onC
             </section>
           );
         })}
+        <EventDiary onAdd={() => setAddingEvent(true)} />
       </div>
       <p className="my-2 text-sm text-muted">{t('notes.optional')}</p>
       <Btn variant="primary" className="w-full" onClick={save}>

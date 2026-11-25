@@ -258,7 +258,7 @@ export function FeedingSheet({ feeding, onClose, onNotes }: { feeding: FeedingT;
     <Sheet title={t('feed.edit')} onClose={onClose}>
       <TypeChips value={type} onChange={setType} />
       <TimeField label={t('session.start')} value={start} onChange={setStart} choice={sc} onChoice={setSc} zone={ctx.zone} />
-      <TimeField label={t('session.end')} value={end} onChange={setEnd} choice={ec} onChoice={setEc} zone={ctx.zone} />
+      <TimeField label={t('session.end')} value={end} onChange={setEnd} choice={ec} onChoice={setEc} zone={ctx.zone} after={start} />
       {hasBreast(type) && <SideChips value={side} onChange={setSide} />}
       {hasBottle(type) && <MlField value={ml} onChange={setMl} />}
       <div className="flex flex-col gap-2">

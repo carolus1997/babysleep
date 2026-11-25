@@ -1,12 +1,10 @@
-import type { BabyT, EventCategoryT, LifeEventT } from '@babysleep/contract';
-import { Icon } from '../ui/Icon';
+import type { BabyT } from '@babysleep/contract';
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { BUILD_ID, BUILD_TIME } from '../build-info';
 import { createBaby, deleteBaby, listDeletedBabies, renameBaby, restoreBaby } from '../domain/bootstrap';
 import { buildBackupJson, buildFeedingsCsv, buildSessionsCsv } from '../domain/export';
 import { applyImport, planImport, type ImportPlan } from '../domain/import';
-import { addLifeEvent, deleteLifeEvent, listLifeEvents } from '../domain/notes';
 import { mergeBabies } from '../domain/merge';
 import { removeBabyPhoto, setBabyPhoto } from '../domain/photo';
 import { t } from '../i18n/es';
@@ -55,7 +53,7 @@ function DeleteBabySheet({ baby, onClose, onDone }: { baby: BabyT; onClose: () =
   );
 }
 
-function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void }) {
+export function BabySheet({ baby, onClose }: { baby: BabyT | null; onClose: () => void }) {
   const { ctx, babies, run, toast } = useApp();
   const [deleting, setDeleting] = useState(false);
   const [alias, setAlias] = useState(baby?.alias ?? '');
@@ -313,68 +311,15 @@ function ImportSheet({ plan, onClose }: { plan: ImportPlan; onClose: () => void 
   );
 }
 
-function EventSheet({ onClose }: { onClose: () => void }) {
-  const { ctx, baby, run } = useApp();
-  const cats = useLive(() => ctx.db.event_category.toArray(), [ctx], [] as EventCategoryT[]);
-  const [cat, setCat] = useState('');
-  const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
-  const [end, setEnd] = useState('');
-  const [desc, setDesc] = useState('');
-  const [all, setAll] = useState(false);
-  const categoryId = cat || cats[0]?.id || '';
-  return (
-    <Sheet title={t('settings.addEvent')} onClose={onClose}>
-      <Field label={t('event.category')}>
-        <select className={inputCls} value={categoryId} onChange={(e) => setCat(e.target.value)}>
-          {cats.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label_i18n['es']}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label={t('event.start')}>
-        <input className={inputCls} type="date" value={start} onChange={(e) => setStart(e.target.value)} />
-      </Field>
-      <Field label={t('event.end')}>
-        <input className={inputCls} type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} />
-      </Field>
-      <Field label={t('event.description')}>
-        <input className={inputCls} value={desc} onChange={(e) => setDesc(e.target.value)} />
-      </Field>
-      <label className="mb-4 flex min-h-11 items-center gap-2">
-        <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
-        {t('event.allFamily')}
-      </label>
-      <Btn
-        variant="primary"
-        className="w-full"
-        disabled={!categoryId || !start}
-        onClick={async () => {
-          const ok = await run(() =>
-            addLifeEvent(ctx, { babyId: all ? null : (baby?.id ?? null), categoryId, startDate: start, endDate: end || null, description: desc }),
-          );
-          if (ok) onClose();
-        }}
-      >
-        {t('event.save')}
-      </Btn>
-    </Sheet>
-  );
-}
-
 export function Settings({ onReplayTour }: { onReplayTour: () => void }) {
-  const { ctx, babies, baby, run, toast } = useApp();
+  const { ctx, babies, run, toast } = useApp();
   const [babySheet, setBabySheet] = useState<BabyT | null | 'new'>(null);
-  const [eventSheet, setEventSheet] = useState(false);
   const [mergeSheet, setMergeSheet] = useState(false);
   const deletedBabies = useLive(() => listDeletedBabies(ctx), [ctx], [] as BabyT[]);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [theme, setTheme] = useState<ThemePref>(getThemePref());
   const [persisted, setPersisted] = useState<boolean | null>(null);
-  const events = useLive(() => (baby ? listLifeEvents(ctx, baby.id) : Promise.resolve([])), [ctx, baby?.id], [] as LifeEventT[]);
-  const cats = useLive(() => ctx.db.event_category.toArray(), [ctx], [] as EventCategoryT[]);
   const lastExport = useLive(async () => (await ctx.db.meta.get('last_export_at'))?.value as string | undefined, [ctx], undefined as string | undefined);
 
   useEffect(() => {
@@ -438,26 +383,6 @@ export function Settings({ onReplayTour }: { onReplayTour: () => void }) {
           </ul>
         </Card>
       )}
-
-      <Card title={t('settings.diary')}>
-        <ul className="divide-y divide-line">
-          {events.map((e) => (
-            <li key={e.id} className="flex min-h-12 items-center justify-between text-sm">
-              <span>
-                <strong>{cats.find((c) => c.id === e.category_id)?.label_i18n['es']}</strong> · {e.start_date}
-                {e.end_date ? ` → ${e.end_date}` : ''}
-                {e.description ? ` · ${e.description}` : ''}
-              </span>
-              <Btn variant="ghost" aria-label={t('common.delete')} onClick={() => run(() => deleteLifeEvent(ctx, e.id))}>
-                <Icon name="close" size={18} />
-              </Btn>
-            </li>
-          ))}
-        </ul>
-        <Btn className="mt-2 w-full" onClick={() => setEventSheet(true)}>
-          + {t('settings.addEvent')}
-        </Btn>
-      </Card>
 
       <SyncCard />
 
@@ -530,7 +455,6 @@ export function Settings({ onReplayTour }: { onReplayTour: () => void }) {
       </Card>
 
       {babySheet !== null && <BabySheet baby={babySheet === 'new' ? null : babySheet} onClose={() => setBabySheet(null)} />}
-      {eventSheet && <EventSheet onClose={() => setEventSheet(false)} />}
       {mergeSheet && <MergeSheet onClose={() => setMergeSheet(false)} />}
       {plan && <ImportSheet plan={plan} onClose={() => setPlan(null)} />}
     </div>
